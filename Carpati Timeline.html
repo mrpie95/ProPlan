@@ -989,62 +989,59 @@
 </head>
 <body data-view="plan">
 
-<header>
-  <div class="brand">Timeline</div>
+<header class="hdr">
+  <div class="hdr-row hdr-top">
+    <div class="brand">✦ Timeline</div>
 
-  <div class="view-toggle">
-    <button class="view-btn selected" data-view="plan">📋 Plan</button>
-    <button class="view-btn" data-view="timeline">📅 Timeline</button>
-  </div>
+    <div class="view-toggle">
+      <button class="view-btn selected" data-view="plan">Plan</button>
+      <button class="view-btn" data-view="viewA">Timeline</button>
+      <button class="view-btn" data-view="overview" title="WP roll-up">Overview</button>
+      <button class="view-btn" data-view="present" title="Coming soon">Present</button>
+    </div>
 
-  <div class="seg timeline-only">
-    <label>Start</label>
-    <input type="month" id="startDate" />
-  </div>
-  <div class="seg timeline-only">
-    <label>End</label>
-    <input type="month" id="endDate" />
-  </div>
+    <div class="spacer"></div>
 
-  <div class="type-group timeline-only" id="typeGroup"></div>
-
-  <button class="chip timeline-only" id="autoSeq" title="Lay bars out in dependency order">Auto-sequence</button>
-
-  <div class="seg zoom timeline-only">
-    <label>Zoom</label>
-    <input type="range" id="zoom" min="40" max="240" step="5" value="70" />
-  </div>
-
-  <div class="spacer"></div>
-
-  <button class="chip ghost" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">🌙</button>
-
-  <div class="menu-wrap">
-    <button class="chip primary" id="moreBtn">Menu ▾</button>
-    <div class="drop" id="moreMenu">
-      <div class="section">Presets</div>
-      <button data-cmd="loadCarpati">Load Carpati WPs (with sub-tasks)</button>
-      <div class="sep"></div>
-      <div class="section">Export</div>
-      <button data-cmd="png">Export PNG</button>
-      <button data-cmd="pdf">Export PDF</button>
-      <button data-cmd="html">Export HTML</button>
-      <div class="sep"></div>
-      <div class="section">Data</div>
-      <button data-cmd="json">Export JSON</button>
-      <button data-cmd="import">Import JSON…</button>
-      <div class="sep"></div>
-      <button data-cmd="clear" class="danger">Clear timeline</button>
+    <div class="menu-wrap">
+      <button class="chip primary" id="moreBtn">Menu ▾</button>
+      <div class="drop" id="moreMenu">
+        <div class="section">Appearance</div>
+        <button data-cmd="toggleTheme" id="themeMenuItem">🌙 Toggle theme</button>
+        <div class="sep"></div>
+        <div class="section">Presets</div>
+        <button data-cmd="loadCarpati">Load Carpati WPs (with sub-tasks)</button>
+        <div class="sep"></div>
+        <div class="section">Export</div>
+        <button data-cmd="png">Export PNG</button>
+        <button data-cmd="pdf">Export PDF</button>
+        <button data-cmd="html">Export HTML</button>
+        <div class="sep"></div>
+        <div class="section">Data</div>
+        <button data-cmd="json">Export JSON</button>
+        <button data-cmd="import">Import JSON…</button>
+        <div class="sep"></div>
+        <button data-cmd="clear" class="danger">Clear timeline</button>
+      </div>
     </div>
   </div>
+
+  <div class="hdr-row hdr-tier2 timeline-only">
+    <div class="seg"><label>Start</label><input type="month" id="startDate" /></div>
+    <div class="seg"><label>End</label><input type="month" id="endDate" /></div>
+    <div class="seg zoom"><label>Zoom</label><input type="range" id="zoom" min="40" max="240" step="5" value="70" /></div>
+    <div class="spacer"></div>
+    <button class="chip" id="todayToggle" title="Show / hide today line">📍 Today</button>
+    <button class="chip" id="autoSeq" title="Lay bars out in dependency order">✨ Auto-sequence</button>
+  </div>
+
   <input type="file" id="importFile" accept="application/json" hidden />
 </header>
 
 <div class="hint plan-hint">
-  Add work packages and tasks here. Each task has a type, a default duration in months, and dependencies. Switch to <strong>Timeline</strong> to lay them out on a calendar.
+  Add some work packages and tasks below. Pop into <strong>Timeline</strong> when you're ready to drag them around on a calendar.
 </div>
 <div class="hint timeline-hint">
-  Hover any bar to see the <span class="pill"></span> blue handle on its right edge — drag it onto another bar to set a dependency. Click the dark "N deps" badge above a bar to edit predecessors. Auto-sequence snaps everything to its earliest legal start.
+  Hover a bar to grab its <span class="pill"></span> blue dot — drag it onto another bar to link them. Tap the badge above a bar to edit its predecessors. <strong>Auto-sequence</strong> snaps everything tight.
 </div>
 
 <main>
@@ -1052,6 +1049,28 @@
   <div id="timelineView">
     <div class="wrap" id="wrap">
       <div class="timeline" id="timeline"></div>
+    </div>
+  </div>
+  <div id="viewAView">
+    <div class="wrap" id="viewAWrap">
+      <div class="timeline" id="viewATimeline"></div>
+    </div>
+  </div>
+  <div id="viewBView">
+    <div class="wrap" id="viewBWrap">
+      <div class="timeline" id="viewBTimeline"></div>
+    </div>
+  </div>
+  <div id="overviewView">
+    <div class="wrap" id="overviewWrap">
+      <div class="timeline" id="overviewTimeline"></div>
+    </div>
+  </div>
+  <div id="presentView">
+    <div class="present-stub">
+      <div class="emoji">🎬</div>
+      <h2>Present mode is on its way</h2>
+      <p>This will hide the chrome, tighten everything up, and turn the timeline into something you'd actually want to show in a meeting. Soon.</p>
     </div>
   </div>
 </main>
