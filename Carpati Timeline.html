@@ -1086,9 +1086,11 @@ const TYPES = {
 
 let activeType = "work";
 let currentView = "plan";
-const STORAGE_KEY = "proplan.v3";
+const STORAGE_KEY = "proplan.v4";
+const LEGACY_STORAGE_KEY = "proplan.v3";
 const VIEW_KEY = "proplan.view";
 const LABEL_W = 240;
+const WEEKS_PER_MONTH = 4;
 
 /* One-time migration: legacy "carpati-timeline.*" localStorage keys → "proplan.*" */
 (function migrateLegacyStorage() {
@@ -1126,7 +1128,7 @@ function presetState() {
    "w9_landscape","w9_fto"
   ].forEach(k => i[k] = bid());
 
-  return {
+  const __preset = {
     start: "2026-01",
     end: "2027-06",
     colWidth: 70,
@@ -1180,6 +1182,8 @@ function presetState() {
       ]},
     ]
   };
+  spansToWeeks(__preset);
+  return __preset;
 }
 
 let state = loadState() || presetState();
@@ -1192,11 +1196,26 @@ function normaliseState(s) {
     }
   }
 }
+/* Convert month-based spans to week-based (v3 → v4). 1 month ≈ WEEKS_PER_MONTH weeks. */
+function spansToWeeks(s) {
+  for (const lane of s.lanes || []) {
+    for (const bar of lane.bars || []) {
+      if (bar.type === "milestone") { bar.span = 0; continue; }
+      bar.span = Math.max(1, Math.round((bar.span || 1) * WEEKS_PER_MONTH));
+    }
+  }
+}
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
+    if (raw) return JSON.parse(raw);
+    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (legacy) {
+      const s = JSON.parse(legacy);
+      spansToWeeks(s);
+      return s;
+    }
+    return null;
   } catch { return null; }
 }
 function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
@@ -1301,7 +1320,7 @@ function renderTaskRow(bar, map) {
     <span class="task-span">
       ${isMilestone
         ? `<span class="task-span-label">milestone</span>`
-        : `<input type="number" min="1" value="${bar.span}" class="task-span-input" data-action="set-span" /><span class="task-span-label">mo</span>`}
+        : `<input type="number" min="1" value="${bar.span}" class="task-span-input" data-action="set-span" /><span class="task-span-label">wk</span>`}
     </span>
     <span class="task-deps" data-action="edit-deps">
       ${deps || '<span class="dep-empty">(no dependencies)</span>'}
@@ -1352,7 +1371,7 @@ function attachPlanHandlers() {
         } else if (action === "add-task") {
           state.lanes[idx].bars.push({
             id: bid(), type: activeType === "milestone" ? "work" : activeType,
-            startIdx: 0, span: 1, label: "New task", dependsOn: []
+            startIdx: 0, span: WEEKS_PER_MONTH, label: "New task", dependsOn: []
           });
         }
         saveState();
@@ -1372,7 +1391,7 @@ function attachPlanHandlers() {
           const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
           bar.type = typeSel.value;
           if (bar.type === "milestone") bar.span = 0;
-          else if (bar.span === 0) bar.span = 1;
+          else if (bar.span === 0) bar.span = WEEKS_PER_MONTH;
           saveState();
           renderPlan();
         });
@@ -1577,7 +1596,7 @@ function renderSingleBar(b, colW) {
   const depChip = depCount ? `<div class="dep-chip" data-action="edit-deps" title="${depCount} predecessor${depCount > 1 ? "s" : ""} — click to edit">${depCount} dep${depCount > 1 ? "s" : ""}</div>` : "";
   const labelText = b.label || "(untitled)";
   const tipParts = [labelText, t.label];
-  if (b.type !== "milestone") tipParts.push(`${b.span} mo`);
+  if (b.type !== "milestone") tipParts.push(`${b.span} wk`);
   if (depCount) tipParts.push(`${depCount} dep${depCount > 1 ? "s" : ""}`);
   const tip = escapeHtml(tipParts.join(" · "));
 
@@ -1593,7 +1612,7 @@ function renderSingleBar(b, colW) {
     </div>`;
   }
   const x = b.startIdx * colW;
-  const w = Math.max(1, b.span) * colW;
+  const w = Math.max(1, b.span / WEEKS_PER_MONTH) * colW;
   const narrowCls = w < 64 ? " narrow" : "";
   return `<div class="bar${narrowCls}" data-bar="${b.id}" title="${tip}"
     style="left:${x}px; width:${w}px; top:calc(50% - 14px); background:${t.bar}; border-color:${t.border};">
@@ -1769,7 +1788,7 @@ function renderOverviewBar(b, colW) {
   const t = TYPES[b.type] || TYPES.work;
   const labelText = b.label || "(untitled)";
   const tipParts = [labelText, t.label];
-  if (b.type !== "milestone") tipParts.push(`${b.span}mo`);
+  if (b.type !== "milestone") tipParts.push(`${b.span}wk`);
   const tip = escapeHtml(tipParts.join(" · "));
 
   if (b.type === "milestone") {
@@ -1782,7 +1801,7 @@ function renderOverviewBar(b, colW) {
     </div>`;
   }
   const x = b.startIdx * colW;
-  const w = Math.max(1, b.span) * colW;
+  const w = Math.max(1, b.span / WEEKS_PER_MONTH) * colW;
   return `<div class="ov-bar" data-bar="${b.id}" title="${tip}"
     style="left:${x}px; width:${w}px; background:${t.bar}; border-color:${t.border};">${escapeHtml(labelText)}</div>`;
 }
@@ -1853,7 +1872,7 @@ function renderViewA() {
       let summaryHtml = "";
       if (lane.bars.length) {
         const earliest = Math.min(...lane.bars.map(b => b.startIdx));
-        const latest = Math.max(...lane.bars.map(b => b.startIdx + Math.max(b.type === "milestone" ? 0 : 1, b.span || 0)));
+        const latest = Math.max(...lane.bars.map(b => b.startIdx + (b.type === "milestone" ? 0 : Math.max(1, (b.span || 0) / WEEKS_PER_MONTH))));
         const sLeft = earliest * colW;
         const sWidth = Math.max(8, (latest - earliest) * colW);
         summaryHtml = `<div class="wp-summary-span" style="left:${sLeft}px; width:${sWidth}px; background:${phase.accent};"></div>`;
@@ -1954,7 +1973,7 @@ function renderInlineBar(b, colW) {
   const labelText = b.label || "(untitled)";
   const depCount = (b.dependsOn || []).length;
   const depChip = depCount ? `<div class="dep-chip">${depCount} dep${depCount > 1 ? "s" : ""}</div>` : "";
-  const tip = escapeHtml(`${labelText} · ${t.label}${b.type !== "milestone" ? ` · ${b.span}mo` : ""}`);
+  const tip = escapeHtml(`${labelText} · ${t.label}${b.type !== "milestone" ? ` · ${b.span}wk` : ""}`);
 
   if (b.type === "milestone") {
     const x = b.startIdx * colW + colW / 2;
@@ -1968,7 +1987,7 @@ function renderInlineBar(b, colW) {
     </div>`;
   }
   const x = b.startIdx * colW;
-  const w = Math.max(1, b.span) * colW;
+  const w = Math.max(1, b.span / WEEKS_PER_MONTH) * colW;
   const narrowCls = w < 80 ? " narrow" : "";
   return `<div class="bar inline-bar${narrowCls}" data-bar="${b.id}" title="${tip}"
     style="left:${x}px; width:${w}px; top:calc(50% - 14px); background:${t.bar}; border-color:${t.border};">
@@ -2157,7 +2176,7 @@ function autoSequence() {
     let earliest = 0;
     for (const predId of (bar.dependsOn || [])) {
       const p = map[predId]; if (!p) continue;
-      const pe = p.bar.startIdx + Math.max(p.bar.type === "milestone" ? 0 : 1, p.bar.span || 0);
+      const pe = p.bar.startIdx + (p.bar.type === "milestone" ? 0 : Math.max(1, Math.ceil((p.bar.span || 0) / WEEKS_PER_MONTH)));
       if (pe > earliest) earliest = pe;
     }
     bar.startIdx = earliest;
@@ -2352,15 +2371,17 @@ function beginBarDrag(barId, laneId, mode, startEvent, colW) {
   barEl?.classList.add("dragging");
   function onMove(ev) {
     const dx = ev.clientX - startX; const dCols = Math.round(dx / colW);
+    const spanMonths = Math.max(1, Math.round(origSpan / WEEKS_PER_MONTH));
     if (mode === "move") {
-      const newStart = Math.max(0, Math.min(numMonths - Math.max(1, origSpan), origStart + dCols));
+      const newStart = Math.max(0, Math.min(numMonths - spanMonths, origStart + dCols));
       bar.startIdx = newStart;
     } else if (mode === "resize-r") {
-      const newSpan = Math.max(1, Math.min(numMonths - origStart, origSpan + dCols));
+      const maxWeeks = (numMonths - origStart) * WEEKS_PER_MONTH;
+      const newSpan = Math.max(1, Math.min(maxWeeks, origSpan + dCols * WEEKS_PER_MONTH));
       bar.span = newSpan;
     } else if (mode === "resize-l") {
-      const delta = Math.max(-origStart, Math.min(origSpan - 1, dCols));
-      bar.startIdx = origStart + delta; bar.span = origSpan - delta;
+      const delta = Math.max(-origStart, Math.min(spanMonths - 1, dCols));
+      bar.startIdx = origStart + delta; bar.span = Math.max(1, origSpan - delta * WEEKS_PER_MONTH);
     }
     updateBarDOM(bar, colW);
   }
@@ -2381,7 +2402,7 @@ function updateBarDOM(bar, colW) {
     node.style.left = (bar.startIdx * colW + colW / 2) + "px";
   } else {
     node.style.left = (bar.startIdx * colW) + "px";
-    node.style.width = (Math.max(1, bar.span) * colW) + "px";
+    node.style.width = (Math.max(1, bar.span / WEEKS_PER_MONTH) * colW) + "px";
   }
 }
 
