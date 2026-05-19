@@ -1717,8 +1717,10 @@ function renderArrowsIn(targetEl, colW, numMonths, offsetX) {
           const sy = predGeo.centerY;
           const ex = succGeo.left + 12;
           const ey = succGeo.top;
-          const dx = invalid ? 80 : Math.max(60, Math.min(180, (ex - sx) * 0.7));
-          const dy = Math.max(40, Math.min(160, Math.abs(ey - sy) * 0.7));
+          const gap = ex - sx;
+          // Tight floor + cap to the gap so closely-stacked tasks don't bulge into a silly loop
+          const dx = invalid ? 70 : Math.max(16, Math.min(110, gap * 0.55));
+          const dy = Math.max(20, Math.min(120, Math.abs(ey - sy) * 0.55));
           paths += `<path class="${cls}"${styleAttr}${dataAttrs} d="M ${sx} ${sy}
             C ${sx + dx} ${sy}, ${ex} ${ey - dy}, ${ex} ${ey}" marker-end="url(#dep-arrow)">${titleEl}</path>`;
         }
