@@ -2569,10 +2569,11 @@ function renderTypeButtons() {
 
 /* =================== Keyboard =================== */
 window.addEventListener("keydown", (e) => {
-  if (currentView !== "timeline") return;
-  if (!selectedBarId) return;
+  if (currentView !== "timeline" && currentView !== "viewA") return;
   if (["INPUT","TEXTAREA"].includes(document.activeElement?.tagName)) return;
   if (document.activeElement?.isContentEditable) return;
+  if (e.key === "Escape" && selectedBarId) { clearFocus(); return; }
+  if (!selectedBarId) return;
   let lane, bar;
   for (const l of state.lanes) {
     const b = l.bars.find(x => x.id === selectedBarId);
@@ -2587,9 +2588,9 @@ window.addEventListener("keydown", (e) => {
         br.dependsOn = (br.dependsOn || []).filter(d => d !== removedId);
       }
     }
-    selectedBarId = null; renderTimeline();
-  } else if (e.key === "ArrowLeft") { bar.startIdx = Math.max(0, bar.startIdx - 1); renderTimeline(); }
-  else if (e.key === "ArrowRight") { bar.startIdx = bar.startIdx + 1; renderTimeline(); }
+    selectedBarId = null; renderCurrent();
+  } else if (e.key === "ArrowLeft") { bar.startIdx = Math.max(0, bar.startIdx - 1); renderCurrent(); }
+  else if (e.key === "ArrowRight") { bar.startIdx = bar.startIdx + 1; renderCurrent(); }
 });
 
 /* =================== Toolbar handlers =================== */
@@ -2600,6 +2601,55 @@ document.querySelectorAll(".view-btn").forEach(b => {
 document.getElementById("startDate").addEventListener("change", (e) => { state.start = e.target.value; renderCurrent(); });
 document.getElementById("endDate").addEventListener("change", (e) => { state.end = e.target.value; renderCurrent(); });
 document.getElementById("autoSeq").addEventListener("click", autoSequence);
+
+const SHOW_TODAY_KEY = "carpati-timeline.showToday";
+function applyShowToday() {
+  const on = localStorage.getItem(SHOW_TODAY_KEY) !== "0";
+  document.body.dataset.showToday = on ? "1" : "0";
+  const btn = document.getElementById("todayToggle");
+  if (btn) btn.classList.toggle("primary", on);
+}
+document.getElementById("todayToggle").addEventListener("click", () => {
+  const on = localStorage.getItem(SHOW_TODAY_KEY) !== "0";
+  localStorage.setItem(SHOW_TODAY_KEY, on ? "0" : "1");
+  applyShowToday();
+});
+applyShowToday();
+
+document.addEventListener("mousedown", (e) => {
+  const handle = e.target.closest(".phase-resize-handle");
+  if (!handle) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const startX = e.clientX;
+  const startW = PHASE_W;
+  document.body.style.cursor = "col-resize";
+  function onMove(ev) {
+    const newW = Math.max(110, Math.min(420, startW + (ev.clientX - startX)));
+    PHASE_W = newW;
+    el.style.setProperty("--phase-w", newW + "px");
+    ovEl.style.setProperty("--phase-w", newW + "px");
+    const numMonths = monthsBetween(state.start, state.end).length;
+    const colW = state.colWidth;
+    if (currentView === "timeline") {
+      el.style.gridTemplateColumns = `${newW}px ${TASK_W}px repeat(${numMonths}, ${colW}px)`;
+    } else if (currentView === "viewA") {
+      aEl.style.gridTemplateColumns = `${newW + TASK_W}px repeat(${numMonths}, ${colW}px)`;
+      aEl.style.setProperty("--phase-w", (newW + TASK_W) + "px");
+    } else if (currentView === "overview") {
+      ovEl.style.gridTemplateColumns = `${newW}px repeat(${numMonths}, ${colW}px)`;
+    }
+  }
+  function onUp() {
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", onUp);
+    document.body.style.cursor = "";
+    localStorage.setItem(PHASE_W_KEY, PHASE_W);
+    renderCurrent();
+  }
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+});
 document.getElementById("zoom").addEventListener("input", (e) => { state.colWidth = Number(e.target.value); renderCurrent(); });
 
 const moreBtn = document.getElementById("moreBtn");
@@ -2613,7 +2663,9 @@ moreMenu.addEventListener("click", async (e) => {
   if (!btn) return;
   moreMenu.classList.remove("open");
   const cmd = btn.dataset.cmd;
-  if (cmd === "loadCarpati") {
+  if (cmd === "toggleTheme") {
+    applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+  } else if (cmd === "loadCarpati") {
     if (confirm("Replace the current plan with the Carpati WPs preset (with sub-tasks)?")) {
       state = carpatiState(); initUI(); renderCurrent();
     }
@@ -2693,33 +2745,32 @@ function initUI() {
 const THEME_KEY = "carpati-timeline.theme";
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
-  document.getElementById("themeToggle").textContent = theme === "dark" ? "☀️" : "🌙";
+  const item = document.getElementById("themeMenuItem");
+  if (item) item.textContent = theme === "dark" ? "☀️ Switch to light mode" : "🌙 Switch to dark mode";
   localStorage.setItem(THEME_KEY, theme);
 }
 const savedTheme = localStorage.getItem(THEME_KEY)
   || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 applyTheme(savedTheme);
-document.getElementById("themeToggle").addEventListener("click", () => {
-  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
-});
 
 let resizeTimer;
 window.addEventListener("resize", () => {
-  if (currentView !== "timeline") return;
+  if (currentView === "plan" || currentView === "present") return;
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => renderTimeline(), 100);
+  resizeTimer = setTimeout(() => renderCurrent(), 100);
 });
 
 /* =================== INIT =================== */
-const savedView = localStorage.getItem(VIEW_KEY);
-if (savedView === "plan" || savedView === "timeline") currentView = savedView;
+let savedView = localStorage.getItem(VIEW_KEY);
+if (savedView === "timeline" || savedView === "viewB") savedView = "viewA";
+if (["plan", "viewA", "overview", "present"].includes(savedView)) currentView = savedView;
 document.body.dataset.view = currentView;
 document.querySelectorAll(".view-btn").forEach(b => {
   b.classList.toggle("selected", b.dataset.view === currentView);
 });
 
 initUI();
-renderTypeButtons();
+syncActiveTimeline();
 renderCurrent();
 </script>
 </body>
