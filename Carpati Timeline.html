@@ -2199,23 +2199,15 @@ function attachTimelineHandlers(colW) {
               bar.dependsOn = (bar.dependsOn || []).filter(d => !removedIds.has(d));
             }
           }
+        } else if (action === "toggle-collapse") {
+          toggleCollapsed(laneId);
         }
         renderTimeline();
       });
     });
   });
 
-  // Add-task button at the bottom of each phase
-  el.querySelectorAll(".add-task-cell[data-lane] button[data-laneact='add-task']").forEach(b => {
-    const laneId = b.closest(".add-task-cell").dataset.lane;
-    b.addEventListener("click", () => {
-      const lane = state.lanes.find(l => l.id === laneId); if (!lane) return;
-      lane.bars.push({ id: bid(), type: "work", startIdx: 0, span: 1, label: "New task", dependsOn: [] });
-      saveState(); renderTimeline();
-    });
-  });
-
-  // Task cells — editable name, delete button
+  // Task cells — editable name
   el.querySelectorAll(".task-cell[data-bar]").forEach(cell => {
     const barId = cell.dataset.bar;
     const laneId = cell.dataset.lane;
@@ -2231,20 +2223,6 @@ function attachTimelineHandlers(colW) {
         if (ev.key === "Enter") { ev.preventDefault(); nameEl.blur(); }
       });
     }
-    cell.querySelectorAll("[data-action='del-task']").forEach(btn => {
-      btn.addEventListener("click", (ev) => {
-        ev.stopPropagation();
-        if (!confirm("Delete this task?")) return;
-        const lane = state.lanes.find(l => l.id === laneId); if (!lane) return;
-        lane.bars = lane.bars.filter(b => b.id !== barId);
-        for (const ln of state.lanes) {
-          for (const br of ln.bars) {
-            br.dependsOn = (br.dependsOn || []).filter(d => d !== barId);
-          }
-        }
-        saveState(); renderTimeline();
-      });
-    });
   });
 
   // Bars
@@ -2270,6 +2248,14 @@ function attachTimelineHandlers(colW) {
       if (e.target.classList.contains("dep-chip")) return;
       if (e.target.classList.contains("connect-handle")) return;
       selectBar(barId);
+    });
+    barEl.addEventListener("mouseenter", () => {
+      el.querySelectorAll(`.task-cell[data-bar="${barId}"], .task-track[data-bar="${barId}"]`)
+        .forEach(n => n.classList.add("row-hover"));
+    });
+    barEl.addEventListener("mouseleave", () => {
+      el.querySelectorAll(`.task-cell[data-bar="${barId}"], .task-track[data-bar="${barId}"]`)
+        .forEach(n => n.classList.remove("row-hover"));
     });
     const handleEl = barEl.querySelector(".connect-handle");
     if (handleEl) {
@@ -2309,6 +2295,31 @@ function selectBar(id) {
   document.querySelectorAll(".bar,.milestone").forEach(b => {
     b.classList.toggle("selected", b.dataset.bar === id);
   });
+  applyFocus(id);
+}
+
+function clearFocus() {
+  selectedBarId = null;
+  document.querySelectorAll(".bar.selected,.milestone.selected").forEach(b => b.classList.remove("selected"));
+  applyFocus(null);
+}
+
+function collectAncestors(rootId, map) {
+  const out = new Set(); const stack = [rootId];
+  while (stack.length) {
+    const cur = stack.pop();
+    const entry = map[cur]; if (!entry) continue;
+    for (const pred of (entry.bar.dependsOn || [])) {
+      if (out.has(pred) || pred === rootId) continue;
+      out.add(pred); stack.push(pred);
+    }
+  }
+  return out;
+}
+
+function applyFocus(focusedBarId) {
+  applyFocusIn(activeTimelineEl, focusedBarId);
+  document.body.dataset.focus = focusedBarId && buildBarMap()[focusedBarId] ? "1" : "0";
 }
 
 function beginBarDrag(barId, laneId, mode, startEvent, colW) {
@@ -2318,7 +2329,7 @@ function beginBarDrag(barId, laneId, mode, startEvent, colW) {
   const origStart = bar.startIdx; const origSpan = bar.span;
   const startX = startEvent.clientX;
   const numMonths = monthsBetween(state.start, state.end).length;
-  const barEl = el.querySelector(`[data-bar="${barId}"]`);
+  const barEl = findBarEl(barId);
   barEl?.classList.add("dragging");
   function onMove(ev) {
     const dx = ev.clientX - startX; const dCols = Math.round(dx / colW);
@@ -2338,14 +2349,14 @@ function beginBarDrag(barId, laneId, mode, startEvent, colW) {
     window.removeEventListener("mousemove", onMove);
     window.removeEventListener("mouseup", onUp);
     barEl?.classList.remove("dragging");
-    saveState(); renderTimeline();
+    saveState(); renderCurrent();
   }
   window.addEventListener("mousemove", onMove);
   window.addEventListener("mouseup", onUp);
 }
 
 function updateBarDOM(bar, colW) {
-  const node = el.querySelector(`[data-bar="${bar.id}"]`);
+  const node = findBarEl(bar.id);
   if (!node) return;
   if (bar.type === "milestone") {
     node.style.left = (bar.startIdx * colW + colW / 2) + "px";
@@ -2356,23 +2367,24 @@ function updateBarDOM(bar, colW) {
 }
 
 function beginConnectDrag(sourceBarId, startEvent) {
-  const sourceEl = el.querySelector(`[data-bar="${sourceBarId}"]`);
+  const sourceEl = findBarEl(sourceBarId);
   if (!sourceEl) return;
   sourceEl.classList.add("connect-source");
-  const wrapRect = wrap.getBoundingClientRect();
-  const startX = startEvent.clientX - wrapRect.left + wrap.scrollLeft;
-  const startY = startEvent.clientY - wrapRect.top + wrap.scrollTop;
+  const dragWrap = activeWrap;
+  const wrapRect = dragWrap.getBoundingClientRect();
+  const startX = startEvent.clientX - wrapRect.left + dragWrap.scrollLeft;
+  const startY = startEvent.clientY - wrapRect.top + dragWrap.scrollTop;
   const overlay = document.createElement("div");
   overlay.className = "connect-ghost";
-  overlay.style.width = wrap.scrollWidth + "px";
-  overlay.style.height = wrap.scrollHeight + "px";
+  overlay.style.width = dragWrap.scrollWidth + "px";
+  overlay.style.height = dragWrap.scrollHeight + "px";
   overlay.innerHTML = `<svg width="100%" height="100%"><line x1="${startX}" y1="${startY}" x2="${startX}" y2="${startY}"/></svg>`;
-  wrap.appendChild(overlay);
+  dragWrap.appendChild(overlay);
   const lineEl = overlay.querySelector("line");
   let lastTargetEl = null;
   function onMove(ev) {
-    const x = ev.clientX - wrapRect.left + wrap.scrollLeft;
-    const y = ev.clientY - wrapRect.top + wrap.scrollTop;
+    const x = ev.clientX - wrapRect.left + dragWrap.scrollLeft;
+    const y = ev.clientY - wrapRect.top + dragWrap.scrollTop;
     lineEl.setAttribute("x2", x); lineEl.setAttribute("y2", y);
     if (lastTargetEl) lastTargetEl.classList.remove("connect-target");
     const under = document.elementFromPoint(ev.clientX, ev.clientY);
@@ -2401,7 +2413,7 @@ function beginConnectDrag(sourceBarId, startEvent) {
         }
       }
     }
-    renderTimeline();
+    renderCurrent();
   }
   window.addEventListener("mousemove", onMove);
   window.addEventListener("mouseup", onUp);
