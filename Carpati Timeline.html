@@ -1252,6 +1252,7 @@ function normaliseState(s) {
 function effSpan(b) {
   return b.type === "milestone" ? 0 : (b.span || 0) * (1 + (b.buffer || 0) / 100);
 }
+function rnd1(n) { return Math.round(n * 10) / 10; }
 function fmtDur(wk) {
   const w = Math.round(wk * 10) / 10;
   const mo = Math.round(wk / WEEKS_PER_MONTH * 10) / 10;
@@ -1404,9 +1405,9 @@ function renderTaskRow(bar, map) {
     <span class="task-span">
       ${isMilestone
         ? `<span class="task-span-label">milestone</span>`
-        : `<input type="number" min="1" value="${bar.span}" class="task-span-input" data-action="set-span" title="Raw estimate (weeks)" /><span class="task-span-label">wk</span>
-           <span class="task-buf">+<input type="number" min="0" max="500" value="${bar.buffer ?? 10}" class="task-buffer-input" data-action="set-buffer" title="Buffer %" />%</span>
-           <span class="task-eff" title="Estimate + buffer = planned time">= ${Math.round(effSpan(bar))} wk</span>`}
+        : `<input type="number" min="0.25" step="any" value="${bar.span}" class="task-span-input" data-action="set-span" title="Raw estimate (weeks) — decimals allowed" /><span class="task-span-label">wk</span>
+           <span class="task-buf">+<input type="number" min="0" max="500" step="any" value="${bar.buffer ?? 10}" class="task-buffer-input" data-action="set-buffer" title="Buffer %" />%</span>
+           <span class="task-eff" title="Estimate + buffer = planned time">= ${rnd1(effSpan(bar))} wk</span>`}
     </span>
     <span class="task-deps" data-action="edit-deps">
       ${deps || '<span class="dep-empty">(no dependencies)</span>'}
@@ -1501,8 +1502,8 @@ function attachPlanHandlers() {
         spanInp.addEventListener("change", () => {
           const lane = state.lanes.find(l => l.id === laneId);
           const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
-          const v = parseInt(spanInp.value, 10);
-          if (Number.isFinite(v) && v >= 1) { bar.span = v; saveState(); renderPlan(); }
+          const v = parseFloat(spanInp.value);
+          if (Number.isFinite(v) && v > 0) { bar.span = v; saveState(); renderPlan(); }
           else { spanInp.value = bar.span; }
         });
       }
@@ -1694,7 +1695,7 @@ function renderSingleBar(b, colW) {
   const depChip = depCount ? `<div class="dep-chip" data-action="edit-deps" title="${depCount} predecessor${depCount > 1 ? "s" : ""} — click to edit">${depCount} dep${depCount > 1 ? "s" : ""}</div>` : "";
   const labelText = b.label || "(untitled)";
   const tipParts = [labelText, t.label];
-  if (b.type !== "milestone") tipParts.push(`${b.span} wk +${b.buffer || 0}% → ${Math.round(effSpan(b))} wk`);
+  if (b.type !== "milestone") tipParts.push(`${rnd1(b.span)} wk +${b.buffer || 0}% → ${rnd1(effSpan(b))} wk`);
   if (depCount) tipParts.push(`${depCount} dep${depCount > 1 ? "s" : ""}`);
   const tip = escapeHtml(tipParts.join(" · "));
 
@@ -2280,7 +2281,7 @@ function autoSequence() {
       if (pe > earliest) earliest = pe;
     }
     bar.startIdx = earliest;
-    if (bar.type !== "milestone" && (!bar.span || bar.span < 1)) bar.span = 1;
+    if (bar.type !== "milestone" && (!bar.span || bar.span <= 0)) bar.span = 1;
   }
   renderCurrent();
 }
