@@ -2471,18 +2471,21 @@ function beginBarDrag(barId, laneId, mode, startEvent, colW) {
   const barEl = findBarEl(barId);
   barEl?.classList.add("dragging");
   function onMove(ev) {
-    const dx = ev.clientX - startX; const dCols = Math.round(dx / colW);
-    const spanMonths = Math.max(1, Math.round(origSpan / WEEKS_PER_MONTH));
+    const dx = ev.clientX - startX;
+    const weekPx = colW / WEEKS_PER_MONTH;          // pixels per week
+    const dWeeks = Math.round(dx / weekPx);         // snap to whole weeks
+    const dMonths = dWeeks / WEEKS_PER_MONTH;       // startIdx is in month units
+    const widthMonths = Math.max(1 / WEEKS_PER_MONTH, effSpan(bar) / WEEKS_PER_MONTH);
     if (mode === "move") {
-      const newStart = Math.max(0, Math.min(numMonths - spanMonths, origStart + dCols));
-      bar.startIdx = newStart;
+      let ns = Math.round((origStart + dMonths) * WEEKS_PER_MONTH) / WEEKS_PER_MONTH;
+      bar.startIdx = Math.max(0, Math.min(numMonths - widthMonths, ns));
     } else if (mode === "resize-r") {
       const maxWeeks = (numMonths - origStart) * WEEKS_PER_MONTH;
-      const newSpan = Math.max(1, Math.min(maxWeeks, origSpan + dCols * WEEKS_PER_MONTH));
-      bar.span = newSpan;
+      bar.span = Math.max(0.5, Math.min(maxWeeks, origSpan + dWeeks));
     } else if (mode === "resize-l") {
-      const delta = Math.max(-origStart, Math.min(spanMonths - 1, dCols));
-      bar.startIdx = origStart + delta; bar.span = Math.max(1, origSpan - delta * WEEKS_PER_MONTH);
+      const dw = Math.max(-origStart * WEEKS_PER_MONTH, Math.min(origSpan - 0.5, dWeeks));
+      bar.startIdx = Math.max(0, origStart + dw / WEEKS_PER_MONTH);
+      bar.span = Math.max(0.5, origSpan - dw);
     }
     updateBarDOM(bar, colW);
   }
@@ -2730,8 +2733,8 @@ window.addEventListener("keydown", (e) => {
       }
     }
     selectedBarId = null; renderCurrent();
-  } else if (e.key === "ArrowLeft") { bar.startIdx = Math.max(0, bar.startIdx - 1); renderCurrent(); }
-  else if (e.key === "ArrowRight") { bar.startIdx = bar.startIdx + 1; renderCurrent(); }
+  } else if (e.key === "ArrowLeft") { bar.startIdx = Math.max(0, bar.startIdx - 1 / WEEKS_PER_MONTH); renderCurrent(); }
+  else if (e.key === "ArrowRight") { bar.startIdx = bar.startIdx + 1 / WEEKS_PER_MONTH; renderCurrent(); }
 });
 
 /* =================== Toolbar handlers =================== */
