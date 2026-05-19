@@ -426,7 +426,7 @@
   }
   .task-row {
     display: grid;
-    grid-template-columns: 110px minmax(180px, 1fr) 120px minmax(240px, 1.3fr) 40px;
+    grid-template-columns: 110px minmax(160px, 1fr) 230px minmax(200px, 1.1fr) 40px;
     gap: 12px; align-items: center;
     padding: 8px 12px;
     background: var(--surface);
@@ -434,6 +434,57 @@
     border-radius: var(--radius);
   }
   .task-row.is-milestone { background: #fef9c3; border-color: #facc15; }
+  .task-buf {
+    display: inline-flex; align-items: center; gap: 1px;
+    font-size: 12px; color: var(--muted); font-weight: 500;
+  }
+  .task-buffer-input {
+    width: 42px; padding: 4px 4px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: #fff; font: inherit; font-size: 12px; font-weight: 600;
+    text-align: center; color: var(--ink); margin: 0 1px;
+  }
+  .task-buffer-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .task-eff {
+    font-size: 12px; font-weight: 700; color: var(--accent);
+    white-space: nowrap;
+  }
+  [data-theme="dark"] .task-eff { color: var(--accent-hover); }
+
+  .project-summary {
+    background: linear-gradient(135deg, rgba(255,228,240,0.85), rgba(220,235,255,0.85));
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px 22px;
+    box-shadow: var(--shadow-sm);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  [data-theme="dark"] .project-summary {
+    background: linear-gradient(135deg, rgba(140,80,120,0.3), rgba(80,110,160,0.3));
+  }
+  .project-summary .ps-title {
+    font-size: 13px; font-weight: 700; color: var(--ink);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .project-summary .ps-stats {
+    display: flex; flex-wrap: wrap; gap: 26px;
+  }
+  .project-summary .ps-stat { display: flex; flex-direction: column; gap: 2px; }
+  .project-summary .ps-num { font-size: 24px; font-weight: 800; color: var(--ink); line-height: 1; }
+  .project-summary .ps-unit { font-size: 11px; color: var(--muted); font-weight: 600; }
+  .project-summary .ps-buf .ps-num { color: var(--accent); }
+
+  .wp-total {
+    align-self: center;
+    font-size: 12px; font-weight: 700; color: var(--ink-soft);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  [data-theme="dark"] .wp-total { background: rgba(255,255,255,0.07); }
   .task-type-select {
     border: none; background: transparent;
     font: inherit; font-size: 11px; font-weight: 700;
@@ -1193,8 +1244,21 @@ function normaliseState(s) {
   for (const lane of s.lanes || []) {
     for (const bar of lane.bars || []) {
       if (!Array.isArray(bar.dependsOn)) bar.dependsOn = [];
+      if (typeof bar.buffer !== "number" || bar.buffer < 0) bar.buffer = 10;
     }
   }
+}
+/* Effective duration in weeks = raw estimate + buffer %. Milestones have no duration. */
+function effSpan(b) {
+  return b.type === "milestone" ? 0 : (b.span || 0) * (1 + (b.buffer || 0) / 100);
+}
+function fmtDur(wk) {
+  const w = Math.round(wk * 10) / 10;
+  const mo = Math.round(wk / WEEKS_PER_MONTH * 10) / 10;
+  return `${w} wk · ≈${mo} mo`;
+}
+function laneEffWeeks(lane) {
+  return (lane.bars || []).reduce((sum, b) => sum + effSpan(b), 0);
 }
 /* Convert month-based spans to week-based (v3 → v4). 1 month ≈ WEEKS_PER_MONTH weeks. */
 function spansToWeeks(s) {
@@ -1270,14 +1334,34 @@ function renderCurrent() {
 function renderPlan() {
   const planEl = document.getElementById("planView");
   const map = buildBarMap();
+  let rawTotal = 0, effTotal = 0, taskTotal = 0;
+  state.lanes.forEach(l => l.bars.forEach(b => {
+    if (b.type === "milestone") return;
+    rawTotal += (b.span || 0);
+    effTotal += effSpan(b);
+    taskTotal++;
+  }));
+  const bufferPct = rawTotal ? Math.round((effTotal - rawTotal) / rawTotal * 100) : 0;
   let html = `<div class="plan">`;
+  html += `<div class="project-summary">
+    <div class="ps-title">Project summary</div>
+    <div class="ps-stats">
+      <div class="ps-stat"><span class="ps-num">${Math.round(effTotal)}</span><span class="ps-unit">wk total</span></div>
+      <div class="ps-stat"><span class="ps-num">${(effTotal / WEEKS_PER_MONTH).toFixed(1)}</span><span class="ps-unit">months</span></div>
+      <div class="ps-stat"><span class="ps-num">${state.lanes.length}</span><span class="ps-unit">work packages</span></div>
+      <div class="ps-stat"><span class="ps-num">${taskTotal}</span><span class="ps-unit">tasks</span></div>
+      <div class="ps-stat ps-buf"><span class="ps-num">+${effTotal - rawTotal ? Math.round(effTotal - rawTotal) : 0}</span><span class="ps-unit">wk buffer (~${bufferPct}%)</span></div>
+    </div>
+  </div>`;
   state.lanes.forEach((lane, laneIdx) => {
+    const laneWk = laneEffWeeks(lane);
     html += `<div class="wp-card" data-lane="${lane.id}">
       <div class="wp-header">
         <div class="info">
           <div class="wp-code" contenteditable="true" data-field="code" data-placeholder="WP code">${escapeHtml(lane.code)}</div>
           <div class="wp-desc" contenteditable="true" data-field="desc" data-placeholder="Discipline / responsibility">${escapeHtml(lane.desc)}</div>
         </div>
+        <div class="wp-total" title="Sum of buffered estimates in this work package">${fmtDur(laneWk)}</div>
         <div class="wp-actions">
           <button class="wp-icon-btn" data-laneact="up" title="Move up">↑</button>
           <button class="wp-icon-btn" data-laneact="down" title="Move down">↓</button>
@@ -1320,7 +1404,9 @@ function renderTaskRow(bar, map) {
     <span class="task-span">
       ${isMilestone
         ? `<span class="task-span-label">milestone</span>`
-        : `<input type="number" min="1" value="${bar.span}" class="task-span-input" data-action="set-span" /><span class="task-span-label">wk</span>`}
+        : `<input type="number" min="1" value="${bar.span}" class="task-span-input" data-action="set-span" title="Raw estimate (weeks)" /><span class="task-span-label">wk</span>
+           <span class="task-buf">+<input type="number" min="0" max="500" value="${bar.buffer ?? 10}" class="task-buffer-input" data-action="set-buffer" title="Buffer %" />%</span>
+           <span class="task-eff" title="Estimate + buffer = planned time">= ${Math.round(effSpan(bar))} wk</span>`}
     </span>
     <span class="task-deps" data-action="edit-deps">
       ${deps || '<span class="dep-empty">(no dependencies)</span>'}
@@ -1416,8 +1502,20 @@ function attachPlanHandlers() {
           const lane = state.lanes.find(l => l.id === laneId);
           const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
           const v = parseInt(spanInp.value, 10);
-          if (Number.isFinite(v) && v >= 1) { bar.span = v; saveState(); }
+          if (Number.isFinite(v) && v >= 1) { bar.span = v; saveState(); renderPlan(); }
           else { spanInp.value = bar.span; }
+        });
+      }
+
+      // Buffer input
+      const bufInp = row.querySelector(".task-buffer-input");
+      if (bufInp) {
+        bufInp.addEventListener("change", () => {
+          const lane = state.lanes.find(l => l.id === laneId);
+          const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
+          const v = parseFloat(bufInp.value);
+          if (Number.isFinite(v) && v >= 0) { bar.buffer = v; saveState(); renderPlan(); }
+          else { bufInp.value = bar.buffer ?? 10; }
         });
       }
 
@@ -1596,7 +1694,7 @@ function renderSingleBar(b, colW) {
   const depChip = depCount ? `<div class="dep-chip" data-action="edit-deps" title="${depCount} predecessor${depCount > 1 ? "s" : ""} — click to edit">${depCount} dep${depCount > 1 ? "s" : ""}</div>` : "";
   const labelText = b.label || "(untitled)";
   const tipParts = [labelText, t.label];
-  if (b.type !== "milestone") tipParts.push(`${b.span} wk`);
+  if (b.type !== "milestone") tipParts.push(`${b.span} wk +${b.buffer || 0}% → ${Math.round(effSpan(b))} wk`);
   if (depCount) tipParts.push(`${depCount} dep${depCount > 1 ? "s" : ""}`);
   const tip = escapeHtml(tipParts.join(" · "));
 
@@ -1612,7 +1710,7 @@ function renderSingleBar(b, colW) {
     </div>`;
   }
   const x = b.startIdx * colW;
-  const w = Math.max(1, b.span / WEEKS_PER_MONTH) * colW;
+  const w = Math.max(1, effSpan(b) / WEEKS_PER_MONTH) * colW;
   const narrowCls = w < 64 ? " narrow" : "";
   return `<div class="bar${narrowCls}" data-bar="${b.id}" title="${tip}"
     style="left:${x}px; width:${w}px; top:calc(50% - 14px); background:${t.bar}; border-color:${t.border};">
@@ -1790,7 +1888,7 @@ function renderOverviewBar(b, colW) {
   const t = TYPES[b.type] || TYPES.work;
   const labelText = b.label || "(untitled)";
   const tipParts = [labelText, t.label];
-  if (b.type !== "milestone") tipParts.push(`${b.span}wk`);
+  if (b.type !== "milestone") tipParts.push(`${b.span}wk +${b.buffer || 0}%`);
   const tip = escapeHtml(tipParts.join(" · "));
 
   if (b.type === "milestone") {
@@ -1803,7 +1901,7 @@ function renderOverviewBar(b, colW) {
     </div>`;
   }
   const x = b.startIdx * colW;
-  const w = Math.max(1, b.span / WEEKS_PER_MONTH) * colW;
+  const w = Math.max(1, effSpan(b) / WEEKS_PER_MONTH) * colW;
   return `<div class="ov-bar" data-bar="${b.id}" title="${tip}"
     style="left:${x}px; width:${w}px; background:${t.bar}; border-color:${t.border};">${escapeHtml(labelText)}</div>`;
 }
@@ -1874,7 +1972,7 @@ function renderViewA() {
       let summaryHtml = "";
       if (lane.bars.length) {
         const earliest = Math.min(...lane.bars.map(b => b.startIdx));
-        const latest = Math.max(...lane.bars.map(b => b.startIdx + (b.type === "milestone" ? 0 : Math.max(1, (b.span || 0) / WEEKS_PER_MONTH))));
+        const latest = Math.max(...lane.bars.map(b => b.startIdx + (b.type === "milestone" ? 0 : Math.max(1, effSpan(b) / WEEKS_PER_MONTH))));
         const sLeft = earliest * colW;
         const sWidth = Math.max(8, (latest - earliest) * colW);
         summaryHtml = `<div class="wp-summary-span" style="left:${sLeft}px; width:${sWidth}px; background:${phase.accent};"></div>`;
@@ -1975,7 +2073,7 @@ function renderInlineBar(b, colW) {
   const labelText = b.label || "(untitled)";
   const depCount = (b.dependsOn || []).length;
   const depChip = depCount ? `<div class="dep-chip">${depCount} dep${depCount > 1 ? "s" : ""}</div>` : "";
-  const tip = escapeHtml(`${labelText} · ${t.label}${b.type !== "milestone" ? ` · ${b.span}wk` : ""}`);
+  const tip = escapeHtml(`${labelText} · ${t.label}${b.type !== "milestone" ? ` · ${b.span}wk +${b.buffer || 0}%` : ""}`);
 
   if (b.type === "milestone") {
     const x = b.startIdx * colW + colW / 2;
@@ -1989,7 +2087,7 @@ function renderInlineBar(b, colW) {
     </div>`;
   }
   const x = b.startIdx * colW;
-  const w = Math.max(1, b.span / WEEKS_PER_MONTH) * colW;
+  const w = Math.max(1, effSpan(b) / WEEKS_PER_MONTH) * colW;
   const narrowCls = w < 80 ? " narrow" : "";
   return `<div class="bar inline-bar${narrowCls}" data-bar="${b.id}" title="${tip}"
     style="left:${x}px; width:${w}px; top:calc(50% - 14px); background:${t.bar}; border-color:${t.border};">
@@ -2178,7 +2276,7 @@ function autoSequence() {
     let earliest = 0;
     for (const predId of (bar.dependsOn || [])) {
       const p = map[predId]; if (!p) continue;
-      const pe = p.bar.startIdx + (p.bar.type === "milestone" ? 0 : Math.max(1, Math.ceil((p.bar.span || 0) / WEEKS_PER_MONTH)));
+      const pe = p.bar.startIdx + (p.bar.type === "milestone" ? 0 : Math.max(1, Math.ceil(effSpan(p.bar) / WEEKS_PER_MONTH)));
       if (pe > earliest) earliest = pe;
     }
     bar.startIdx = earliest;
@@ -2404,7 +2502,7 @@ function updateBarDOM(bar, colW) {
     node.style.left = (bar.startIdx * colW + colW / 2) + "px";
   } else {
     node.style.left = (bar.startIdx * colW) + "px";
-    node.style.width = (Math.max(1, bar.span / WEEKS_PER_MONTH) * colW) + "px";
+    node.style.width = (Math.max(1, effSpan(bar) / WEEKS_PER_MONTH) * colW) + "px";
   }
 }
 
