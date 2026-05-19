@@ -1009,7 +1009,7 @@
         <button data-cmd="toggleTheme" id="themeMenuItem">🌙 Toggle theme</button>
         <div class="sep"></div>
         <div class="section">Presets</div>
-        <button data-cmd="loadCarpati">Load Carpati WPs (with sub-tasks)</button>
+        <button data-cmd="loadDemo">Load demo plan</button>
         <div class="sep"></div>
         <div class="section">Export</div>
         <button data-cmd="png">Export PNG</button>
@@ -1086,15 +1086,34 @@ const TYPES = {
 
 let activeType = "work";
 let currentView = "plan";
-const STORAGE_KEY = "carpati-timeline.v3";
-const VIEW_KEY = "carpati-timeline.view";
+const STORAGE_KEY = "proplan.v3";
+const VIEW_KEY = "proplan.view";
 const LABEL_W = 240;
+
+/* One-time migration: legacy "carpati-timeline.*" localStorage keys → "proplan.*" */
+(function migrateLegacyStorage() {
+  const pairs = [
+    ["carpati-timeline.v3", "proplan.v3"],
+    ["carpati-timeline.view", "proplan.view"],
+    ["carpati-timeline.theme", "proplan.theme"],
+    ["carpati-timeline.phaseW", "proplan.phaseW"],
+    ["carpati-timeline.collapsed", "proplan.collapsed"],
+    ["carpati-timeline.showToday", "proplan.showToday"],
+  ];
+  for (const [oldK, newK] of pairs) {
+    try {
+      if (localStorage.getItem(newK) === null && localStorage.getItem(oldK) !== null) {
+        localStorage.setItem(newK, localStorage.getItem(oldK));
+      }
+    } catch {}
+  }
+})();
 
 function lid() { return "l" + Math.random().toString(36).slice(2, 9); }
 function bid() { return "b" + Math.random().toString(36).slice(2, 9); }
 
-/* ---------- Carpati preset with sub-tasks ---------- */
-function carpatiState() {
+/* ---------- Built-in demo preset ---------- */
+function presetState() {
   const i = {};
   ["w1_design","w1_proto","w1_test","w1_tooling",
    "w2_design","w2_valid","w2_proto","w2_tooling",
@@ -1163,7 +1182,7 @@ function carpatiState() {
   };
 }
 
-let state = loadState() || carpatiState();
+let state = loadState() || presetState();
 normaliseState(state);
 
 function normaliseState(s) {
@@ -1442,12 +1461,12 @@ function syncActiveTimeline() {
   else { activeTimelineEl = el; activeWrap = wrap; }
 }
 
-const PHASE_W_KEY = "carpati-timeline.phaseW";
+const PHASE_W_KEY = "proplan.phaseW";
 let PHASE_W = parseInt(localStorage.getItem(PHASE_W_KEY), 10);
 if (!Number.isFinite(PHASE_W)) PHASE_W = 170;
 const TASK_W = 240;
 
-const COLLAPSED_KEY = "carpati-timeline.collapsed";
+const COLLAPSED_KEY = "proplan.collapsed";
 function loadCollapsedSet() {
   try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || []); }
   catch { return new Set(); }
@@ -2602,7 +2621,7 @@ document.getElementById("startDate").addEventListener("change", (e) => { state.s
 document.getElementById("endDate").addEventListener("change", (e) => { state.end = e.target.value; renderCurrent(); });
 document.getElementById("autoSeq").addEventListener("click", autoSequence);
 
-const SHOW_TODAY_KEY = "carpati-timeline.showToday";
+const SHOW_TODAY_KEY = "proplan.showToday";
 function applyShowToday() {
   const on = localStorage.getItem(SHOW_TODAY_KEY) !== "0";
   document.body.dataset.showToday = on ? "1" : "0";
@@ -2665,15 +2684,15 @@ moreMenu.addEventListener("click", async (e) => {
   const cmd = btn.dataset.cmd;
   if (cmd === "toggleTheme") {
     applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
-  } else if (cmd === "loadCarpati") {
-    if (confirm("Replace the current plan with the Carpati WPs preset (with sub-tasks)?")) {
-      state = carpatiState(); initUI(); renderCurrent();
+  } else if (cmd === "loadDemo") {
+    if (confirm("Replace the current plan with the demo preset?")) {
+      state = presetState(); initUI(); renderCurrent();
     }
   } else if (cmd === "png") {
     if (currentView !== "timeline") switchView("timeline");
     setTimeout(async () => {
       const canvas = await snapshotCanvas();
-      canvas.toBlob(b => downloadBlob(b, `carpati-timeline-${Date.now()}.png`), "image/png");
+      canvas.toBlob(b => downloadBlob(b, `proplan-${Date.now()}.png`), "image/png");
     }, 100);
   } else if (cmd === "pdf") {
     if (currentView !== "timeline") switchView("timeline");
@@ -2688,20 +2707,20 @@ moreMenu.addEventListener("click", async (e) => {
       const ratio = Math.min((pageW - margin*2) / canvas.width, (pageH - margin*2) / canvas.height);
       const w = canvas.width * ratio; const h = canvas.height * ratio;
       pdf.addImage(imgData, "PNG", (pageW - w) / 2, (pageH - h) / 2, w, h);
-      pdf.save(`carpati-timeline-${Date.now()}.pdf`);
+      pdf.save(`proplan-${Date.now()}.pdf`);
     }, 100);
   } else if (cmd === "html") {
     const clone = document.documentElement.cloneNode(true);
     clone.querySelectorAll("script, header, .hint, #importFile").forEach(n => n.remove());
     const html = "<!DOCTYPE html>" + clone.outerHTML;
-    downloadBlob(new Blob([html], { type: "text/html" }), `carpati-timeline-${Date.now()}.html`);
+    downloadBlob(new Blob([html], { type: "text/html" }), `proplan-${Date.now()}.html`);
   } else if (cmd === "json") {
-    downloadBlob(new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }), `carpati-timeline-${Date.now()}.json`);
+    downloadBlob(new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }), `proplan-${Date.now()}.json`);
   } else if (cmd === "import") {
     document.getElementById("importFile").click();
   } else if (cmd === "clear") {
     if (confirm("Reset to an empty plan?")) {
-      state = { ...carpatiState(), lanes: [] }; renderCurrent();
+      state = { ...presetState(), lanes: [] }; renderCurrent();
     }
   }
 });
@@ -2742,7 +2761,7 @@ function initUI() {
   document.getElementById("zoom").value = state.colWidth;
 }
 
-const THEME_KEY = "carpati-timeline.theme";
+const THEME_KEY = "proplan.theme";
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
   const item = document.getElementById("themeMenuItem");
