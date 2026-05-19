@@ -1216,11 +1216,16 @@ function switchView(view) {
     b.classList.toggle("selected", b.dataset.view === view);
   });
   localStorage.setItem(VIEW_KEY, view);
+  syncActiveTimeline();
   renderCurrent();
 }
 function renderCurrent() {
   if (currentView === "plan") renderPlan();
-  else renderTimeline();
+  else if (currentView === "timeline") renderTimeline();
+  else if (currentView === "viewA") renderViewA();
+  else if (currentView === "viewB") renderViewB();
+  else if (currentView === "overview") renderOverview();
+  // present: static stub, nothing to render
 }
 
 /* =================== PLAN VIEW =================== */
@@ -1428,8 +1433,32 @@ function attachPlanHandlers() {
 const el = document.getElementById("timeline");
 const wrap = document.getElementById("wrap");
 
-const PHASE_W = 170;
+let activeTimelineEl = el;
+let activeWrap = wrap;
+function syncActiveTimeline() {
+  if (currentView === "viewA") { activeTimelineEl = document.getElementById("viewATimeline"); activeWrap = document.getElementById("viewAWrap"); }
+  else if (currentView === "viewB") { activeTimelineEl = document.getElementById("viewBTimeline"); activeWrap = document.getElementById("viewBWrap"); }
+  else if (currentView === "overview") { activeTimelineEl = document.getElementById("overviewTimeline"); activeWrap = document.getElementById("overviewWrap"); }
+  else { activeTimelineEl = el; activeWrap = wrap; }
+}
+
+const PHASE_W_KEY = "carpati-timeline.phaseW";
+let PHASE_W = parseInt(localStorage.getItem(PHASE_W_KEY), 10);
+if (!Number.isFinite(PHASE_W)) PHASE_W = 170;
 const TASK_W = 240;
+
+const COLLAPSED_KEY = "carpati-timeline.collapsed";
+function loadCollapsedSet() {
+  try { return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY)) || []); }
+  catch { return new Set(); }
+}
+let collapsedLanes = loadCollapsedSet();
+function isCollapsed(laneId) { return collapsedLanes.has(laneId); }
+function toggleCollapsed(laneId) {
+  if (collapsedLanes.has(laneId)) collapsedLanes.delete(laneId);
+  else collapsedLanes.add(laneId);
+  localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsedLanes]));
+}
 
 const PHASE_PALETTE = [
   { bg: "#fee2e2", accent: "#ef4444", text: "#7f1d1d" },  // red
@@ -1475,11 +1504,13 @@ function renderTimeline() {
   state.lanes.forEach((lane, laneIdx) => {
     const phase = getPhaseColor(laneIdx);
     const numTasks = lane.bars.length;
-    // Phase cell spans all task rows + the trailing add-task row
-    const rowSpan = Math.max(1, numTasks) + 1;
+    const collapsed = isCollapsed(lane.id);
+    const rowSpan = collapsed ? 1 : Math.max(1, numTasks);
+    const chev = collapsed ? "▸" : "▾";
 
-    html += `<div class="phase-cell" data-lane="${lane.id}"
+    html += `<div class="phase-cell ${collapsed ? "collapsed" : ""}" data-lane="${lane.id}"
       style="grid-row: span ${rowSpan}; --phase-bg: ${phase.bg}; --phase-accent: ${phase.accent}; --phase-text: ${phase.text};">
+      <button class="phase-chev" data-laneact="toggle-collapse" title="${collapsed ? "Expand" : "Collapse"}">${chev}</button>
       <div class="phase-text" contenteditable="true" data-field="code">${escapeHtml(lane.code)}</div>
       <div class="phase-desc" contenteditable="true" data-field="desc">${escapeHtml(lane.desc)}</div>
       <div class="phase-actions">
@@ -1489,35 +1520,35 @@ function renderTimeline() {
       </div>
     </div>`;
 
-    if (numTasks === 0) {
+    if (collapsed) {
+      html += `<div class="task-cell rolled-up" data-lane="${lane.id}" style="--phase-bg:${phase.bg};">
+        <span class="task-name muted">${numTasks} task${numTasks === 1 ? "" : "s"}</span>
+      </div>`;
+      html += `<div class="task-track rolled-up" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">
+        ${lane.bars.map(b => renderOverviewBar(b, colW)).join("")}
+      </div>`;
+    } else if (numTasks === 0) {
       html += `<div class="task-cell"><span class="task-name empty">— no tasks —</span></div>`;
       html += `<div class="task-track" style="grid-column: span ${numMonths};"></div>`;
     } else {
       lane.bars.forEach((bar) => {
-        const t = TYPES[bar.type] || TYPES.work;
-        html += `<div class="task-cell" data-bar="${bar.id}" data-lane="${lane.id}">
-          <span class="task-type-pill" style="background:${t.bar}; border:1px solid ${t.border};">${t.label}</span>
+        html += `<div class="task-cell" data-bar="${bar.id}" data-lane="${lane.id}" style="--phase-bg:${phase.bg};">
           <span class="task-name" contenteditable="true">${escapeHtml(bar.label || "(untitled)")}</span>
-          <span class="task-actions">
-            <button data-action="del-task" title="Delete task">✕</button>
-          </span>
         </div>`;
-        html += `<div class="task-track" data-bar="${bar.id}" data-lane="${lane.id}" style="grid-column: span ${numMonths};">
+        html += `<div class="task-track" data-bar="${bar.id}" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">
           ${renderSingleBar(bar, colW)}
         </div>`;
       });
     }
-
-    // "+ Add task" row at bottom of each phase
-    html += `<div class="add-task-cell" data-lane="${lane.id}">
-      <button data-laneact="add-task">+ Add task / deliverable</button>
-    </div>`;
-    html += `<div class="add-task-track" style="grid-column: span ${numMonths};"></div>`;
   });
 
   el.innerHTML = html;
   attachTimelineHandlers(colW);
-  requestAnimationFrame(() => renderArrows(colW, numMonths));
+  requestAnimationFrame(() => {
+    renderArrows(colW, numMonths);
+    renderTodayLine(colW, numMonths);
+    if (selectedBarId) applyFocus(selectedBarId);
+  });
   saveState();
 }
 
@@ -1534,15 +1565,22 @@ function renderSingleBar(b, colW) {
   if (b.type === "milestone") {
     const x = b.startIdx * colW + colW / 2;
     return `<div class="milestone" data-bar="${b.id}" title="${tip}"
-      style="left:${x}px; top:calc(50% - 14px); background:${t.bar}; border-color:${t.border};"
-      data-label="${escapeHtml(b.label || "")}"></div>`;
+      style="left:${x}px; top:calc(50% - 18px);">
+      <svg class="ms-icon" viewBox="0 0 24 24">
+        <path d="M 12 2.2 L 14.6 8.7 L 21.6 9.1 L 16.2 13.7 L 18 20.5 L 12 16.7 L 6 20.5 L 7.8 13.7 L 2.4 9.1 L 9.4 8.7 Z"
+          fill="${t.bar}" stroke="${t.border}" stroke-width="1.8" stroke-linejoin="round" />
+      </svg>
+      <span class="ms-label">${escapeHtml(b.label || "")}</span>
+    </div>`;
   }
   const x = b.startIdx * colW;
   const w = Math.max(1, b.span) * colW;
-  return `<div class="bar" data-bar="${b.id}" title="${tip}"
-    style="left:${x}px; width:${w}px; top:calc(50% - 12px); background:${t.bar}; border-color:${t.border};">
+  const narrowCls = w < 64 ? " narrow" : "";
+  return `<div class="bar${narrowCls}" data-bar="${b.id}" title="${tip}"
+    style="left:${x}px; width:${w}px; top:calc(50% - 14px); background:${t.bar}; border-color:${t.border};">
     <div class="resize l"></div>
     <div class="resize r"></div>
+    <span class="bar-type">${escapeHtml(t.label)}</span>
     <div class="connect-handle" data-action="start-connect" title="Drag onto another bar to set dependency"></div>
     ${depChip}
   </div>`;
@@ -1577,22 +1615,34 @@ function applyStagger() {
   });
 }
 
+function findBarEl(barId, ctx) {
+  ctx = ctx || activeTimelineEl;
+  return ctx.querySelector(`.bar[data-bar="${barId}"], .milestone[data-bar="${barId}"], .ov-bar[data-bar="${barId}"], .ov-milestone[data-bar="${barId}"]`);
+}
+
 function renderArrows(colW, numMonths) {
-  el.querySelectorAll(".dep-overlay").forEach(n => n.remove());
+  renderArrowsIn(el, colW, numMonths, PHASE_W + TASK_W);
+}
+
+function renderArrowsIn(targetEl, colW, numMonths, offsetX) {
+  targetEl.querySelectorAll(".dep-overlay").forEach(n => n.remove());
   const map = buildBarMap();
-  const gridRect = el.getBoundingClientRect();
+  const gridRect = targetEl.getBoundingClientRect();
 
   function barCenter(barId) {
-    const node = el.querySelector(`[data-bar="${barId}"]`);
+    const node = findBarEl(barId, targetEl);
     if (!node) return null;
     const r = node.getBoundingClientRect();
     return {
-      left: r.left - gridRect.left, right: r.right - gridRect.left,
+      left: r.left - gridRect.left - offsetX,
+      right: r.right - gridRect.left - offsetX,
+      top: r.top - gridRect.top,
+      bottom: r.bottom - gridRect.top,
       centerY: r.top - gridRect.top + r.height / 2,
     };
   }
 
-  document.querySelectorAll(".bar.dep-violation").forEach(b => b.classList.remove("dep-violation"));
+  targetEl.querySelectorAll(".bar.dep-violation").forEach(b => b.classList.remove("dep-violation"));
 
   let paths = "";
   for (const lane of state.lanes) {
@@ -1600,51 +1650,56 @@ function renderArrows(colW, numMonths) {
       if (bar.type === "milestone") continue;
       for (const predId of (bar.dependsOn || [])) {
         const pred = map[predId]; if (!pred) continue;
+        // Hide within-WP deps when the WP is collapsed (both endpoints land on the same row)
+        if (pred.lane.id === lane.id && isCollapsed(lane.id)) continue;
         const predGeo = barCenter(predId); const succGeo = barCenter(bar.id);
         if (!predGeo || !succGeo) continue;
         const x1 = predGeo.right; const y1 = predGeo.centerY;
         const x2 = succGeo.left;  const y2 = succGeo.centerY;
         const invalid = x2 < x1;
         if (invalid) {
-          const node = document.querySelector(`[data-bar="${bar.id}"]`);
+          const node = findBarEl(bar.id, targetEl);
           if (node) node.classList.add("dep-violation");
         }
         const cls = invalid ? "dep-path invalid" : "dep-path";
-        const arrow = invalid ? "url(#dep-arrow-invalid)" : "url(#dep-arrow)";
-        if (invalid) {
-          const detour = 12;
-          paths += `<path class="${cls}" d="M ${x1} ${y1}
-            L ${x1 + detour} ${y1}
-            L ${x1 + detour} ${(y1+y2)/2}
-            L ${x2 - detour} ${(y1+y2)/2}
-            L ${x2 - detour} ${y2}
-            L ${x2} ${y2}" marker-end="${arrow}"/>`;
+        const predLabel = pred.bar.label || "(untitled)";
+        const succLabel = bar.label || "(untitled)";
+        const tipText = invalid
+          ? `⚠ "${succLabel}" is scheduled before "${predLabel}" finishes. Click Auto-sequence to fix.`
+          : `"${succLabel}" depends on "${predLabel}"`;
+        const titleEl = `<title>${escapeHtml(tipText)}</title>`;
+        const strokeColor = invalid ? "#fb7185" : (TYPES[pred.bar.type]?.border || "#475569");
+        const styleAttr = ` style="stroke:${strokeColor};"`;
+        const dataAttrs = ` data-pred="${predId}" data-succ="${bar.id}"`;
+        const sameRow = Math.abs(y2 - y1) < 4;
+        if (sameRow && !invalid) {
+          paths += `<path class="${cls}"${styleAttr}${dataAttrs} d="M ${x1} ${y1} L ${x2} ${y2}" marker-end="url(#dep-arrow)">${titleEl}</path>`;
         } else {
-          const midX = x1 + Math.max(8, (x2 - x1) / 2);
-          paths += `<path class="${cls}" d="M ${x1} ${y1}
-            L ${midX} ${y1}
-            L ${midX} ${y2}
-            L ${x2} ${y2}" marker-end="${arrow}"/>`;
+          const sx = predGeo.right;
+          const sy = predGeo.centerY;
+          const ex = succGeo.left + 12;
+          const ey = succGeo.top;
+          const dx = invalid ? 80 : Math.max(60, Math.min(180, (ex - sx) * 0.7));
+          const dy = Math.max(40, Math.min(160, Math.abs(ey - sy) * 0.7));
+          paths += `<path class="${cls}"${styleAttr}${dataAttrs} d="M ${sx} ${sy}
+            C ${sx + dx} ${sy}, ${ex} ${ey - dy}, ${ex} ${ey}" marker-end="url(#dep-arrow)">${titleEl}</path>`;
         }
       }
     }
   }
 
-  const totalH = el.scrollHeight;
-  const totalW = LABEL_W + numMonths * colW + 8;
+  const totalH = targetEl.scrollHeight;
+  const totalW = numMonths * colW + 8;
 
-  const svg = `<svg class="dep-overlay" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
+  const svg = `<svg class="dep-overlay" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}" style="left:${offsetX}px;">
     <defs>
-      <marker id="dep-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--dep-arrow)" opacity="0.85"/>
-      </marker>
-      <marker id="dep-arrow-invalid" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--danger)"/>
+      <marker id="dep-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"/>
       </marker>
     </defs>
     ${paths}
   </svg>`;
-  el.insertAdjacentHTML("beforeend", svg);
+  targetEl.insertAdjacentHTML("beforeend", svg);
 }
 
 function autoSequence() {
