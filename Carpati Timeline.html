@@ -1,0 +1,1897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Timeline</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --ink: #0f172a;
+    --ink-soft: #334155;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --border-strong: #cbd5e1;
+    --surface: #f8fafc;
+    --surface-2: #eef2f6;
+    --accent: #0a84ff;
+    --accent-hover: #006fe0;
+    --accent-soft: rgba(10, 132, 255, 0.12);
+    --track: #fbfcfd;
+    --track-alt: #f6f8fa;
+    --grid-line: #eef2f6;
+    --danger: #ef4444;
+    --radius-sm: 6px;
+    --radius: 10px;
+    --radius-lg: 14px;
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+    --shadow-md: 0 6px 16px rgba(15, 23, 42, 0.08);
+    --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.14);
+    --transition: 160ms cubic-bezier(.2,.8,.2,1);
+    --header-bg: rgba(255, 255, 255, 0.78);
+    --year-bg: #0f172a;
+    --year-fg: #ffffff;
+    --bar-fg: #0f172a;
+    --dep-arrow: #475569;
+  }
+  [data-theme="dark"] {
+    --bg: #0b1220;
+    --panel: #111827;
+    --ink: #e5e7eb;
+    --ink-soft: #cbd5e1;
+    --muted: #94a3b8;
+    --border: #1f2937;
+    --border-strong: #334155;
+    --surface: #1e293b;
+    --surface-2: #1e293b;
+    --accent: #2f95ff;
+    --accent-hover: #4aa3ff;
+    --accent-soft: rgba(47, 149, 255, 0.18);
+    --track: #0f172a;
+    --track-alt: #131c2e;
+    --grid-line: #1f2937;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+    --shadow-md: 0 6px 16px rgba(0,0,0,0.5);
+    --shadow-lg: 0 16px 40px rgba(0,0,0,0.6);
+    --header-bg: rgba(17, 24, 39, 0.78);
+    --year-bg: #1e293b;
+    --year-fg: #f8fafc;
+    --bar-fg: #0f172a;
+    --dep-arrow: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  header {
+    background: var(--header-bg);
+    backdrop-filter: saturate(180%) blur(18px);
+    -webkit-backdrop-filter: saturate(180%) blur(18px);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 18px;
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    position: sticky; top: 0; z-index: 20;
+  }
+  .brand {
+    font-weight: 700; font-size: 15px; letter-spacing: -0.01em;
+    color: var(--ink); padding-right: 4px;
+  }
+
+  .view-toggle {
+    display: inline-flex; background: var(--surface-2);
+    border-radius: 999px; padding: 3px; gap: 2px;
+  }
+  .view-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 16px; border: none; background: transparent;
+    border-radius: 999px; cursor: pointer;
+    font: inherit; font-weight: 600; font-size: 13px; color: var(--ink-soft);
+    transition: background var(--transition), color var(--transition), box-shadow var(--transition);
+  }
+  .view-btn:hover { color: var(--ink); }
+  .view-btn.selected {
+    background: #fff; color: var(--ink); box-shadow: var(--shadow-sm);
+  }
+
+  .seg {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 999px; padding: 4px 12px; height: 36px;
+  }
+  .seg label { font-size: 12px; color: var(--muted); }
+  .seg input[type="month"] {
+    border: none; outline: none; background: transparent;
+    font: inherit; color: var(--ink); padding: 2px 2px; min-width: 112px;
+  }
+  .seg.zoom input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 120px; height: 4px; border-radius: 4px;
+    background: var(--surface-2); outline: none;
+  }
+  .seg.zoom input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer; box-shadow: var(--shadow-sm);
+  }
+  .seg.zoom input[type=range]::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%; border: none;
+    background: var(--accent); cursor: pointer;
+  }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 36px; padding: 0 14px;
+    border: 1px solid var(--border); background: #fff;
+    border-radius: 999px; cursor: pointer;
+    font: inherit; font-weight: 500; color: var(--ink);
+    transition: background var(--transition), border-color var(--transition), transform 60ms;
+  }
+  .chip:hover { background: var(--surface); border-color: var(--border-strong); }
+  .chip:active { transform: scale(0.97); }
+  .chip.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .chip.ghost { background: transparent; }
+  .chip.danger { color: var(--danger); border-color: #fecaca; }
+  .chip.danger:hover { background: #fef2f2; border-color: #fca5a5; }
+  .chip.small { height: 28px; padding: 0 10px; font-size: 12px; }
+
+  .type-group {
+    display: inline-flex; background: var(--surface-2);
+    border-radius: 999px; padding: 3px; gap: 2px;
+  }
+  .type-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 7px 14px; border: none; background: transparent;
+    border-radius: 999px; cursor: pointer;
+    font: inherit; font-weight: 500; color: var(--ink-soft);
+    transition: background var(--transition), color var(--transition), box-shadow var(--transition);
+  }
+  .type-btn:hover { color: var(--ink); }
+  .type-btn.selected {
+    background: #fff; color: var(--ink); font-weight: 600; box-shadow: var(--shadow-sm);
+  }
+  .type-btn .dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
+  .type-btn .dot.diamond { border-radius: 2px; transform: rotate(45deg); }
+
+  .spacer { flex: 1 1 auto; }
+
+  .menu-wrap { position: relative; }
+  .drop {
+    position: absolute; top: calc(100% + 8px); right: 0;
+    background: #fff; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 6px; min-width: 240px;
+    box-shadow: var(--shadow-lg); z-index: 50; display: none;
+  }
+  .drop.open { display: block; }
+  .drop button {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; text-align: left;
+    padding: 8px 10px; border-radius: var(--radius-sm);
+    border: none; background: transparent; font: inherit; cursor: pointer; color: var(--ink);
+  }
+  .drop button:hover { background: var(--surface); }
+  .drop button.danger { color: var(--danger); }
+  .drop button.danger:hover { background: #fef2f2; }
+  .drop .sep { height: 1px; background: var(--border); margin: 4px 0; }
+  .drop .section { font-size: 11px; color: var(--muted); padding: 6px 10px 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .hint {
+    font-size: 12px; color: var(--muted); padding: 8px 20px 0;
+  }
+  .hint .pill {
+    display: inline-block; width: 10px; height: 10px;
+    border-radius: 50%; background: var(--accent);
+    margin: 0 2px -1px; vertical-align: middle;
+  }
+  .hint.timeline-hint { display: none; }
+  .hint.plan-hint { display: none; }
+  body[data-view="plan"] .plan-hint { display: block; }
+  body[data-view="timeline"] .timeline-hint { display: block; }
+
+  /* Hide controls per view */
+  body[data-view="plan"] .timeline-only { display: none !important; }
+  body[data-view="timeline"] .plan-only { display: none !important; }
+
+  main { padding: 16px; }
+
+  /* ======================== PLAN VIEW ======================== */
+  body[data-view="plan"] #timelineView { display: none; }
+  body[data-view="timeline"] #planView { display: none; }
+
+  .plan {
+    max-width: 1100px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+
+  .wp-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    box-shadow: var(--shadow-sm);
+  }
+  .wp-header {
+    display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px;
+  }
+  .wp-header .info { flex: 1; min-width: 0; }
+  .wp-code {
+    font-size: 16px; font-weight: 700; outline: none; color: var(--ink);
+    padding: 2px 4px; border-radius: 4px; cursor: text;
+  }
+  .wp-code:focus { background: var(--surface); }
+  .wp-desc {
+    font-size: 13px; color: var(--muted); outline: none;
+    padding: 2px 4px; border-radius: 4px; cursor: text; margin-top: 2px;
+  }
+  .wp-desc:focus { background: var(--surface); }
+  .wp-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+
+  .wp-icon-btn {
+    height: 32px; min-width: 32px; padding: 0 12px;
+    border: 1px solid var(--border); background: var(--panel);
+    border-radius: 8px;
+    font: inherit; font-size: 12px; font-weight: 500;
+    color: var(--ink-soft);
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+    transition: background var(--transition), border-color var(--transition), color var(--transition);
+  }
+  .wp-icon-btn:hover { background: var(--surface); border-color: var(--border-strong); color: var(--ink); }
+  .wp-icon-btn.danger { color: var(--danger); border-color: #fecaca; }
+  .wp-icon-btn.danger:hover { background: #fef2f2; border-color: #fca5a5; color: var(--danger); }
+
+  .task-list {
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .task-row {
+    display: grid;
+    grid-template-columns: 110px minmax(180px, 1fr) 120px minmax(240px, 1.3fr) 40px;
+    gap: 12px; align-items: center;
+    padding: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .task-row.is-milestone { background: #fef9c3; border-color: #facc15; }
+  .task-type-select {
+    border: none; background: transparent;
+    font: inherit; font-size: 11px; font-weight: 700;
+    cursor: pointer; padding: 4px 8px;
+    border-radius: 999px;
+    text-align: center;
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    background-position: right 8px center;
+    background-repeat: no-repeat;
+  }
+  .task-type-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .task-label {
+    font-size: 13px; outline: none;
+    padding: 4px 6px; border-radius: 4px; cursor: text;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .task-label:focus { background: #fff; white-space: normal; }
+  .task-label:empty::before {
+    content: attr(data-placeholder);
+    color: var(--muted); font-style: italic;
+  }
+  .task-span {
+    display: flex; align-items: center; gap: 6px; white-space: nowrap;
+  }
+  .task-span-input {
+    width: 56px; padding: 5px 8px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: #fff; font: inherit; font-size: 13px; font-weight: 600;
+    text-align: center; color: var(--ink);
+  }
+  .task-span-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  .task-span-label { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .task-deps {
+    display: flex; gap: 4px; flex-wrap: wrap; align-items: center;
+    padding: 2px 0; cursor: pointer; min-height: 24px;
+    border-radius: 6px;
+  }
+  .task-deps:hover { background: rgba(10, 132, 255, 0.08); }
+  .dep-chip-inline {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #f1f5f9; color: var(--ink);
+    font-size: 12px; font-weight: 500;
+    padding: 4px 10px; border-radius: 999px;
+    border: 1px solid var(--border);
+    max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .dep-chip-inline .wp-tag {
+    font-weight: 700; color: var(--accent); font-size: 11px;
+    background: var(--accent-soft);
+    padding: 1px 6px; border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .dep-chip-inline .dep-chip-text {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    min-width: 0;
+  }
+  [data-theme="dark"] .dep-chip-inline { background: #1e293b; color: var(--ink); }
+  .dep-empty { color: var(--muted); font-size: 12px; font-style: italic; }
+  .dep-add-btn {
+    background: transparent; border: 1px dashed var(--border-strong);
+    color: var(--muted);
+    padding: 3px 10px; font-size: 12px; border-radius: 999px; cursor: pointer;
+    font: inherit; font-weight: 500;
+  }
+  .dep-add-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .task-actions { display: flex; gap: 4px; }
+  .task-actions button {
+    padding: 4px 8px; font-size: 13px;
+    border-radius: 6px; border: 1px solid var(--border);
+    background: #fff; cursor: pointer; color: var(--muted);
+  }
+  .task-actions button:hover { color: var(--danger); border-color: #fecaca; background: #fef2f2; }
+
+  .add-task-btn {
+    margin-top: 10px;
+    padding: 8px 14px;
+    background: transparent;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--muted); font: inherit; font-weight: 500; cursor: pointer;
+    width: 100%; text-align: center;
+  }
+  .add-task-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+  .add-wp-btn {
+    margin-top: 8px;
+    padding: 14px;
+    background: var(--panel);
+    border: 2px dashed var(--border-strong);
+    border-radius: var(--radius-lg);
+    color: var(--muted); font: inherit; font-weight: 600; font-size: 14px;
+    cursor: pointer; width: 100%; text-align: center;
+  }
+  .add-wp-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+  /* ======================== TIMELINE VIEW (Monday-style: phase | task | bars) ======================== */
+  .wrap {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: auto; box-shadow: var(--shadow-sm); position: relative;
+  }
+  .timeline { display: grid; position: relative; }
+
+  .header-corner {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    position: sticky; z-index: 5;
+    display: flex; align-items: flex-end;
+    padding: 8px 14px;
+    font-size: 11px; font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .header-corner.phase-corner { left: 0; }
+  .header-corner.task-corner { left: var(--phase-w); }
+  .year-cell {
+    background: var(--year-bg); color: var(--year-fg);
+    text-align: center; padding: 8px 0;
+    font-weight: 700; font-size: 13px; letter-spacing: 0.02em;
+    border-right: 1px solid rgba(255,255,255,0.15);
+  }
+  .month-cell {
+    background: var(--surface); color: var(--ink-soft);
+    text-align: center; padding: 7px 0;
+    font-size: 12px; font-weight: 500;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Phase cell (spans all task rows in a WP) */
+  .phase-cell {
+    background: var(--phase-bg, var(--panel));
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    border-left: 4px solid var(--phase-accent, var(--border-strong));
+    padding: 12px 14px;
+    position: sticky; left: 0; z-index: 3;
+    display: flex; flex-direction: column; gap: 4px;
+    justify-content: flex-start;
+  }
+  .phase-cell .phase-text {
+    font-weight: 700; font-size: 13px;
+    color: var(--phase-text, var(--ink));
+    outline: none;
+    line-height: 1.25;
+  }
+  .phase-cell .phase-desc {
+    font-size: 11px;
+    color: var(--phase-text, var(--ink-soft));
+    opacity: 0.85;
+    outline: none;
+    line-height: 1.3;
+  }
+  .phase-actions {
+    display: flex; gap: 4px; margin-top: auto; padding-top: 6px;
+    opacity: 0; transition: opacity var(--transition);
+  }
+  .phase-cell:hover .phase-actions { opacity: 1; }
+  .phase-actions button {
+    padding: 2px 8px; font-size: 11px;
+    border-radius: 5px; border: 1px solid rgba(0,0,0,0.12);
+    background: rgba(255,255,255,0.6); cursor: pointer;
+    color: var(--ink-soft);
+  }
+  .phase-actions button:hover { background: rgba(255,255,255,0.9); color: var(--ink); }
+  .phase-actions button.danger { color: var(--danger); }
+
+  /* Task cell — one per row, contains just the task label */
+  .task-cell {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    padding: 8px 14px;
+    position: sticky; left: var(--phase-w); z-index: 2;
+    display: flex; align-items: center; gap: 8px;
+    min-height: 44px;
+  }
+  .task-cell .task-name {
+    font-size: 12px; color: var(--ink);
+    outline: none; flex: 1;
+    padding: 2px 4px; border-radius: 4px;
+    cursor: text;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .task-cell .task-name:focus { background: var(--surface); white-space: normal; }
+  .task-cell .task-name.empty { color: var(--muted); font-style: italic; }
+  .task-cell .task-type-pill {
+    font-size: 9px; font-weight: 700; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 4px;
+    color: rgba(0,0,0,0.7);
+    flex-shrink: 0;
+  }
+  .task-cell .task-actions {
+    display: flex; gap: 2px;
+    opacity: 0; transition: opacity var(--transition);
+    flex-shrink: 0;
+  }
+  .task-cell:hover .task-actions { opacity: 1; }
+  .task-cell .task-actions button {
+    padding: 2px 6px; font-size: 11px;
+    border-radius: 4px; border: 1px solid var(--border);
+    background: var(--panel); cursor: pointer; color: var(--muted);
+  }
+  .task-cell .task-actions button:hover { color: var(--danger); border-color: #fecaca; background: #fef2f2; }
+
+  /* Task track — the row in the timeline area */
+  .task-track {
+    position: relative; background: var(--track);
+    border-bottom: 1px solid var(--border); min-height: 44px;
+  }
+  .task-track.alt { background: var(--track-alt); }
+  .task-track::before {
+    content: ""; position: absolute; inset: 0;
+    background-image: linear-gradient(to right, var(--grid-line) 1px, transparent 1px);
+    background-size: var(--col-w) 100%;
+    pointer-events: none;
+  }
+
+  /* "Add task" row at the bottom of each phase */
+  .add-task-cell {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    padding: 4px 14px;
+    position: sticky; left: var(--phase-w); z-index: 2;
+    display: flex; align-items: center;
+    min-height: 28px;
+  }
+  .add-task-cell button {
+    width: 100%; padding: 4px 8px;
+    background: transparent; border: 1px dashed var(--border-strong);
+    border-radius: 6px; color: var(--muted);
+    font: inherit; font-size: 11px; cursor: pointer;
+  }
+  .add-task-cell button:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .add-task-track {
+    background: var(--track);
+    border-bottom: 1px solid var(--border);
+    min-height: 28px;
+  }
+
+  .bar {
+    position: absolute;
+    height: 24px; border-radius: 6px;
+    box-shadow: var(--shadow-sm);
+    cursor: grab; user-select: none;
+    border: 1px solid rgba(0,0,0,0.1);
+    transition: box-shadow var(--transition), transform var(--transition);
+  }
+  .bar:hover { box-shadow: var(--shadow-md); }
+  .bar.dragging { cursor: grabbing; opacity: 0.9; z-index: 5; box-shadow: var(--shadow-md); }
+  .bar.dep-violation { box-shadow: 0 0 0 2px var(--danger), var(--shadow-sm); }
+  .bar.connect-source { box-shadow: 0 0 0 2px var(--accent), var(--shadow-sm); }
+  .bar.connect-target { box-shadow: 0 0 0 3px #22c55e, var(--shadow-md); }
+  .bar .resize {
+    position: absolute; top: 0; bottom: 0;
+    width: 6px; cursor: ew-resize; z-index: 2;
+  }
+  .bar .resize.l { left: 0; }
+  .bar .resize.r { right: 0; }
+  .bar .label {
+    flex: 1; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; outline: none;
+    padding: 2px 4px; border-radius: 4px;
+    cursor: text; min-width: 0;
+  }
+  .bar .label:focus {
+    background: rgba(255,255,255,0.85);
+    white-space: normal; overflow: visible;
+  }
+  .bar.selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .bar .connect-handle {
+    position: absolute;
+    right: -7px; top: 50%; transform: translateY(-50%);
+    width: 14px; height: 14px;
+    background: var(--accent);
+    border: 2px solid var(--panel);
+    border-radius: 50%;
+    cursor: crosshair; z-index: 12;
+    opacity: 0; transition: opacity 120ms;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+  }
+  .bar:hover .connect-handle,
+  .bar.connect-source .connect-handle { opacity: 1; }
+  .bar .connect-handle:hover { transform: translateY(-50%) scale(1.25); }
+
+  .bar .dep-chip {
+    position: absolute;
+    left: 4px; top: -8px;
+    background: var(--ink); color: #fff;
+    font-size: 9px; font-weight: 700;
+    padding: 1px 6px; border-radius: 8px;
+    line-height: 1.4; cursor: pointer; z-index: 11;
+    border: 1px solid var(--panel);
+  }
+  .bar .dep-chip:hover { background: var(--accent); }
+
+  /* External label — shown to the right of bars that are too narrow for their label */
+  .bar .external-label {
+    position: absolute;
+    left: 100%; top: 50%;
+    transform: translateY(-50%);
+    margin-left: 14px;
+    font-size: 11px; font-weight: 500;
+    color: var(--ink-soft);
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 1;
+    text-shadow: 0 0 3px var(--panel), 0 0 3px var(--panel);
+  }
+  .bar.has-external .label { display: none; }
+
+  .milestone {
+    position: absolute;
+    width: 28px; height: 28px;
+    transform: translateX(-14px) rotate(45deg);
+    background: #fbbf24; border: 2px solid #b45309;
+    border-radius: 4px;
+    box-shadow: var(--shadow-sm);
+    cursor: grab;
+  }
+  .milestone::after {
+    content: attr(data-label);
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    transform: rotate(-45deg);
+    font-size: 9px; font-weight: 700;
+    color: var(--bar-fg); white-space: nowrap;
+  }
+  .milestone.selected { box-shadow: 0 0 0 2px var(--accent); }
+
+  .ghost {
+    position: absolute; height: 36px; border-radius: 8px;
+    border: 2px dashed rgba(10, 132, 255, 0.5);
+    background: var(--accent-soft);
+    pointer-events: none; z-index: 2; opacity: 0.95;
+  }
+  .ghost.milestone {
+    width: 28px; height: 28px;
+    transform: translateX(-14px) rotate(45deg);
+    border-radius: 4px;
+  }
+
+  .dep-overlay {
+    position: absolute; top: 0; left: 0;
+    pointer-events: none; z-index: 6; overflow: visible;
+  }
+  .dep-path { fill: none; stroke: var(--dep-arrow); stroke-width: 1.5; opacity: 0.55; }
+  .dep-path.invalid { stroke: var(--danger); stroke-width: 2; opacity: 0.9; }
+  .connect-ghost {
+    position: absolute; top: 0; left: 0;
+    pointer-events: none; z-index: 60; overflow: visible;
+  }
+  .connect-ghost line { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 4; fill: none; }
+
+  .ctx-menu {
+    position: fixed;
+    background: #fff; border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow-lg);
+    padding: 6px; z-index: 100; min-width: 200px;
+  }
+  .ctx-menu button {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; text-align: left;
+    border: none; background: transparent;
+    padding: 7px 10px; border-radius: var(--radius-sm);
+    font: inherit; cursor: pointer; color: var(--ink);
+  }
+  .ctx-menu button:hover { background: var(--surface); }
+  .ctx-menu button.danger { color: var(--danger); }
+  .ctx-menu .sep { height: 1px; background: var(--border); margin: 4px 0; }
+  .ctx-menu .section { font-size: 11px; color: var(--muted); padding: 6px 10px 2px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .ctx-menu .swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.1); }
+
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px;
+  }
+  .modal {
+    background: var(--panel); border-radius: var(--radius-lg);
+    padding: 22px; min-width: 380px; max-width: 520px; width: 100%;
+    max-height: 80vh; display: flex; flex-direction: column;
+    box-shadow: var(--shadow-lg);
+  }
+  .modal h3 { margin: 0 0 4px; font-size: 16px; color: var(--ink); }
+  .modal .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+  .modal .list {
+    overflow-y: auto; flex: 1;
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 4px;
+  }
+  .modal .list label {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: var(--radius-sm);
+    cursor: pointer; font-size: 13px; color: var(--ink);
+  }
+  .modal .list label:hover { background: var(--surface); }
+  .modal .list label .code { font-weight: 700; min-width: 110px; }
+  .modal .list label .desc { color: var(--muted); font-size: 12px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+  @media (max-width: 880px) { .spacer { display: none; } }
+</style>
+</head>
+<body data-view="plan">
+
+<header>
+  <div class="brand">Timeline</div>
+
+  <div class="view-toggle">
+    <button class="view-btn selected" data-view="plan">📋 Plan</button>
+    <button class="view-btn" data-view="timeline">📅 Timeline</button>
+  </div>
+
+  <div class="seg timeline-only">
+    <label>Start</label>
+    <input type="month" id="startDate" />
+  </div>
+  <div class="seg timeline-only">
+    <label>End</label>
+    <input type="month" id="endDate" />
+  </div>
+
+  <div class="type-group timeline-only" id="typeGroup"></div>
+
+  <button class="chip timeline-only" id="autoSeq" title="Lay bars out in dependency order">Auto-sequence</button>
+
+  <div class="seg zoom timeline-only">
+    <label>Zoom</label>
+    <input type="range" id="zoom" min="40" max="240" step="5" value="70" />
+  </div>
+
+  <div class="spacer"></div>
+
+  <button class="chip ghost" id="themeToggle" title="Toggle theme" aria-label="Toggle theme">🌙</button>
+
+  <div class="menu-wrap">
+    <button class="chip primary" id="moreBtn">Menu ▾</button>
+    <div class="drop" id="moreMenu">
+      <div class="section">Presets</div>
+      <button data-cmd="loadCarpati">Load Carpati WPs (with sub-tasks)</button>
+      <div class="sep"></div>
+      <div class="section">Export</div>
+      <button data-cmd="png">Export PNG</button>
+      <button data-cmd="pdf">Export PDF</button>
+      <button data-cmd="html">Export HTML</button>
+      <div class="sep"></div>
+      <div class="section">Data</div>
+      <button data-cmd="json">Export JSON</button>
+      <button data-cmd="import">Import JSON…</button>
+      <div class="sep"></div>
+      <button data-cmd="clear" class="danger">Clear timeline</button>
+    </div>
+  </div>
+  <input type="file" id="importFile" accept="application/json" hidden />
+</header>
+
+<div class="hint plan-hint">
+  Add work packages and tasks here. Each task has a type, a default duration in months, and dependencies. Switch to <strong>Timeline</strong> to lay them out on a calendar.
+</div>
+<div class="hint timeline-hint">
+  Hover any bar to see the <span class="pill"></span> blue handle on its right edge — drag it onto another bar to set a dependency. Click the dark "N deps" badge above a bar to edit predecessors. Auto-sequence snaps everything to its earliest legal start.
+</div>
+
+<main>
+  <div id="planView"></div>
+  <div id="timelineView">
+    <div class="wrap" id="wrap">
+      <div class="timeline" id="timeline"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const TYPES = {
+  work:      { label: "Work",      bar: "#bfdbfe", border: "#1d4ed8" },
+  buffer:    { label: "Buffer",    bar: "#fde68a", border: "#b45309" },
+  leadtime:  { label: "Lead Time", bar: "#ddd6fe", border: "#6d28d9" },
+  review:    { label: "Review",    bar: "#bbf7d0", border: "#15803d" },
+  milestone: { label: "Milestone", bar: "#fbbf24", border: "#b45309" },
+};
+
+let activeType = "work";
+let currentView = "plan";
+const STORAGE_KEY = "carpati-timeline.v3";
+const VIEW_KEY = "carpati-timeline.view";
+const LABEL_W = 240;
+
+function lid() { return "l" + Math.random().toString(36).slice(2, 9); }
+function bid() { return "b" + Math.random().toString(36).slice(2, 9); }
+
+/* ---------- Carpati preset with sub-tasks ---------- */
+function carpatiState() {
+  const i = {};
+  ["w1_design","w1_proto","w1_test","w1_tooling",
+   "w2_design","w2_valid","w2_proto","w2_tooling",
+   "w3_analysis","w3_decision",
+   "w4_plan","w4_orange","w4_blue","w4_old","w4_summary",
+   "w5_std","w5_recert","w5_tfi",
+   "w6_plan","w6_aging","w6_accept",
+   "w7_mfg","w7_cavity","w7_phase",
+   "w8_pr","w8_sku","w8_bom",
+   "w9_landscape","w9_fto"
+  ].forEach(k => i[k] = bid());
+
+  return {
+    start: "2026-01",
+    end: "2027-06",
+    colWidth: 70,
+    lanes: [
+      { id: lid(), code: "WP 1 — Rubber interface", desc: "Mechanical / Design", bars: [
+        { id: i.w1_design,  type: "work",    startIdx: 0,  span: 2, label: "Design", dependsOn: [] },
+        { id: i.w1_proto,   type: "work",    startIdx: 2,  span: 2, label: "Prototype", dependsOn: [i.w1_design] },
+        { id: i.w1_test,    type: "review",  startIdx: 4,  span: 1, label: "Retention test", dependsOn: [i.w1_proto] },
+        { id: i.w1_tooling, type: "work",    startIdx: 5,  span: 1, label: "Tooling release", dependsOn: [i.w1_test] },
+      ]},
+      { id: lid(), code: "WP 2 — Switch mode filter", desc: "Mech/Design + Acoustics", bars: [
+        { id: i.w2_design,  type: "work",    startIdx: 0,  span: 2, label: "Cap + filter design", dependsOn: [] },
+        { id: i.w2_valid,   type: "review",  startIdx: 2,  span: 1, label: "Tactile + click test", dependsOn: [i.w2_design] },
+        { id: i.w2_proto,   type: "work",    startIdx: 3,  span: 2, label: "Prototype + fit", dependsOn: [i.w2_valid] },
+        { id: i.w2_tooling, type: "work",    startIdx: 5,  span: 1, label: "Tooling release", dependsOn: [i.w2_proto] },
+      ]},
+      { id: lid(), code: "WP 3 — Mode-set decision", desc: "Product Management (input: Acoustics, Mech)", bars: [
+        { id: i.w3_analysis, type: "work",      startIdx: 0, span: 1, label: "Mode trade-off analysis", dependsOn: [] },
+        { id: i.w3_decision, type: "milestone", startIdx: 1, span: 0, label: "Decision",                  dependsOn: [i.w3_analysis] },
+      ]},
+      { id: lid(), code: "WP 4 — Acoustic equivalence", desc: "Acoustics", bars: [
+        { id: i.w4_plan,    type: "work",   startIdx: 1, span: 1, label: "Test plan", dependsOn: [i.w3_decision] },
+        { id: i.w4_orange,  type: "review", startIdx: 6, span: 1, label: "D2SIM Orange", dependsOn: [i.w4_plan, i.w1_tooling, i.w2_tooling] },
+        { id: i.w4_blue,    type: "review", startIdx: 6, span: 1, label: "D2SM Blue", dependsOn: [i.w4_plan, i.w1_tooling, i.w2_tooling] },
+        { id: i.w4_old,     type: "review", startIdx: 6, span: 1, label: "Old SM filter", dependsOn: [i.w4_plan, i.w2_tooling] },
+        { id: i.w4_summary, type: "work",   startIdx: 7, span: 1, label: "Pass/fail summary", dependsOn: [i.w4_orange, i.w4_blue, i.w4_old] },
+      ]},
+      { id: lid(), code: "WP 5 — Regulatory pathway", desc: "Quality", bars: [
+        { id: i.w5_std,    type: "work", startIdx: 1, span: 2, label: "Standards landscape", dependsOn: [] },
+        { id: i.w5_recert, type: "work", startIdx: 8, span: 2, label: "Re-cert memos (×2)", dependsOn: [i.w4_summary, i.w5_std] },
+        { id: i.w5_tfi,    type: "work", startIdx: 10, span: 1, label: "Technical-file impact", dependsOn: [i.w5_recert] },
+      ]},
+      { id: lid(), code: "WP 6 — 4-yr lifetime", desc: "Mechanical / Materials (with Quality, Acoustics)", bars: [
+        { id: i.w6_plan,   type: "work",     startIdx: 4, span: 1, label: "Lifetime test plan", dependsOn: [i.w3_decision] },
+        { id: i.w6_aging,  type: "leadtime", startIdx: 6, span: 4, label: "Aging tests (rubber + cap)", dependsOn: [i.w1_tooling, i.w2_tooling, i.w6_plan] },
+        { id: i.w6_accept, type: "review",   startIdx: 10, span: 1, label: "Lifetime acceptance", dependsOn: [i.w6_aging] },
+      ]},
+      { id: lid(), code: "WP 7 — Mfg & tooling", desc: "Manufacturing Engineering", bars: [
+        { id: i.w7_mfg,    type: "work", startIdx: 6, span: 1, label: "Manufacturability assessment", dependsOn: [i.w1_tooling, i.w2_tooling] },
+        { id: i.w7_cavity, type: "work", startIdx: 7, span: 1, label: "Cavity decision (2× vs 4×)", dependsOn: [i.w7_mfg] },
+        { id: i.w7_phase,  type: "work", startIdx: 8, span: 1, label: "Phase-in / phase-out plan", dependsOn: [i.w7_cavity] },
+      ]},
+      { id: lid(), code: "WP 8 — PR & SKU strategy", desc: "Product Management", bars: [
+        { id: i.w8_pr,  type: "work", startIdx: 11, span: 1, label: "PR number plan", dependsOn: [i.w5_tfi, i.w6_accept, i.w7_phase] },
+        { id: i.w8_sku, type: "work", startIdx: 12, span: 2, label: "SKU plans L1 / L2 / L3", dependsOn: [i.w8_pr] },
+        { id: i.w8_bom, type: "work", startIdx: 14, span: 1, label: "BOM update", dependsOn: [i.w8_sku] },
+      ]},
+      { id: lid(), code: "WP 9 — IP / patents", desc: "IP", bars: [
+        { id: i.w9_landscape, type: "work", startIdx: 2, span: 1, label: "IP landscape", dependsOn: [i.w2_design] },
+        { id: i.w9_fto,       type: "work", startIdx: 3, span: 1, label: "Freedom-to-operate", dependsOn: [i.w9_landscape] },
+      ]},
+    ]
+  };
+}
+
+let state = loadState() || carpatiState();
+normaliseState(state);
+
+function normaliseState(s) {
+  for (const lane of s.lanes || []) {
+    for (const bar of lane.bars || []) {
+      if (!Array.isArray(bar.dependsOn)) bar.dependsOn = [];
+    }
+  }
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+
+function parseYM(s) { const [y, m] = s.split("-").map(Number); return { y, m }; }
+function monthsBetween(startStr, endStr) {
+  const s = parseYM(startStr), e = parseYM(endStr);
+  const out = [];
+  let y = s.y, m = s.m;
+  while (y < e.y || (y === e.y && m <= e.m)) {
+    out.push({ y, m }); m++; if (m > 12) { m = 1; y++; }
+  }
+  return out;
+}
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function buildBarMap() {
+  const map = {};
+  state.lanes.forEach((lane, laneIdx) => {
+    lane.bars.forEach(bar => { map[bar.id] = { laneIdx, lane, bar }; });
+  });
+  return map;
+}
+
+function escapeHtml(s) {
+  return (s ?? "").toString()
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+/* =================== VIEW SWITCHING =================== */
+function switchView(view) {
+  currentView = view;
+  document.body.dataset.view = view;
+  document.querySelectorAll(".view-btn").forEach(b => {
+    b.classList.toggle("selected", b.dataset.view === view);
+  });
+  localStorage.setItem(VIEW_KEY, view);
+  renderCurrent();
+}
+function renderCurrent() {
+  if (currentView === "plan") renderPlan();
+  else renderTimeline();
+}
+
+/* =================== PLAN VIEW =================== */
+function renderPlan() {
+  const planEl = document.getElementById("planView");
+  const map = buildBarMap();
+  let html = `<div class="plan">`;
+  state.lanes.forEach((lane, laneIdx) => {
+    html += `<div class="wp-card" data-lane="${lane.id}">
+      <div class="wp-header">
+        <div class="info">
+          <div class="wp-code" contenteditable="true" data-field="code" data-placeholder="WP code">${escapeHtml(lane.code)}</div>
+          <div class="wp-desc" contenteditable="true" data-field="desc" data-placeholder="Discipline / responsibility">${escapeHtml(lane.desc)}</div>
+        </div>
+        <div class="wp-actions">
+          <button class="wp-icon-btn" data-laneact="up" title="Move up">↑</button>
+          <button class="wp-icon-btn" data-laneact="down" title="Move down">↓</button>
+          <button class="wp-icon-btn danger" data-laneact="del" title="Delete WP">Delete</button>
+        </div>
+      </div>
+      <div class="task-list">
+        ${lane.bars.map(bar => renderTaskRow(bar, map)).join("")}
+      </div>
+      <button class="add-task-btn" data-laneact="add-task">+ Add task / deliverable</button>
+    </div>`;
+  });
+  html += `<button class="add-wp-btn" id="addWpPlan">+ Add Work Package</button>`;
+  html += `</div>`;
+  planEl.innerHTML = html;
+  attachPlanHandlers();
+}
+
+function renderTaskRow(bar, map) {
+  const t = TYPES[bar.type] || TYPES.work;
+  const isMilestone = bar.type === "milestone";
+  const deps = (bar.dependsOn || []).map(d => {
+    const e = map[d];
+    if (!e) return "";
+    const wpMatch = e.lane.code.match(/^(WP\s*\d+)/);
+    const wpTag = wpMatch ? wpMatch[1] : e.lane.code.split(/[—-]/)[0].trim();
+    const taskName = e.bar.label || "(untitled)";
+    return `<span class="dep-chip-inline" title="${escapeHtml(e.lane.code)} — ${escapeHtml(e.bar.label || "")}"><span class="wp-tag">${escapeHtml(wpTag)}</span><span class="dep-chip-text">${escapeHtml(taskName)}</span></span>`;
+  }).join("");
+
+  const typeOptions = Object.entries(TYPES).map(([k, v]) =>
+    `<option value="${k}" ${k === bar.type ? "selected" : ""}>${v.label}</option>`
+  ).join("");
+
+  return `<div class="task-row ${isMilestone ? "is-milestone" : ""}" data-bar="${bar.id}">
+    <select class="task-type-select" data-action="set-type" style="background:${t.bar};color:${t.border};">
+      ${typeOptions}
+    </select>
+    <span class="task-label" contenteditable="true" data-action="set-label" data-placeholder="Task label">${escapeHtml(bar.label || "")}</span>
+    <span class="task-span">
+      ${isMilestone
+        ? `<span class="task-span-label">milestone</span>`
+        : `<input type="number" min="1" value="${bar.span}" class="task-span-input" data-action="set-span" /><span class="task-span-label">mo</span>`}
+    </span>
+    <span class="task-deps" data-action="edit-deps">
+      ${deps || '<span class="dep-empty">(no dependencies)</span>'}
+      <button class="dep-add-btn" data-action="edit-deps">+ dep</button>
+    </span>
+    <span class="task-actions">
+      <button data-action="del-task" title="Delete task">✕</button>
+    </span>
+  </div>`;
+}
+
+function attachPlanHandlers() {
+  const planEl = document.getElementById("planView");
+
+  // WP-level edits and actions
+  planEl.querySelectorAll(".wp-card").forEach(card => {
+    const laneId = card.dataset.lane;
+
+    // Editable code/desc
+    card.querySelectorAll("[contenteditable][data-field]").forEach(e => {
+      e.addEventListener("blur", () => {
+        const lane = state.lanes.find(l => l.id === laneId); if (!lane) return;
+        lane[e.dataset.field] = e.textContent.trim();
+        saveState();
+      });
+      e.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); e.blur(); } });
+    });
+
+    // Lane actions
+    card.querySelectorAll("[data-laneact]").forEach(b => {
+      b.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const idx = state.lanes.findIndex(l => l.id === laneId); if (idx < 0) return;
+        const action = b.dataset.laneact;
+        if (action === "up" && idx > 0) {
+          [state.lanes[idx-1], state.lanes[idx]] = [state.lanes[idx], state.lanes[idx-1]];
+        } else if (action === "down" && idx < state.lanes.length - 1) {
+          [state.lanes[idx+1], state.lanes[idx]] = [state.lanes[idx], state.lanes[idx+1]];
+        } else if (action === "del") {
+          if (!confirm(`Delete "${state.lanes[idx].code}" and all its tasks?`)) return;
+          const removedIds = new Set(state.lanes[idx].bars.map(x => x.id));
+          state.lanes.splice(idx, 1);
+          for (const lane of state.lanes) {
+            for (const bar of lane.bars) {
+              bar.dependsOn = (bar.dependsOn || []).filter(d => !removedIds.has(d));
+            }
+          }
+        } else if (action === "add-task") {
+          state.lanes[idx].bars.push({
+            id: bid(), type: activeType === "milestone" ? "work" : activeType,
+            startIdx: 0, span: 1, label: "New task", dependsOn: []
+          });
+        }
+        saveState();
+        renderPlan();
+      });
+    });
+
+    // Task rows
+    card.querySelectorAll(".task-row").forEach(row => {
+      const barId = row.dataset.bar;
+
+      // Type select
+      const typeSel = row.querySelector("select.task-type-select");
+      if (typeSel) {
+        typeSel.addEventListener("change", () => {
+          const lane = state.lanes.find(l => l.id === laneId);
+          const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
+          bar.type = typeSel.value;
+          if (bar.type === "milestone") bar.span = 0;
+          else if (bar.span === 0) bar.span = 1;
+          saveState();
+          renderPlan();
+        });
+      }
+
+      // Label edit
+      const labelEl = row.querySelector(".task-label");
+      if (labelEl) {
+        labelEl.addEventListener("blur", () => {
+          const lane = state.lanes.find(l => l.id === laneId);
+          const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
+          bar.label = labelEl.textContent.trim();
+          saveState();
+        });
+        labelEl.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); labelEl.blur(); } });
+      }
+
+      // Span input
+      const spanInp = row.querySelector(".task-span-input");
+      if (spanInp) {
+        spanInp.addEventListener("change", () => {
+          const lane = state.lanes.find(l => l.id === laneId);
+          const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
+          const v = parseInt(spanInp.value, 10);
+          if (Number.isFinite(v) && v >= 1) { bar.span = v; saveState(); }
+          else { spanInp.value = bar.span; }
+        });
+      }
+
+      // Deps area click
+      const depsArea = row.querySelector(".task-deps");
+      if (depsArea) {
+        depsArea.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          openDepEditor(barId, () => renderPlan());
+        });
+      }
+
+      // Delete task
+      const delBtn = row.querySelector("[data-action='del-task']");
+      if (delBtn) {
+        delBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const lane = state.lanes.find(l => l.id === laneId); if (!lane) return;
+          if (!confirm("Delete this task?")) return;
+          lane.bars = lane.bars.filter(b => b.id !== barId);
+          for (const ln of state.lanes) {
+            for (const br of ln.bars) {
+              br.dependsOn = (br.dependsOn || []).filter(d => d !== barId);
+            }
+          }
+          saveState();
+          renderPlan();
+        });
+      }
+    });
+  });
+
+  // Add WP
+  const addWpBtn = document.getElementById("addWpPlan");
+  if (addWpBtn) {
+    addWpBtn.addEventListener("click", () => {
+      const n = state.lanes.length + 1;
+      state.lanes.push({
+        id: lid(),
+        code: `WP ${n} — New work package`,
+        desc: "Discipline",
+        bars: []
+      });
+      saveState();
+      renderPlan();
+    });
+  }
+}
+
+/* =================== TIMELINE VIEW =================== */
+const el = document.getElementById("timeline");
+const wrap = document.getElementById("wrap");
+
+const PHASE_W = 170;
+const TASK_W = 240;
+
+const PHASE_PALETTE = [
+  { bg: "#fee2e2", accent: "#ef4444", text: "#7f1d1d" },  // red
+  { bg: "#ffedd5", accent: "#f97316", text: "#7c2d12" },  // orange
+  { bg: "#fef3c7", accent: "#eab308", text: "#713f12" },  // amber
+  { bg: "#dcfce7", accent: "#22c55e", text: "#14532d" },  // green
+  { bg: "#cffafe", accent: "#06b6d4", text: "#164e63" },  // cyan
+  { bg: "#dbeafe", accent: "#3b82f6", text: "#1e3a8a" },  // blue
+  { bg: "#e0e7ff", accent: "#6366f1", text: "#312e81" },  // indigo
+  { bg: "#f3e8ff", accent: "#a855f7", text: "#581c87" },  // purple
+  { bg: "#fce7f3", accent: "#ec4899", text: "#831843" },  // pink
+];
+function getPhaseColor(idx) { return PHASE_PALETTE[idx % PHASE_PALETTE.length]; }
+
+function renderTimeline() {
+  const months = monthsBetween(state.start, state.end);
+  const numMonths = months.length;
+  const colW = state.colWidth;
+
+  el.style.setProperty("--phase-w", PHASE_W + "px");
+  el.style.setProperty("--col-w", colW + "px");
+  el.style.gridTemplateColumns = `${PHASE_W}px ${TASK_W}px repeat(${numMonths}, ${colW}px)`;
+
+  const yearSpans = [];
+  for (const m of months) {
+    const last = yearSpans[yearSpans.length - 1];
+    if (last && last.y === m.y) last.span++;
+    else yearSpans.push({ y: m.y, span: 1 });
+  }
+
+  let html = "";
+  // Header row 1 + 2: corner cells span both rows; year cells go in row 1; month cells in row 2
+  html += `<div class="header-corner phase-corner" style="grid-row: span 2;">Phase</div>`;
+  html += `<div class="header-corner task-corner" style="grid-row: span 2;">Task</div>`;
+  for (const ys of yearSpans) {
+    html += `<div class="year-cell" style="grid-column: span ${ys.span};">${ys.y}</div>`;
+  }
+  for (const m of months) {
+    html += `<div class="month-cell">${MONTH_NAMES[m.m - 1]}</div>`;
+  }
+
+  // Body rows — one row per task, phase cell spans all tasks in that WP
+  state.lanes.forEach((lane, laneIdx) => {
+    const phase = getPhaseColor(laneIdx);
+    const numTasks = lane.bars.length;
+    // Phase cell spans all task rows + the trailing add-task row
+    const rowSpan = Math.max(1, numTasks) + 1;
+
+    html += `<div class="phase-cell" data-lane="${lane.id}"
+      style="grid-row: span ${rowSpan}; --phase-bg: ${phase.bg}; --phase-accent: ${phase.accent}; --phase-text: ${phase.text};">
+      <div class="phase-text" contenteditable="true" data-field="code">${escapeHtml(lane.code)}</div>
+      <div class="phase-desc" contenteditable="true" data-field="desc">${escapeHtml(lane.desc)}</div>
+      <div class="phase-actions">
+        <button data-laneact="up" title="Move up">↑</button>
+        <button data-laneact="down" title="Move down">↓</button>
+        <button data-laneact="del" class="danger" title="Delete WP">Delete</button>
+      </div>
+    </div>`;
+
+    if (numTasks === 0) {
+      html += `<div class="task-cell"><span class="task-name empty">— no tasks —</span></div>`;
+      html += `<div class="task-track" style="grid-column: span ${numMonths};"></div>`;
+    } else {
+      lane.bars.forEach((bar) => {
+        const t = TYPES[bar.type] || TYPES.work;
+        html += `<div class="task-cell" data-bar="${bar.id}" data-lane="${lane.id}">
+          <span class="task-type-pill" style="background:${t.bar}; border:1px solid ${t.border};">${t.label}</span>
+          <span class="task-name" contenteditable="true">${escapeHtml(bar.label || "(untitled)")}</span>
+          <span class="task-actions">
+            <button data-action="del-task" title="Delete task">✕</button>
+          </span>
+        </div>`;
+        html += `<div class="task-track" data-bar="${bar.id}" data-lane="${lane.id}" style="grid-column: span ${numMonths};">
+          ${renderSingleBar(bar, colW)}
+        </div>`;
+      });
+    }
+
+    // "+ Add task" row at bottom of each phase
+    html += `<div class="add-task-cell" data-lane="${lane.id}">
+      <button data-laneact="add-task">+ Add task / deliverable</button>
+    </div>`;
+    html += `<div class="add-task-track" style="grid-column: span ${numMonths};"></div>`;
+  });
+
+  el.innerHTML = html;
+  attachTimelineHandlers(colW);
+  requestAnimationFrame(() => renderArrows(colW, numMonths));
+  saveState();
+}
+
+function renderSingleBar(b, colW) {
+  const t = TYPES[b.type] || TYPES.work;
+  const depCount = (b.dependsOn || []).length;
+  const depChip = depCount ? `<div class="dep-chip" data-action="edit-deps" title="${depCount} predecessor${depCount > 1 ? "s" : ""} — click to edit">${depCount} dep${depCount > 1 ? "s" : ""}</div>` : "";
+  const labelText = b.label || "(untitled)";
+  const tipParts = [labelText, t.label];
+  if (b.type !== "milestone") tipParts.push(`${b.span} mo`);
+  if (depCount) tipParts.push(`${depCount} dep${depCount > 1 ? "s" : ""}`);
+  const tip = escapeHtml(tipParts.join(" · "));
+
+  if (b.type === "milestone") {
+    const x = b.startIdx * colW + colW / 2;
+    return `<div class="milestone" data-bar="${b.id}" title="${tip}"
+      style="left:${x}px; top:calc(50% - 14px); background:${t.bar}; border-color:${t.border};"
+      data-label="${escapeHtml(b.label || "")}"></div>`;
+  }
+  const x = b.startIdx * colW;
+  const w = Math.max(1, b.span) * colW;
+  return `<div class="bar" data-bar="${b.id}" title="${tip}"
+    style="left:${x}px; width:${w}px; top:calc(50% - 12px); background:${t.bar}; border-color:${t.border};">
+    <div class="resize l"></div>
+    <div class="resize r"></div>
+    <div class="connect-handle" data-action="start-connect" title="Drag onto another bar to set dependency"></div>
+    ${depChip}
+  </div>`;
+}
+
+function applyStagger() {
+  const tracks = el.querySelectorAll(".lane-track");
+  tracks.forEach(track => {
+    const bars = Array.from(track.querySelectorAll(".bar"));
+    if (bars.length <= 1) return;
+    const items = bars.map(b => ({
+      el: b, left: parseFloat(b.style.left), width: parseFloat(b.style.width),
+    }));
+    items.sort((a, b) => a.left - b.left);
+    const rows = [];
+    items.forEach(it => {
+      const right = it.left + it.width;
+      let placed = false;
+      for (let r = 0; r < rows.length; r++) {
+        if (rows[r].lastRight <= it.left + 1) {
+          rows[r].items.push(it); rows[r].lastRight = right; it.row = r; placed = true; break;
+        }
+      }
+      if (!placed) { rows.push({ items: [it], lastRight: right }); it.row = rows.length - 1; }
+    });
+    const rowCount = rows.length;
+    const trackHeight = track.getBoundingClientRect().height;
+    const barHeight = 36; const gap = 6;
+    const totalH = rowCount * barHeight + (rowCount - 1) * gap;
+    const startY = (trackHeight - totalH) / 2;
+    items.forEach(it => { it.el.style.top = (startY + it.row * (barHeight + gap)) + "px"; });
+  });
+}
+
+function renderArrows(colW, numMonths) {
+  el.querySelectorAll(".dep-overlay").forEach(n => n.remove());
+  const map = buildBarMap();
+  const gridRect = el.getBoundingClientRect();
+
+  function barCenter(barId) {
+    const node = el.querySelector(`[data-bar="${barId}"]`);
+    if (!node) return null;
+    const r = node.getBoundingClientRect();
+    return {
+      left: r.left - gridRect.left, right: r.right - gridRect.left,
+      centerY: r.top - gridRect.top + r.height / 2,
+    };
+  }
+
+  document.querySelectorAll(".bar.dep-violation").forEach(b => b.classList.remove("dep-violation"));
+
+  let paths = "";
+  for (const lane of state.lanes) {
+    for (const bar of lane.bars) {
+      if (bar.type === "milestone") continue;
+      for (const predId of (bar.dependsOn || [])) {
+        const pred = map[predId]; if (!pred) continue;
+        const predGeo = barCenter(predId); const succGeo = barCenter(bar.id);
+        if (!predGeo || !succGeo) continue;
+        const x1 = predGeo.right; const y1 = predGeo.centerY;
+        const x2 = succGeo.left;  const y2 = succGeo.centerY;
+        const invalid = x2 < x1;
+        if (invalid) {
+          const node = document.querySelector(`[data-bar="${bar.id}"]`);
+          if (node) node.classList.add("dep-violation");
+        }
+        const cls = invalid ? "dep-path invalid" : "dep-path";
+        const arrow = invalid ? "url(#dep-arrow-invalid)" : "url(#dep-arrow)";
+        if (invalid) {
+          const detour = 12;
+          paths += `<path class="${cls}" d="M ${x1} ${y1}
+            L ${x1 + detour} ${y1}
+            L ${x1 + detour} ${(y1+y2)/2}
+            L ${x2 - detour} ${(y1+y2)/2}
+            L ${x2 - detour} ${y2}
+            L ${x2} ${y2}" marker-end="${arrow}"/>`;
+        } else {
+          const midX = x1 + Math.max(8, (x2 - x1) / 2);
+          paths += `<path class="${cls}" d="M ${x1} ${y1}
+            L ${midX} ${y1}
+            L ${midX} ${y2}
+            L ${x2} ${y2}" marker-end="${arrow}"/>`;
+        }
+      }
+    }
+  }
+
+  const totalH = el.scrollHeight;
+  const totalW = LABEL_W + numMonths * colW + 8;
+
+  const svg = `<svg class="dep-overlay" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">
+    <defs>
+      <marker id="dep-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--dep-arrow)" opacity="0.85"/>
+      </marker>
+      <marker id="dep-arrow-invalid" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--danger)"/>
+      </marker>
+    </defs>
+    ${paths}
+  </svg>`;
+  el.insertAdjacentHTML("beforeend", svg);
+}
+
+function autoSequence() {
+  const map = buildBarMap();
+  const order = topoOrder(map);
+  if (!order) { alert("Dependency cycle detected — cannot auto-sequence."); return; }
+  for (const barId of order) {
+    const entry = map[barId]; if (!entry) continue;
+    const bar = entry.bar;
+    let earliest = 0;
+    for (const predId of (bar.dependsOn || [])) {
+      const p = map[predId]; if (!p) continue;
+      const pe = p.bar.startIdx + Math.max(p.bar.type === "milestone" ? 0 : 1, p.bar.span || 0);
+      if (pe > earliest) earliest = pe;
+    }
+    bar.startIdx = earliest;
+    if (bar.type !== "milestone" && (!bar.span || bar.span < 1)) bar.span = 1;
+  }
+  renderCurrent();
+}
+
+function topoOrder(map) {
+  const ids = Object.keys(map);
+  const inDeg = {}; const succ = {};
+  for (const id of ids) { inDeg[id] = 0; succ[id] = []; }
+  for (const id of ids) {
+    for (const pred of (map[id].bar.dependsOn || [])) {
+      if (!(pred in inDeg)) continue;
+      inDeg[id]++; succ[pred].push(id);
+    }
+  }
+  const queue = ids.filter(i => inDeg[i] === 0);
+  const out = [];
+  while (queue.length) {
+    const cur = queue.shift(); out.push(cur);
+    for (const s of succ[cur]) { inDeg[s]--; if (inDeg[s] === 0) queue.push(s); }
+  }
+  if (out.length !== ids.length) return null;
+  return out;
+}
+
+let ctxMenuEl = null;
+let selectedBarId = null;
+
+function attachTimelineHandlers(colW) {
+  // Phase cells — editable code/desc, lane actions
+  el.querySelectorAll(".phase-cell").forEach(node => {
+    const laneId = node.dataset.lane;
+    node.querySelectorAll("[contenteditable][data-field]").forEach(e => {
+      e.addEventListener("blur", () => {
+        const lane = state.lanes.find(l => l.id === laneId); if (!lane) return;
+        lane[e.dataset.field] = e.textContent.trim(); saveState();
+      });
+      e.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); e.blur(); } });
+    });
+    node.querySelectorAll("[data-laneact]").forEach(b => {
+      b.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        const idx = state.lanes.findIndex(l => l.id === laneId); if (idx < 0) return;
+        const action = b.dataset.laneact;
+        if (action === "up" && idx > 0) {
+          [state.lanes[idx-1], state.lanes[idx]] = [state.lanes[idx], state.lanes[idx-1]];
+        } else if (action === "down" && idx < state.lanes.length - 1) {
+          [state.lanes[idx+1], state.lanes[idx]] = [state.lanes[idx], state.lanes[idx+1]];
+        } else if (action === "del") {
+          if (!confirm(`Delete "${state.lanes[idx].code}" and all its tasks?`)) return;
+          const removedIds = new Set(state.lanes[idx].bars.map(x => x.id));
+          state.lanes.splice(idx, 1);
+          for (const lane of state.lanes) {
+            for (const bar of lane.bars) {
+              bar.dependsOn = (bar.dependsOn || []).filter(d => !removedIds.has(d));
+            }
+          }
+        }
+        renderTimeline();
+      });
+    });
+  });
+
+  // Add-task button at the bottom of each phase
+  el.querySelectorAll(".add-task-cell[data-lane] button[data-laneact='add-task']").forEach(b => {
+    const laneId = b.closest(".add-task-cell").dataset.lane;
+    b.addEventListener("click", () => {
+      const lane = state.lanes.find(l => l.id === laneId); if (!lane) return;
+      lane.bars.push({ id: bid(), type: "work", startIdx: 0, span: 1, label: "New task", dependsOn: [] });
+      saveState(); renderTimeline();
+    });
+  });
+
+  // Task cells — editable name, delete button
+  el.querySelectorAll(".task-cell[data-bar]").forEach(cell => {
+    const barId = cell.dataset.bar;
+    const laneId = cell.dataset.lane;
+    const nameEl = cell.querySelector(".task-name");
+    if (nameEl) {
+      nameEl.addEventListener("blur", () => {
+        const lane = state.lanes.find(l => l.id === laneId);
+        const bar = lane?.bars.find(b => b.id === barId);
+        if (bar) { bar.label = nameEl.textContent.trim(); saveState(); }
+      });
+      nameEl.addEventListener("keydown", ev => {
+        ev.stopPropagation();
+        if (ev.key === "Enter") { ev.preventDefault(); nameEl.blur(); }
+      });
+    }
+    cell.querySelectorAll("[data-action='del-task']").forEach(btn => {
+      btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (!confirm("Delete this task?")) return;
+        const lane = state.lanes.find(l => l.id === laneId); if (!lane) return;
+        lane.bars = lane.bars.filter(b => b.id !== barId);
+        for (const ln of state.lanes) {
+          for (const br of ln.bars) {
+            br.dependsOn = (br.dependsOn || []).filter(d => d !== barId);
+          }
+        }
+        saveState(); renderTimeline();
+      });
+    });
+  });
+
+  // Bars
+  el.querySelectorAll(".bar").forEach(barEl => {
+    const barId = barEl.dataset.bar;
+    const map = buildBarMap();
+    const laneId = map[barId]?.lane.id;
+    if (!laneId) return;
+    barEl.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      if (e.target.classList.contains("connect-handle")) return;
+      if (e.target.classList.contains("dep-chip")) return;
+      const handle = e.target.classList.contains("resize")
+        ? (e.target.classList.contains("l") ? "resize-l" : "resize-r")
+        : "move";
+      beginBarDrag(barId, laneId, handle, e, colW);
+    });
+    barEl.addEventListener("contextmenu", (e) => {
+      e.preventDefault(); selectedBarId = barId;
+      openCtxMenu(e.clientX, e.clientY, barId, laneId);
+    });
+    barEl.addEventListener("click", (e) => {
+      if (e.target.classList.contains("dep-chip")) return;
+      if (e.target.classList.contains("connect-handle")) return;
+      selectBar(barId);
+    });
+    const handleEl = barEl.querySelector(".connect-handle");
+    if (handleEl) {
+      handleEl.addEventListener("mousedown", (e) => {
+        e.stopPropagation(); e.preventDefault();
+        beginConnectDrag(barId, e);
+      });
+    }
+    const chipEl = barEl.querySelector(".dep-chip");
+    if (chipEl) {
+      chipEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openDepEditor(barId, () => renderTimeline());
+      });
+    }
+  });
+
+  // Milestones
+  el.querySelectorAll(".milestone").forEach(mEl => {
+    const barId = mEl.dataset.bar;
+    const map = buildBarMap();
+    const laneId = map[barId]?.lane.id;
+    if (!laneId) return;
+    mEl.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      beginBarDrag(barId, laneId, "move", e, colW);
+    });
+    mEl.addEventListener("contextmenu", (e) => {
+      e.preventDefault(); openCtxMenu(e.clientX, e.clientY, barId, laneId);
+    });
+    mEl.addEventListener("dblclick", () => renameBar(barId, laneId));
+  });
+}
+
+function selectBar(id) {
+  selectedBarId = id;
+  document.querySelectorAll(".bar,.milestone").forEach(b => {
+    b.classList.toggle("selected", b.dataset.bar === id);
+  });
+}
+
+function beginBarDrag(barId, laneId, mode, startEvent, colW) {
+  const lane = state.lanes.find(l => l.id === laneId);
+  const bar = lane.bars.find(b => b.id === barId);
+  if (!bar) return;
+  const origStart = bar.startIdx; const origSpan = bar.span;
+  const startX = startEvent.clientX;
+  const numMonths = monthsBetween(state.start, state.end).length;
+  const barEl = el.querySelector(`[data-bar="${barId}"]`);
+  barEl?.classList.add("dragging");
+  function onMove(ev) {
+    const dx = ev.clientX - startX; const dCols = Math.round(dx / colW);
+    if (mode === "move") {
+      const newStart = Math.max(0, Math.min(numMonths - Math.max(1, origSpan), origStart + dCols));
+      bar.startIdx = newStart;
+    } else if (mode === "resize-r") {
+      const newSpan = Math.max(1, Math.min(numMonths - origStart, origSpan + dCols));
+      bar.span = newSpan;
+    } else if (mode === "resize-l") {
+      const delta = Math.max(-origStart, Math.min(origSpan - 1, dCols));
+      bar.startIdx = origStart + delta; bar.span = origSpan - delta;
+    }
+    updateBarDOM(bar, colW);
+  }
+  function onUp() {
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", onUp);
+    barEl?.classList.remove("dragging");
+    saveState(); renderTimeline();
+  }
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+}
+
+function updateBarDOM(bar, colW) {
+  const node = el.querySelector(`[data-bar="${bar.id}"]`);
+  if (!node) return;
+  if (bar.type === "milestone") {
+    node.style.left = (bar.startIdx * colW + colW / 2) + "px";
+  } else {
+    node.style.left = (bar.startIdx * colW) + "px";
+    node.style.width = (Math.max(1, bar.span) * colW) + "px";
+  }
+}
+
+function beginConnectDrag(sourceBarId, startEvent) {
+  const sourceEl = el.querySelector(`[data-bar="${sourceBarId}"]`);
+  if (!sourceEl) return;
+  sourceEl.classList.add("connect-source");
+  const wrapRect = wrap.getBoundingClientRect();
+  const startX = startEvent.clientX - wrapRect.left + wrap.scrollLeft;
+  const startY = startEvent.clientY - wrapRect.top + wrap.scrollTop;
+  const overlay = document.createElement("div");
+  overlay.className = "connect-ghost";
+  overlay.style.width = wrap.scrollWidth + "px";
+  overlay.style.height = wrap.scrollHeight + "px";
+  overlay.innerHTML = `<svg width="100%" height="100%"><line x1="${startX}" y1="${startY}" x2="${startX}" y2="${startY}"/></svg>`;
+  wrap.appendChild(overlay);
+  const lineEl = overlay.querySelector("line");
+  let lastTargetEl = null;
+  function onMove(ev) {
+    const x = ev.clientX - wrapRect.left + wrap.scrollLeft;
+    const y = ev.clientY - wrapRect.top + wrap.scrollTop;
+    lineEl.setAttribute("x2", x); lineEl.setAttribute("y2", y);
+    if (lastTargetEl) lastTargetEl.classList.remove("connect-target");
+    const under = document.elementFromPoint(ev.clientX, ev.clientY);
+    const targetBar = under?.closest(".bar");
+    if (targetBar && targetBar.dataset.bar !== sourceBarId) {
+      targetBar.classList.add("connect-target"); lastTargetEl = targetBar;
+    } else { lastTargetEl = null; }
+  }
+  function onUp(ev) {
+    window.removeEventListener("mousemove", onMove);
+    window.removeEventListener("mouseup", onUp);
+    sourceEl.classList.remove("connect-source");
+    if (lastTargetEl) lastTargetEl.classList.remove("connect-target");
+    overlay.remove();
+    const under = document.elementFromPoint(ev.clientX, ev.clientY);
+    const targetBar = under?.closest(".bar");
+    if (targetBar) {
+      const targetId = targetBar.dataset.bar;
+      if (targetId !== sourceBarId) {
+        const map = buildBarMap();
+        const target = map[targetId];
+        if (target) {
+          if (target.bar.dependsOn.includes(sourceBarId)) { /* exists */ }
+          else if (createsCycle(targetId, sourceBarId, map)) { alert("Adding that dependency would create a cycle. Skipped."); }
+          else { target.bar.dependsOn.push(sourceBarId); saveState(); }
+        }
+      }
+    }
+    renderTimeline();
+  }
+  window.addEventListener("mousemove", onMove);
+  window.addEventListener("mouseup", onUp);
+}
+
+function createsCycle(targetId, predId, map) {
+  const visited = new Set(); const stack = [predId];
+  while (stack.length) {
+    const cur = stack.pop();
+    if (cur === targetId) return true;
+    if (visited.has(cur)) continue;
+    visited.add(cur);
+    const entry = map[cur]; if (!entry) continue;
+    for (const p of (entry.bar.dependsOn || [])) stack.push(p);
+  }
+  return false;
+}
+
+function renameBar(barId, laneId) {
+  const lane = state.lanes.find(l => l.id === laneId);
+  const bar = lane?.bars.find(b => b.id === barId);
+  if (!bar) return;
+  const next = prompt("Label:", bar.label || "");
+  if (next !== null) { bar.label = next; renderTimeline(); }
+}
+
+function openCtxMenu(x, y, barId, laneId) {
+  closeCtxMenu();
+  const lane = state.lanes.find(l => l.id === laneId);
+  const bar = lane?.bars.find(b => b.id === barId);
+  if (!bar) return;
+  const m = document.createElement("div");
+  m.className = "ctx-menu";
+  m.style.left = x + "px"; m.style.top = y + "px";
+  m.innerHTML =
+    `<div class="section">Change type</div>` +
+    Object.entries(TYPES).map(([k, t]) =>
+      `<button data-type="${k}"><span class="swatch" style="background:${t.bar};border-color:${t.border};"></span>${t.label}</button>`
+    ).join("") +
+    `<div class="sep"></div>` +
+    `<button data-action="deps">Edit dependencies…</button>` +
+    `<button data-action="rename">Rename…</button>` +
+    `<button data-action="duplicate">Duplicate</button>` +
+    `<button data-action="delete" class="danger">Delete</button>`;
+  document.body.appendChild(m); ctxMenuEl = m;
+  m.querySelectorAll("button").forEach(b => {
+    b.addEventListener("click", () => {
+      if (b.dataset.type) {
+        bar.type = b.dataset.type;
+        if (bar.type === "milestone") bar.span = 0;
+        else if (bar.span === 0) bar.span = 1;
+      } else if (b.dataset.action === "deps") {
+        closeCtxMenu(); openDepEditor(barId, () => renderTimeline()); return;
+      } else if (b.dataset.action === "rename") renameBar(barId, laneId);
+      else if (b.dataset.action === "duplicate") {
+        lane.bars.push({ ...bar, id: bid(), startIdx: bar.startIdx + Math.max(1, bar.span), dependsOn: [...(bar.dependsOn || [])] });
+      } else if (b.dataset.action === "delete") {
+        const removedId = barId;
+        lane.bars = lane.bars.filter(x => x.id !== barId);
+        for (const ln of state.lanes) {
+          for (const br of ln.bars) {
+            br.dependsOn = (br.dependsOn || []).filter(d => d !== removedId);
+          }
+        }
+      }
+      closeCtxMenu(); renderTimeline();
+    });
+  });
+  setTimeout(() => { document.addEventListener("mousedown", outsideClose, { once: true }); }, 0);
+}
+function outsideClose(e) {
+  if (ctxMenuEl && !ctxMenuEl.contains(e.target)) closeCtxMenu();
+  else if (ctxMenuEl) document.addEventListener("mousedown", outsideClose, { once: true });
+}
+function closeCtxMenu() { if (ctxMenuEl) ctxMenuEl.remove(); ctxMenuEl = null; }
+
+/* =================== SHARED: Dep editor (used by both views) =================== */
+function openDepEditor(barId, onClose) {
+  const map = buildBarMap();
+  const entry = map[barId]; if (!entry) return;
+  const bar = entry.bar;
+  const currentDeps = new Set(bar.dependsOn || []);
+  const descendants = collectDescendants(barId, map);
+  const candidates = [];
+  for (const otherId of Object.keys(map)) {
+    if (otherId === barId) continue;
+    if (descendants.has(otherId)) continue;
+    candidates.push(otherId);
+  }
+  candidates.sort((a, b) => {
+    const ea = map[a]; const eb = map[b];
+    if (ea.laneIdx !== eb.laneIdx) return ea.laneIdx - eb.laneIdx;
+    return (ea.bar.label || "").localeCompare(eb.bar.label || "");
+  });
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  const modal = document.createElement("div");
+  modal.className = "modal";
+  modal.innerHTML = `
+    <h3>Edit predecessors for "${escapeHtml(bar.label || "(untitled)")}"</h3>
+    <div class="sub">${escapeHtml(entry.lane.code)} — tick the tasks this one must wait for. Items that would create a cycle are hidden.</div>
+    <div class="list">
+      ${candidates.map(id => {
+        const m = map[id];
+        return `<label><input type="checkbox" value="${id}" ${currentDeps.has(id) ? "checked" : ""}>
+          <span class="code">${escapeHtml(m.lane.code)}</span>
+          <span class="desc">${escapeHtml(m.bar.label || "(untitled)")}</span>
+        </label>`;
+      }).join("") || `<div style="padding:12px;color:var(--muted);text-align:center;">No eligible predecessors.</div>`}
+    </div>
+    <div class="modal-actions">
+      <button class="chip" id="depCancel">Cancel</button>
+      <button class="chip primary" id="depSave">Save</button>
+    </div>
+  `;
+  backdrop.appendChild(modal); document.body.appendChild(backdrop);
+  modal.querySelector("#depCancel").addEventListener("click", () => backdrop.remove());
+  modal.querySelector("#depSave").addEventListener("click", () => {
+    const checks = modal.querySelectorAll("input[type=checkbox]");
+    bar.dependsOn = Array.from(checks).filter(c => c.checked).map(c => c.value);
+    backdrop.remove(); saveState();
+    if (onClose) onClose(); else renderCurrent();
+  });
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) backdrop.remove(); });
+}
+
+function collectDescendants(rootId, map) {
+  const out = new Set(); const stack = [rootId];
+  while (stack.length) {
+    const cur = stack.pop();
+    for (const id of Object.keys(map)) {
+      if (out.has(id) || id === rootId) continue;
+      const deps = map[id].bar.dependsOn || [];
+      if (deps.includes(cur)) { out.add(id); stack.push(id); }
+    }
+  }
+  return out;
+}
+
+/* =================== Type selector buttons (timeline only) =================== */
+function renderTypeButtons() {
+  const g = document.getElementById("typeGroup");
+  g.innerHTML = Object.entries(TYPES).map(([k, t]) => {
+    const diamond = k === "milestone" ? " diamond" : "";
+    return `<button class="type-btn${k === activeType ? " selected" : ""}" data-type="${k}">
+      <span class="dot${diamond}" style="background:${t.bar};border-color:${t.border};"></span>${t.label}
+    </button>`;
+  }).join("");
+  g.querySelectorAll(".type-btn").forEach(b => {
+    b.addEventListener("click", () => { activeType = b.dataset.type; renderTypeButtons(); });
+  });
+}
+
+/* =================== Keyboard =================== */
+window.addEventListener("keydown", (e) => {
+  if (currentView !== "timeline") return;
+  if (!selectedBarId) return;
+  if (["INPUT","TEXTAREA"].includes(document.activeElement?.tagName)) return;
+  if (document.activeElement?.isContentEditable) return;
+  let lane, bar;
+  for (const l of state.lanes) {
+    const b = l.bars.find(x => x.id === selectedBarId);
+    if (b) { lane = l; bar = b; break; }
+  }
+  if (!bar) return;
+  if (e.key === "Delete" || e.key === "Backspace") {
+    const removedId = selectedBarId;
+    lane.bars = lane.bars.filter(x => x.id !== removedId);
+    for (const ln of state.lanes) {
+      for (const br of ln.bars) {
+        br.dependsOn = (br.dependsOn || []).filter(d => d !== removedId);
+      }
+    }
+    selectedBarId = null; renderTimeline();
+  } else if (e.key === "ArrowLeft") { bar.startIdx = Math.max(0, bar.startIdx - 1); renderTimeline(); }
+  else if (e.key === "ArrowRight") { bar.startIdx = bar.startIdx + 1; renderTimeline(); }
+});
+
+/* =================== Toolbar handlers =================== */
+document.querySelectorAll(".view-btn").forEach(b => {
+  b.addEventListener("click", () => switchView(b.dataset.view));
+});
+
+document.getElementById("startDate").addEventListener("change", (e) => { state.start = e.target.value; renderCurrent(); });
+document.getElementById("endDate").addEventListener("change", (e) => { state.end = e.target.value; renderCurrent(); });
+document.getElementById("autoSeq").addEventListener("click", autoSequence);
+document.getElementById("zoom").addEventListener("input", (e) => { state.colWidth = Number(e.target.value); renderCurrent(); });
+
+const moreBtn = document.getElementById("moreBtn");
+const moreMenu = document.getElementById("moreMenu");
+moreBtn.addEventListener("click", (e) => { e.stopPropagation(); moreMenu.classList.toggle("open"); });
+document.addEventListener("click", (e) => {
+  if (!moreMenu.contains(e.target) && e.target !== moreBtn) moreMenu.classList.remove("open");
+});
+moreMenu.addEventListener("click", async (e) => {
+  const btn = e.target.closest("button[data-cmd]");
+  if (!btn) return;
+  moreMenu.classList.remove("open");
+  const cmd = btn.dataset.cmd;
+  if (cmd === "loadCarpati") {
+    if (confirm("Replace the current plan with the Carpati WPs preset (with sub-tasks)?")) {
+      state = carpatiState(); initUI(); renderCurrent();
+    }
+  } else if (cmd === "png") {
+    if (currentView !== "timeline") switchView("timeline");
+    setTimeout(async () => {
+      const canvas = await snapshotCanvas();
+      canvas.toBlob(b => downloadBlob(b, `carpati-timeline-${Date.now()}.png`), "image/png");
+    }, 100);
+  } else if (cmd === "pdf") {
+    if (currentView !== "timeline") switchView("timeline");
+    setTimeout(async () => {
+      const canvas = await snapshotCanvas();
+      const { jsPDF } = window.jspdf;
+      const imgData = canvas.toDataURL("image/png");
+      const landscape = canvas.width >= canvas.height;
+      const pdf = new jsPDF({ orientation: landscape ? "landscape" : "portrait", unit: "pt", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth(); const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 24;
+      const ratio = Math.min((pageW - margin*2) / canvas.width, (pageH - margin*2) / canvas.height);
+      const w = canvas.width * ratio; const h = canvas.height * ratio;
+      pdf.addImage(imgData, "PNG", (pageW - w) / 2, (pageH - h) / 2, w, h);
+      pdf.save(`carpati-timeline-${Date.now()}.pdf`);
+    }, 100);
+  } else if (cmd === "html") {
+    const clone = document.documentElement.cloneNode(true);
+    clone.querySelectorAll("script, header, .hint, #importFile").forEach(n => n.remove());
+    const html = "<!DOCTYPE html>" + clone.outerHTML;
+    downloadBlob(new Blob([html], { type: "text/html" }), `carpati-timeline-${Date.now()}.html`);
+  } else if (cmd === "json") {
+    downloadBlob(new Blob([JSON.stringify(state, null, 2)], { type: "application/json" }), `carpati-timeline-${Date.now()}.json`);
+  } else if (cmd === "import") {
+    document.getElementById("importFile").click();
+  } else if (cmd === "clear") {
+    if (confirm("Reset to an empty plan?")) {
+      state = { ...carpatiState(), lanes: [] }; renderCurrent();
+    }
+  }
+});
+document.getElementById("importFile").addEventListener("change", (e) => {
+  const f = e.target.files?.[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try { state = JSON.parse(r.result); normaliseState(state); initUI(); renderCurrent(); }
+    catch { alert("Invalid JSON"); }
+  };
+  r.readAsText(f);
+});
+
+async function snapshotCanvas() {
+  const target = document.getElementById("timeline");
+  const clone = target.cloneNode(true);
+  clone.querySelectorAll(".lane-actions, .resize, .ghost, .connect-handle, .connect-ghost").forEach(n => n.remove());
+  clone.querySelectorAll("[contenteditable]").forEach(n => n.removeAttribute("contenteditable"));
+  const stage = document.createElement("div");
+  stage.style.position = "fixed"; stage.style.left = "-10000px"; stage.style.top = "0";
+  stage.style.background = "#ffffff"; stage.style.padding = "16px";
+  stage.appendChild(clone); document.body.appendChild(stage);
+  clone.querySelectorAll(".lane-label, .corner").forEach(n => { n.style.position = "static"; });
+  try {
+    return await html2canvas(stage, { backgroundColor: "#ffffff", scale: 2, useCORS: true, logging: false });
+  } finally { stage.remove(); }
+}
+
+function downloadBlob(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function initUI() {
+  document.getElementById("startDate").value = state.start;
+  document.getElementById("endDate").value = state.end;
+  document.getElementById("zoom").value = state.colWidth;
+}
+
+const THEME_KEY = "carpati-timeline.theme";
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  document.getElementById("themeToggle").textContent = theme === "dark" ? "☀️" : "🌙";
+  localStorage.setItem(THEME_KEY, theme);
+}
+const savedTheme = localStorage.getItem(THEME_KEY)
+  || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+applyTheme(savedTheme);
+document.getElementById("themeToggle").addEventListener("click", () => {
+  applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+});
+
+let resizeTimer;
+window.addEventListener("resize", () => {
+  if (currentView !== "timeline") return;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => renderTimeline(), 100);
+});
+
+/* =================== INIT =================== */
+const savedView = localStorage.getItem(VIEW_KEY);
+if (savedView === "plan" || savedView === "timeline") currentView = savedView;
+document.body.dataset.view = currentView;
+document.querySelectorAll(".view-btn").forEach(b => {
+  b.classList.toggle("selected", b.dataset.view === currentView);
+});
+
+initUI();
+renderTypeButtons();
+renderCurrent();
+</script>
+</body>
+</html>

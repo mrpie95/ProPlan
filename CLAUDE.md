@@ -1,0 +1,63 @@
+# Timeline tool
+
+Single-file HTML/CSS/JS planning tool. Two views (Plan + Timeline) over the same state.
+
+## File
+- `Carpati Timeline.html` — everything in one file. Open it directly in a browser, no build step.
+- Pre-loaded with the Carpati hearing-protection program WPs as a demo preset, but the tool is generic — the title and brand are just "Timeline".
+
+## State schema
+```js
+{
+  start: "YYYY-MM",
+  end: "YYYY-MM",
+  colWidth: <px-per-month-in-timeline>,
+  lanes: [{
+    id, code, desc,
+    bars: [{
+      id,
+      type: "work" | "buffer" | "leadtime" | "review" | "milestone",
+      startIdx,            // months from state.start
+      span,                // duration in months (0 for milestones)
+      label,
+      dependsOn: [barId]   // predecessor bar ids
+    }]
+  }]
+}
+```
+Persisted to `localStorage` under `carpati-timeline.v3`. Theme under `carpati-timeline.theme`. View choice under `carpati-timeline.view`.
+
+## Architecture
+- Two views toggled by `<body data-view>`: `plan` (cards) and `timeline` (Monday-style table with sticky Phase | Task | Bars columns).
+- `renderPlan()` builds the Plan view. `renderTimeline()` + `renderSingleBar()` build the Timeline view. Both read and write the same `state`.
+- Dependencies are rendered as an SVG overlay inside the timeline grid (`renderArrows()`). Right-angle paths between bar centres, measured from the DOM (`getBoundingClientRect`) so arrows stay aligned even when lanes have variable height.
+- Drag-to-connect: blue handle on each bar's right edge → `beginConnectDrag()`. Cycle detection in `createsCycle()`.
+- Predecessor picker modal: `openDepEditor()`, used by both views.
+- Auto-sequence: topological order via `topoOrder()`, sets each bar's `startIdx` to the latest finish of its predecessors. Spans preserved.
+
+## Built-in preset
+The Carpati WPs preset (9 WPs, 28 sub-tasks, full dependency graph) lives in `carpatiState()`. Loaded via Menu → "Load Carpati WPs (with sub-tasks)".
+
+## What's intentionally NOT in the timeline view
+- Drag-on-empty-space to create a new bar — removed when we restructured to the Monday-style row-per-task layout (each task already has its own dedicated row, so empty space inside a track doesn't exist meaningfully). New tasks are added via the "+ Add task / deliverable" button at the bottom of each phase, or in Plan view.
+- Internal bar labels and external-label overflow — task names now live in the dedicated Task column. Bars are clean coloured blocks. Tooltips on hover (via `title`) carry full info.
+
+## Known limitations / things to revisit
+- Phase header sticky-left positioning assumes `--phase-w: 170px` (constant `PHASE_W`). If you change `PHASE_W`, also update the `task-corner` / `task-cell` `left:` value.
+- `applyStagger()` is dead code (was used when multiple bars shared a lane row). Safe to delete.
+- `.bar .label`, `.bar .external-label`, `.bar.has-external` CSS rules are dead — bars no longer have internal labels. Safe to delete.
+- The type group buttons in the header still set `activeType`, but `activeType` is unused now since drag-to-create is gone. Consider removing the type buttons or hooking them up to "+ Add task" so new tasks adopt the active type.
+- Storage key has been bumped on every breaking schema change (v1 → v2 → v3). If the schema changes again, bump to v4 and add a migration or `normaliseState()` step.
+
+## Possible next steps the user has flagged
+- Side panel for the selected task (label + type + duration + deps editable in one place, no modal).
+- Always-on label outside bars (above or below) instead of tooltip-only.
+- Multi-line text wrap inside taller bars.
+- Import / round-trip with the source `Carpati Product Requirement.xlsx` (CAR-NEED IDs as the canonical task identifier).
+- Estimate-collection flow: leads fill in durations from a shared link or imported sheet.
+- Sticky headers in Plan view when scrolling long WP lists.
+
+## Conventions
+- `lid()` for lane ids, `bid()` for bar ids — both random base36 short ids.
+- Lane code follows `WP <n> — <short name>`. The renderer extracts `WP <n>` for compact display in dep chips. If you change this format, update the regex in the dep chip renderer.
+- Phase colours cycle through `PHASE_PALETTE` (9 pastels). Add more if you exceed 9 phases regularly.
