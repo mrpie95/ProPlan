@@ -1702,6 +1702,432 @@ function renderArrowsIn(targetEl, colW, numMonths, offsetX) {
   targetEl.insertAdjacentHTML("beforeend", svg);
 }
 
+const ovEl = document.getElementById("overviewTimeline");
+const aEl = document.getElementById("viewATimeline");
+const bEl = document.getElementById("viewBTimeline");
+
+function renderOverview() {
+  const months = monthsBetween(state.start, state.end);
+  const numMonths = months.length;
+  const colW = state.colWidth;
+
+  ovEl.style.setProperty("--phase-w", PHASE_W + "px");
+  ovEl.style.setProperty("--col-w", colW + "px");
+  ovEl.style.gridTemplateColumns = `${PHASE_W}px repeat(${numMonths}, ${colW}px)`;
+
+  const yearSpans = [];
+  for (const m of months) {
+    const last = yearSpans[yearSpans.length - 1];
+    if (last && last.y === m.y) last.span++;
+    else yearSpans.push({ y: m.y, span: 1 });
+  }
+
+  let html = "";
+  html += `<div class="header-corner phase-corner" style="grid-row: span 2;">Phase<div class="phase-resize-handle" title="Drag to resize"></div></div>`;
+  for (const ys of yearSpans) {
+    html += `<div class="year-cell" style="grid-column: span ${ys.span};">${ys.y}</div>`;
+  }
+  for (const m of months) {
+    html += `<div class="month-cell">${MONTH_NAMES[m.m - 1]}</div>`;
+  }
+
+  state.lanes.forEach((lane, laneIdx) => {
+    const phase = getPhaseColor(laneIdx);
+    html += `<div class="phase-cell" data-lane="${lane.id}"
+      style="--phase-bg:${phase.bg}; --phase-accent:${phase.accent}; --phase-text:${phase.text};">
+      <div class="phase-text">${escapeHtml(lane.code)}</div>
+    </div>`;
+    html += `<div class="overview-track" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">
+      ${lane.bars.map(b => renderOverviewBar(b, colW)).join("")}
+    </div>`;
+  });
+
+  ovEl.innerHTML = html;
+  requestAnimationFrame(() => renderTodayLineIn(ovEl, colW, numMonths, PHASE_W));
+}
+
+function renderOverviewBar(b, colW) {
+  const t = TYPES[b.type] || TYPES.work;
+  const labelText = b.label || "(untitled)";
+  const tipParts = [labelText, t.label];
+  if (b.type !== "milestone") tipParts.push(`${b.span}mo`);
+  const tip = escapeHtml(tipParts.join(" · "));
+
+  if (b.type === "milestone") {
+    const x = b.startIdx * colW + colW / 2;
+    return `<div class="ov-milestone" data-bar="${b.id}" title="${tip}" style="left:${x}px;">
+      <svg viewBox="0 0 24 24">
+        <path d="M 12 2.2 L 14.6 8.7 L 21.6 9.1 L 16.2 13.7 L 18 20.5 L 12 16.7 L 6 20.5 L 7.8 13.7 L 2.4 9.1 L 9.4 8.7 Z"
+          fill="${t.bar}" stroke="${t.border}" stroke-width="1.8" stroke-linejoin="round" />
+      </svg>
+    </div>`;
+  }
+  const x = b.startIdx * colW;
+  const w = Math.max(1, b.span) * colW;
+  return `<div class="ov-bar" data-bar="${b.id}" title="${tip}"
+    style="left:${x}px; width:${w}px; background:${t.bar}; border-color:${t.border};">${escapeHtml(labelText)}</div>`;
+}
+
+function renderTodayLineIn(targetEl, colW, numMonths, leftOffset) {
+  targetEl.querySelectorAll(".today-line").forEach(n => n.remove());
+  const today = new Date();
+  const start = parseYM(state.start);
+  const monthsFromStart = (today.getFullYear() - start.y) * 12 + (today.getMonth() + 1 - start.m);
+  if (monthsFromStart < 0 || monthsFromStart >= numMonths) return;
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const dayFrac = (today.getDate() - 1) / daysInMonth;
+  const x = (monthsFromStart + dayFrac) * colW;
+  const totalH = targetEl.scrollHeight;
+  const left = leftOffset + x;
+  targetEl.insertAdjacentHTML("beforeend",
+    `<div class="today-line" style="left:${left}px; height:${totalH}px;"></div>`);
+}
+
+function renderTodayLine(colW, numMonths) {
+  renderTodayLineIn(el, colW, numMonths, PHASE_W + TASK_W);
+}
+
+function renderViewA() {
+  const months = monthsBetween(state.start, state.end);
+  const numMonths = months.length;
+  const colW = state.colWidth;
+  const LEFT_W = PHASE_W + TASK_W;
+
+  aEl.style.setProperty("--phase-w", LEFT_W + "px");
+  aEl.style.setProperty("--col-w", colW + "px");
+  aEl.style.gridTemplateColumns = `${LEFT_W}px repeat(${numMonths}, ${colW}px)`;
+
+  const yearSpans = [];
+  for (const m of months) {
+    const last = yearSpans[yearSpans.length - 1];
+    if (last && last.y === m.y) last.span++;
+    else yearSpans.push({ y: m.y, span: 1 });
+  }
+
+  let html = "";
+  html += `<div class="header-corner phase-corner" style="grid-row: span 2;">Tasks<div class="phase-resize-handle" title="Drag to resize"></div></div>`;
+  for (const ys of yearSpans) {
+    html += `<div class="year-cell" style="grid-column: span ${ys.span};">${ys.y}</div>`;
+  }
+  for (const m of months) {
+    html += `<div class="month-cell">${MONTH_NAMES[m.m - 1]}</div>`;
+  }
+
+  state.lanes.forEach((lane, laneIdx) => {
+    const phase = getPhaseColor(laneIdx);
+    const numTasks = lane.bars.length;
+    const collapsed = isCollapsed(lane.id);
+    const chev = collapsed ? "▸" : "▾";
+
+    html += `<div class="left-cell wp-header-cell" data-lane="${lane.id}"
+      style="--phase-bg:${phase.bg}; --phase-accent:${phase.accent}; --phase-text:${phase.text};">
+      <button class="phase-chev" data-laneact="toggle-collapse">${chev}</button>
+      <div class="wp-code-line">${escapeHtml(lane.code)}</div>
+      <div class="wp-desc-line">${escapeHtml(lane.desc)}</div>
+    </div>`;
+
+    if (collapsed) {
+      html += `<div class="task-track rolled-up" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">
+        ${lane.bars.map(b => renderOverviewBar(b, colW)).join("")}
+      </div>`;
+    } else {
+      let summaryHtml = "";
+      if (lane.bars.length) {
+        const earliest = Math.min(...lane.bars.map(b => b.startIdx));
+        const latest = Math.max(...lane.bars.map(b => b.startIdx + Math.max(b.type === "milestone" ? 0 : 1, b.span || 0)));
+        const sLeft = earliest * colW;
+        const sWidth = Math.max(8, (latest - earliest) * colW);
+        summaryHtml = `<div class="wp-summary-span" style="left:${sLeft}px; width:${sWidth}px; background:${phase.accent};"></div>`;
+      }
+      html += `<div class="task-track wp-header-track" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">${summaryHtml}</div>`;
+      lane.bars.forEach(bar => {
+        html += `<div class="left-cell task-row-cell" data-bar="${bar.id}" data-lane="${lane.id}" style="--phase-bg:${phase.bg};">
+          <span class="task-name" contenteditable="true">${escapeHtml(bar.label || "(untitled)")}</span>
+        </div>`;
+        html += `<div class="task-track" data-bar="${bar.id}" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">
+          ${renderSingleBar(bar, colW)}
+        </div>`;
+      });
+    }
+  });
+
+  aEl.innerHTML = html;
+  attachLaneChevrons(aEl);
+  attachBarEditHandlers(aEl, colW);
+  attachTaskNameEdits(aEl);
+  attachWpHeaderEdits(aEl);
+  attachHoverFocus(aEl);
+  requestAnimationFrame(() => {
+    renderArrowsIn(aEl, colW, numMonths, LEFT_W);
+    renderTodayLineIn(aEl, colW, numMonths, LEFT_W);
+    attachHoverFocus(aEl);
+    if (selectedBarId) { applyFocusIn(aEl, selectedBarId); document.body.dataset.focus = "1"; }
+  });
+}
+
+function renderViewB() {
+  const months = monthsBetween(state.start, state.end);
+  const numMonths = months.length;
+  const colW = state.colWidth;
+
+  bEl.style.setProperty("--phase-w", PHASE_W + "px");
+  bEl.style.setProperty("--col-w", colW + "px");
+  bEl.style.gridTemplateColumns = `${PHASE_W}px repeat(${numMonths}, ${colW}px)`;
+
+  const yearSpans = [];
+  for (const m of months) {
+    const last = yearSpans[yearSpans.length - 1];
+    if (last && last.y === m.y) last.span++;
+    else yearSpans.push({ y: m.y, span: 1 });
+  }
+
+  let html = "";
+  html += `<div class="header-corner phase-corner" style="grid-row: span 2;">Phase<div class="phase-resize-handle" title="Drag to resize"></div></div>`;
+  for (const ys of yearSpans) {
+    html += `<div class="year-cell" style="grid-column: span ${ys.span};">${ys.y}</div>`;
+  }
+  for (const m of months) {
+    html += `<div class="month-cell">${MONTH_NAMES[m.m - 1]}</div>`;
+  }
+
+  state.lanes.forEach((lane, laneIdx) => {
+    const phase = getPhaseColor(laneIdx);
+    const numTasks = lane.bars.length;
+    const collapsed = isCollapsed(lane.id);
+    const rowSpan = collapsed ? 1 : Math.max(1, numTasks);
+    const chev = collapsed ? "▸" : "▾";
+
+    html += `<div class="phase-cell ${collapsed ? "collapsed" : ""}" data-lane="${lane.id}"
+      style="grid-row: span ${rowSpan}; --phase-bg:${phase.bg}; --phase-accent:${phase.accent}; --phase-text:${phase.text};">
+      <button class="phase-chev" data-laneact="toggle-collapse">${chev}</button>
+      <div class="phase-text">${escapeHtml(lane.code)}</div>
+      <div class="phase-desc">${escapeHtml(lane.desc)}</div>
+    </div>`;
+
+    if (collapsed) {
+      html += `<div class="task-track rolled-up" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">
+        ${lane.bars.map(b => renderOverviewBar(b, colW)).join("")}
+      </div>`;
+    } else if (numTasks === 0) {
+      html += `<div class="task-track" style="grid-column: span ${numMonths};"></div>`;
+    } else {
+      lane.bars.forEach(bar => {
+        html += `<div class="task-track" data-bar="${bar.id}" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">
+          ${renderInlineBar(bar, colW)}
+        </div>`;
+      });
+    }
+  });
+
+  bEl.innerHTML = html;
+  attachLaneChevrons(bEl);
+  attachHoverFocus(bEl);
+  requestAnimationFrame(() => {
+    renderArrowsIn(bEl, colW, numMonths, PHASE_W);
+    renderTodayLineIn(bEl, colW, numMonths, PHASE_W);
+    attachHoverFocus(bEl);
+    if (selectedBarId) { applyFocusIn(bEl, selectedBarId); document.body.dataset.focus = "1"; }
+  });
+}
+
+function renderInlineBar(b, colW) {
+  const t = TYPES[b.type] || TYPES.work;
+  const labelText = b.label || "(untitled)";
+  const depCount = (b.dependsOn || []).length;
+  const depChip = depCount ? `<div class="dep-chip">${depCount} dep${depCount > 1 ? "s" : ""}</div>` : "";
+  const tip = escapeHtml(`${labelText} · ${t.label}${b.type !== "milestone" ? ` · ${b.span}mo` : ""}`);
+
+  if (b.type === "milestone") {
+    const x = b.startIdx * colW + colW / 2;
+    return `<div class="milestone" data-bar="${b.id}" title="${tip}"
+      style="left:${x}px; top:calc(50% - 18px);">
+      <svg class="ms-icon" viewBox="0 0 24 24">
+        <path d="M 12 2.2 L 14.6 8.7 L 21.6 9.1 L 16.2 13.7 L 18 20.5 L 12 16.7 L 6 20.5 L 7.8 13.7 L 2.4 9.1 L 9.4 8.7 Z"
+          fill="${t.bar}" stroke="${t.border}" stroke-width="1.8" stroke-linejoin="round" />
+      </svg>
+      <span class="ms-label">${escapeHtml(labelText)}</span>
+    </div>`;
+  }
+  const x = b.startIdx * colW;
+  const w = Math.max(1, b.span) * colW;
+  const narrowCls = w < 80 ? " narrow" : "";
+  return `<div class="bar inline-bar${narrowCls}" data-bar="${b.id}" title="${tip}"
+    style="left:${x}px; width:${w}px; top:calc(50% - 14px); background:${t.bar}; border-color:${t.border};">
+    <span class="bar-task-label">${escapeHtml(labelText)}</span>
+    ${depChip}
+  </div>`;
+}
+
+function attachLaneChevrons(targetEl) {
+  targetEl.querySelectorAll("[data-laneact='toggle-collapse']").forEach(btn => {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const cell = btn.closest("[data-lane]");
+      if (!cell) return;
+      toggleCollapsed(cell.dataset.lane);
+      renderCurrent();
+    });
+  });
+}
+
+function applyFocusIn(targetEl, focusedBarId) {
+  targetEl.querySelectorAll(".in-chain").forEach(n => n.classList.remove("in-chain"));
+  if (!focusedBarId) return;
+  const map = buildBarMap();
+  if (!map[focusedBarId]) return;
+  const ancestors = collectAncestors(focusedBarId, map);
+  const descendants = collectDescendants(focusedBarId, map);
+  const chain = new Set([focusedBarId, ...ancestors, ...descendants]);
+  chain.forEach(id => {
+    targetEl.querySelectorAll(`[data-bar="${id}"]`).forEach(n => n.classList.add("in-chain"));
+  });
+  targetEl.querySelectorAll(".dep-path").forEach(p => {
+    const pred = p.dataset.pred, succ = p.dataset.succ;
+    if (chain.has(pred) && chain.has(succ)) p.classList.add("in-chain");
+  });
+}
+
+function attachHoverFocus(targetEl) {
+  targetEl.querySelectorAll(".bar[data-bar], .milestone[data-bar], .ov-bar[data-bar], .ov-milestone[data-bar]").forEach(barEl => {
+    if (barEl.dataset.hoverWired) return;
+    barEl.dataset.hoverWired = "1";
+    const barId = barEl.dataset.bar;
+    barEl.addEventListener("mouseenter", () => {
+      if (selectedBarId) return;
+      applyFocusIn(targetEl, barId);
+      document.body.dataset.focus = "1";
+    });
+    barEl.addEventListener("mouseleave", () => {
+      if (selectedBarId) return;
+      applyFocusIn(targetEl, null);
+      document.body.dataset.focus = "0";
+    });
+    barEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (selectedBarId === barId) {
+        selectedBarId = null;
+        applyFocusIn(targetEl, null);
+        document.body.dataset.focus = "0";
+      } else {
+        selectedBarId = barId;
+        applyFocusIn(targetEl, barId);
+        document.body.dataset.focus = "1";
+      }
+    });
+  });
+  if (!targetEl.dataset.bgClickWired) {
+    targetEl.dataset.bgClickWired = "1";
+    targetEl.addEventListener("click", (e) => {
+      if (e.target.closest(".bar, .milestone, .ov-bar, .ov-milestone, [data-laneact], [contenteditable], button")) return;
+      if (selectedBarId) {
+        selectedBarId = null;
+        applyFocusIn(targetEl, null);
+        document.body.dataset.focus = "0";
+      }
+    });
+  }
+}
+
+function attachBarEditHandlers(targetEl, colW) {
+  targetEl.querySelectorAll(".bar").forEach(barEl => {
+    if (barEl.dataset.editWired) return;
+    barEl.dataset.editWired = "1";
+    const barId = barEl.dataset.bar;
+    const map = buildBarMap();
+    const laneId = map[barId]?.lane.id;
+    if (!laneId) return;
+    barEl.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      if (e.target.classList.contains("connect-handle")) return;
+      if (e.target.classList.contains("dep-chip")) return;
+      const handle = e.target.classList.contains("resize")
+        ? (e.target.classList.contains("l") ? "resize-l" : "resize-r")
+        : "move";
+      beginBarDrag(barId, laneId, handle, e, colW);
+    });
+    barEl.addEventListener("contextmenu", (e) => {
+      e.preventDefault(); selectedBarId = barId;
+      openCtxMenu(e.clientX, e.clientY, barId, laneId);
+    });
+    const handleEl = barEl.querySelector(".connect-handle");
+    if (handleEl) {
+      handleEl.addEventListener("mousedown", (e) => {
+        e.stopPropagation(); e.preventDefault();
+        beginConnectDrag(barId, e);
+      });
+    }
+    const chipEl = barEl.querySelector(".dep-chip");
+    if (chipEl) {
+      chipEl.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openDepEditor(barId, () => renderCurrent());
+      });
+    }
+  });
+  targetEl.querySelectorAll(".milestone").forEach(mEl => {
+    if (mEl.dataset.editWired) return;
+    mEl.dataset.editWired = "1";
+    const barId = mEl.dataset.bar;
+    const map = buildBarMap();
+    const laneId = map[barId]?.lane.id;
+    if (!laneId) return;
+    mEl.addEventListener("mousedown", (e) => {
+      if (e.button !== 0) return;
+      beginBarDrag(barId, laneId, "move", e, colW);
+    });
+    mEl.addEventListener("contextmenu", (e) => {
+      e.preventDefault(); openCtxMenu(e.clientX, e.clientY, barId, laneId);
+    });
+    mEl.addEventListener("dblclick", () => renameBar(barId, laneId));
+  });
+}
+
+function attachTaskNameEdits(targetEl) {
+  targetEl.querySelectorAll(".left-cell.task-row-cell").forEach(cell => {
+    if (cell.dataset.editWired) return;
+    cell.dataset.editWired = "1";
+    const barId = cell.dataset.bar;
+    const laneId = cell.dataset.lane;
+    const nameEl = cell.querySelector(".task-name");
+    if (!nameEl) return;
+    nameEl.addEventListener("blur", () => {
+      const lane = state.lanes.find(l => l.id === laneId);
+      const bar = lane?.bars.find(b => b.id === barId);
+      if (bar) { bar.label = nameEl.textContent.trim(); saveState(); }
+    });
+    nameEl.addEventListener("keydown", ev => {
+      ev.stopPropagation();
+      if (ev.key === "Enter") { ev.preventDefault(); nameEl.blur(); }
+    });
+  });
+}
+
+function attachWpHeaderEdits(targetEl) {
+  targetEl.querySelectorAll(".left-cell.wp-header-cell").forEach(cell => {
+    if (cell.dataset.editWired) return;
+    cell.dataset.editWired = "1";
+    const laneId = cell.dataset.lane;
+    const codeEl = cell.querySelector(".wp-code-line");
+    const descEl = cell.querySelector(".wp-desc-line");
+    if (codeEl) {
+      codeEl.contentEditable = "true";
+      codeEl.addEventListener("blur", () => {
+        const lane = state.lanes.find(l => l.id === laneId); if (!lane) return;
+        lane.code = codeEl.textContent.trim(); saveState();
+      });
+      codeEl.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); codeEl.blur(); } });
+    }
+    if (descEl) {
+      descEl.contentEditable = "true";
+      descEl.addEventListener("blur", () => {
+        const lane = state.lanes.find(l => l.id === laneId); if (!lane) return;
+        lane.desc = descEl.textContent.trim(); saveState();
+      });
+      descEl.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); descEl.blur(); } });
+    }
+  });
+}
+
 function autoSequence() {
   const map = buildBarMap();
   const order = topoOrder(map);
