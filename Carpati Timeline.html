@@ -1097,6 +1097,37 @@
   #viewATimeline .left-cell.wp-header-cell .wp-code-line { font-size: 12px; line-height: 1.2; }
   #viewATimeline .left-cell.wp-header-cell .wp-desc-line { font-size: 10.5px; line-height: 1.2; }
 
+  /* Compact label mode — left column shrinks to just "WP1", task rows show a tiny dot */
+  .left-cell.wp-header-cell.is-compact {
+    padding: 4px 22px 4px 10px;
+    align-items: center;
+    flex-direction: row;
+    gap: 6px;
+  }
+  .left-cell.wp-header-cell.is-compact .phase-chev {
+    top: 50%; right: 4px;
+    transform: translateY(-50%);
+    width: 18px; height: 18px;
+    font-size: 10px;
+  }
+  .wp-code-short {
+    font-size: 13px; font-weight: 800;
+    color: var(--phase-text, var(--ink));
+    letter-spacing: 0.02em;
+    line-height: 1;
+  }
+  [data-theme="dark"] .wp-code-short { color: color-mix(in srgb, var(--phase-text, white) 50%, white); }
+  .left-cell.task-row-cell.is-compact {
+    padding: 0 8px 0 14px;
+    justify-content: center;
+    align-items: center;
+  }
+  .left-cell.task-row-cell.is-compact .task-index-dot {
+    color: var(--muted);
+    font-size: 14px; font-weight: 700; line-height: 0;
+    opacity: 0.45;
+  }
+
   /* ======================== VIEW B — Inline labels in bars ======================== */
   .bar.inline-bar { padding: 0 12px; display: flex; align-items: center; }
   .bar.inline-bar .bar-task-label {
@@ -2048,6 +2079,7 @@
     <div class="spacer"></div>
     <button class="chip" id="todayToggle" title="Show / hide today line">📍 Today</button>
     <button class="chip" id="collapseAllBtn" title="Collapse / expand all work packages">▾ Collapse all</button>
+    <button class="chip" id="compactToggle" title="Compact WP labels (WP1, WP2…) to free up timeline width">📐 Compact</button>
     <button class="chip" id="autoSeq" title="Lay bars out in dependency order">✨ Auto-sequence</button>
   </div>
 
@@ -2260,6 +2292,14 @@ function barFillColor(b) {
   const sp = b.phase && sopPhase(b.phase);
   const t = TYPES[b.type] || TYPES.work;
   return sp ? { bar: sp.color.bg, border: sp.color.accent } : { bar: t.bar, border: t.border };
+}
+
+/* Compact WP label mode (just "WP1") — saves horizontal space for the timeline */
+const COMPACT_LABELS_KEY = "proplan.compactLabels";
+function isCompactLabels() { return localStorage.getItem(COMPACT_LABELS_KEY) === "1"; }
+function shortWpCode(code) {
+  const m = (code || "").match(/^\s*(WP\s*\d+)/i);
+  return m ? m[1].replace(/\s+/g, "") : (code || "").split(/[—\-:]/)[0].trim().slice(0, 8);
 }
 
 /* Sort a WP's tasks so they're grouped by SOP phase (PRS → DP → DO → FP → untagged). */
@@ -3602,7 +3642,8 @@ function renderViewA() {
   const months = monthsBetween(state.start, state.end);
   const numMonths = months.length;
   const colW = state.colWidth;
-  const LEFT_W = PHASE_W + TASK_W;
+  const compactLabels = isCompactLabels();
+  const LEFT_W = compactLabels ? 78 : (PHASE_W + TASK_W);
 
   aEl.style.setProperty("--phase-w", LEFT_W + "px");
   aEl.style.setProperty("--col-w", colW + "px");
@@ -3673,11 +3714,16 @@ function renderViewA() {
     const collapsed = isCollapsed(lane.id);
     const chev = collapsed ? "▸" : "▾";
 
-    html += `<div class="left-cell wp-header-cell" data-lane="${lane.id}"
+    const wpCompactCode = shortWpCode(lane.code);
+    html += `<div class="left-cell wp-header-cell${compactLabels ? ' is-compact' : ''}" data-lane="${lane.id}"
+      title="${compactLabels ? escapeHtml(lane.code + (lane.desc ? ' — ' + lane.desc : '')) : ''}"
       style="--phase-bg:${phase.bg}; --phase-accent:${phase.accent}; --phase-text:${phase.text};">
       <button class="phase-chev" data-laneact="toggle-collapse">${chev}</button>
-      <div class="wp-code-line">${escapeHtml(lane.code)}</div>
-      <div class="wp-desc-line">${escapeHtml(lane.desc)}</div>
+      ${compactLabels
+        ? `<div class="wp-code-short">${escapeHtml(wpCompactCode)}</div>`
+        : `<div class="wp-code-line">${escapeHtml(lane.code)}</div>
+           <div class="wp-desc-line">${escapeHtml(lane.desc)}</div>`
+      }
     </div>`;
 
     if (collapsed) {
@@ -3695,9 +3741,12 @@ function renderViewA() {
         summaryHtml = `<div class="wp-summary-span" style="left:${sLeft}px; width:${sWidth}px; background:${phase.accent};"></div>`;
       }
       html += `<div class="task-track wp-header-track" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">${phaseColsHtml}${summaryHtml}</div>`;
-      lane.bars.forEach(bar => {
-        html += `<div class="left-cell task-row-cell" data-bar="${bar.id}" data-lane="${lane.id}" style="--phase-bg:${phase.bg};">
-          <span class="task-name" contenteditable="true">${escapeHtml(bar.label || "(untitled)")}</span>
+      lane.bars.forEach((bar, taskIdx) => {
+        html += `<div class="left-cell task-row-cell${compactLabels ? ' is-compact' : ''}" data-bar="${bar.id}" data-lane="${lane.id}" style="--phase-bg:${phase.bg};" title="${compactLabels ? escapeHtml(bar.label || '') : ''}">
+          ${compactLabels
+            ? `<span class="task-index-dot" aria-hidden="true">·</span>`
+            : `<span class="task-name" contenteditable="true">${escapeHtml(bar.label || "(untitled)")}</span>`
+          }
         </div>`;
         html += `<div class="task-track" data-bar="${bar.id}" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">
           ${phaseColsHtml}
@@ -4603,6 +4652,20 @@ document.getElementById("todayToggle").addEventListener("click", () => {
   applyShowToday();
 });
 applyShowToday();
+
+function applyCompactLabelsButton() {
+  const btn = document.getElementById("compactToggle"); if (!btn) return;
+  const on = isCompactLabels();
+  btn.classList.toggle("primary", on);
+  btn.textContent = on ? "📐 Compact ✓" : "📐 Compact";
+}
+document.getElementById("compactToggle").addEventListener("click", () => {
+  const on = isCompactLabels();
+  localStorage.setItem(COMPACT_LABELS_KEY, on ? "0" : "1");
+  applyCompactLabelsButton();
+  renderCurrent();
+});
+applyCompactLabelsButton();
 
 document.getElementById("collapseAllBtn").addEventListener("click", () => {
   const anyExpanded = state.lanes.some(l => !collapsedLanes.has(l.id));
