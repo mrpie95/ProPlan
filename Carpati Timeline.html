@@ -1603,6 +1603,27 @@ function phaseColorFor(lane, laneIdx) {
   if (sp) return sp.color;
   return getPhaseColor(laneIdx);
 }
+/* Primary phase of a WP = most common phase across its tagged tasks. Falls back to palette. */
+function lanePrimaryPhase(lane) {
+  const counts = {};
+  for (const b of lane.bars || []) {
+    if (b.type === "milestone" || !b.phase) continue;
+    counts[b.phase] = (counts[b.phase] || 0) + 1;
+  }
+  let max = 0, top = null;
+  for (const [k, v] of Object.entries(counts)) { if (v > max) { max = v; top = k; } }
+  return top;
+}
+function lanePaletteColor(lane, laneIdx) {
+  const ph = lanePrimaryPhase(lane);
+  if (ph) { const sp = sopPhase(ph); if (sp) return sp.color; }
+  return getPhaseColor(laneIdx);
+}
+function barFillColor(b) {
+  const sp = b.phase && sopPhase(b.phase);
+  const t = TYPES[b.type] || TYPES.work;
+  return sp ? { bar: sp.color.bg, border: sp.color.accent } : { bar: t.bar, border: t.border };
+}
 function sortLanesByPhase(lanes) {
   return lanes
     .map((lane, idx) => ({ lane, idx }))
@@ -2056,7 +2077,7 @@ function renderTimeline() {
 
   // Body rows — one row per task, phase cell spans all tasks in that WP
   state.lanes.forEach((lane, laneIdx) => {
-    const phase = getPhaseColor(laneIdx);
+    const phase = lanePaletteColor(lane, laneIdx);
     const numTasks = lane.bars.length;
     const collapsed = isCollapsed(lane.id);
     const rowSpan = collapsed ? 1 : Math.max(1, numTasks);
@@ -2122,7 +2143,7 @@ function renderSingleBar(b, colW) {
       style="left:${x}px; top:calc(50% - 18px);">
       <svg class="ms-icon" viewBox="0 0 24 24">
         <path d="M 12 2.2 L 14.6 8.7 L 21.6 9.1 L 16.2 13.7 L 18 20.5 L 12 16.7 L 6 20.5 L 7.8 13.7 L 2.4 9.1 L 9.4 8.7 Z"
-          fill="${t.bar}" stroke="${t.border}" stroke-width="1.8" stroke-linejoin="round" />
+          fill="${barFillColor(b).bar}" stroke="${barFillColor(b).border}" stroke-width="1.8" stroke-linejoin="round" />
       </svg>
       <span class="ms-label">${escapeHtml(b.label || "")}</span>
     </div>`;
@@ -2130,10 +2151,9 @@ function renderSingleBar(b, colW) {
   const x = b.startIdx * colW;
   const w = Math.max(1, effSpan(b) / WEEKS_PER_MONTH) * colW;
   const narrowCls = w < 64 ? " narrow" : "";
-  const phaseStripe = b.phase ? `<div class="bar-phase-stripe" style="background:${sopPhase(b.phase)?.color.accent || "var(--muted)"};" title="SOP-18 phase: ${b.phase}"></div>` : "";
+  const c = barFillColor(b);
   return `<div class="bar${narrowCls}" data-bar="${b.id}" title="${tip}"
-    style="left:${x}px; width:${w}px; top:calc(50% - 14px); background:${t.bar}; border-color:${t.border};">
-    ${phaseStripe}
+    style="left:${x}px; width:${w}px; top:calc(50% - 14px); background:${c.bar}; border-color:${c.border};">
     <div class="resize l"></div>
     <div class="resize r"></div>
     <span class="bar-type">${escapeHtml(t.label)}</span>
@@ -2290,7 +2310,7 @@ function renderOverview() {
   }
 
   state.lanes.forEach((lane, laneIdx) => {
-    const phase = getPhaseColor(laneIdx);
+    const phase = lanePaletteColor(lane, laneIdx);
     html += `<div class="phase-cell" data-lane="${lane.id}"
       style="--phase-bg:${phase.bg}; --phase-accent:${phase.accent}; --phase-text:${phase.text};">
       <div class="phase-text">${escapeHtml(lane.code)}</div>
@@ -2316,15 +2336,15 @@ function renderOverviewBar(b, colW) {
     return `<div class="ov-milestone" data-bar="${b.id}" title="${tip}" style="left:${x}px;">
       <svg viewBox="0 0 24 24">
         <path d="M 12 2.2 L 14.6 8.7 L 21.6 9.1 L 16.2 13.7 L 18 20.5 L 12 16.7 L 6 20.5 L 7.8 13.7 L 2.4 9.1 L 9.4 8.7 Z"
-          fill="${t.bar}" stroke="${t.border}" stroke-width="1.8" stroke-linejoin="round" />
+          fill="${barFillColor(b).bar}" stroke="${barFillColor(b).border}" stroke-width="1.8" stroke-linejoin="round" />
       </svg>
     </div>`;
   }
   const x = b.startIdx * colW;
   const w = Math.max(1, effSpan(b) / WEEKS_PER_MONTH) * colW;
-  const phaseStripe = b.phase ? `<div class="bar-phase-stripe" style="background:${sopPhase(b.phase)?.color.accent || "var(--muted)"};"></div>` : "";
+  const c = barFillColor(b);
   return `<div class="ov-bar" data-bar="${b.id}" title="${tip}"
-    style="left:${x}px; width:${w}px; background:${t.bar}; border-color:${t.border};">${phaseStripe}${escapeHtml(labelText)}</div>`;
+    style="left:${x}px; width:${w}px; background:${c.bar}; border-color:${c.border};">${escapeHtml(labelText)}</div>`;
 }
 
 function renderTodayLineIn(targetEl, colW, numMonths, leftOffset) {
@@ -2528,7 +2548,7 @@ function renderViewA() {
   }
 
   state.lanes.forEach((lane, laneIdx) => {
-    const phase = getPhaseColor(laneIdx);
+    const phase = lanePaletteColor(lane, laneIdx);
     const numTasks = lane.bars.length;
     const collapsed = isCollapsed(lane.id);
     const chev = collapsed ? "▸" : "▾";
@@ -2605,7 +2625,7 @@ function renderViewB() {
   }
 
   state.lanes.forEach((lane, laneIdx) => {
-    const phase = getPhaseColor(laneIdx);
+    const phase = lanePaletteColor(lane, laneIdx);
     const numTasks = lane.bars.length;
     const collapsed = isCollapsed(lane.id);
     const rowSpan = collapsed ? 1 : Math.max(1, numTasks);
@@ -2657,7 +2677,7 @@ function renderInlineBar(b, colW) {
       style="left:${x}px; top:calc(50% - 18px);">
       <svg class="ms-icon" viewBox="0 0 24 24">
         <path d="M 12 2.2 L 14.6 8.7 L 21.6 9.1 L 16.2 13.7 L 18 20.5 L 12 16.7 L 6 20.5 L 7.8 13.7 L 2.4 9.1 L 9.4 8.7 Z"
-          fill="${t.bar}" stroke="${t.border}" stroke-width="1.8" stroke-linejoin="round" />
+          fill="${barFillColor(b).bar}" stroke="${barFillColor(b).border}" stroke-width="1.8" stroke-linejoin="round" />
       </svg>
       <span class="ms-label">${escapeHtml(labelText)}</span>
     </div>`;
