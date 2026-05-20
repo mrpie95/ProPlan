@@ -1061,22 +1061,26 @@
   }
   .left-cell.task-row-cell {
     background: var(--panel);
-    padding: 3px 12px 3px 30px;
-    min-height: 34px;
+    padding: 2px 12px 2px 30px;
+    min-height: 32px;
   }
   .left-cell.task-row-cell .task-name {
     font-size: 12px; font-weight: 400; color: var(--ink);
     outline: none;
-    padding: 3px 5px; border-radius: 5px;
-    cursor: text; line-height: 1.3;
+    padding: 2px 5px; border-radius: 5px;
+    cursor: text; line-height: 1.25;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .left-cell.task-row-cell .task-name:focus { background: var(--surface); white-space: normal; }
-  #viewATimeline .task-track { min-height: 34px; }
+  #viewATimeline .task-track { min-height: 32px; }
   #viewATimeline .task-track.wp-header-track {
-    min-height: 32px;
+    min-height: 28px;
     background: color-mix(in srgb, var(--phase-bg, var(--track)) 35%, var(--track));
     position: relative;
+    transition: background var(--transition);
+  }
+  #viewATimeline .task-track.wp-header-track:hover {
+    background: color-mix(in srgb, var(--phase-bg, var(--track)) 55%, var(--track));
   }
   .wp-summary-span {
     position: absolute;
@@ -1087,8 +1091,8 @@
   }
   [data-theme="dark"] .wp-summary-span { opacity: 0.55; }
   #viewATimeline .left-cell.wp-header-cell {
-    min-height: 32px;
-    padding: 6px 32px 6px 14px;
+    min-height: 28px;
+    padding: 4px 32px 4px 14px;
   }
   #viewATimeline .left-cell.wp-header-cell .wp-code-line { font-size: 12px; line-height: 1.2; }
   #viewATimeline .left-cell.wp-header-cell .wp-desc-line { font-size: 10.5px; line-height: 1.2; }
@@ -2043,6 +2047,7 @@
     <button class="chip" id="fitBtn" title="Fit the whole project into the visible width">⤢ Fit</button>
     <div class="spacer"></div>
     <button class="chip" id="todayToggle" title="Show / hide today line">📍 Today</button>
+    <button class="chip" id="collapseAllBtn" title="Collapse / expand all work packages">▾ Collapse all</button>
     <button class="chip" id="autoSeq" title="Lay bars out in dependency order">✨ Auto-sequence</button>
   </div>
 
@@ -3708,6 +3713,33 @@ function renderViewA() {
   attachTaskNameEdits(aEl);
   attachWpHeaderEdits(aEl);
   attachHoverFocus(aEl);
+  // Click anywhere on a WP's header track (right side of the WP header row) to toggle collapse
+  aEl.querySelectorAll(".task-track.wp-header-track").forEach((track, i) => {
+    track.style.cursor = "pointer";
+    track.title = "Click to collapse / expand this WP";
+    track.addEventListener("click", (ev) => {
+      if (ev.target.closest(".phase-chev, .ph-task, .bar, .ov-bar, .ov-milestone, .milestone, [contenteditable]")) return;
+      // Match track to its lane by querying the preceding wp-header-cell
+      const headerCell = track.previousElementSibling;
+      const laneId = headerCell?.dataset.lane;
+      if (!laneId) return;
+      toggleCollapsed(laneId);
+      renderCurrent();
+    });
+  });
+  // Same for the rolled-up tracks (click to expand)
+  aEl.querySelectorAll(".task-track.rolled-up").forEach(track => {
+    track.style.cursor = "pointer";
+    track.title = "Click to expand this WP";
+    track.addEventListener("click", (ev) => {
+      if (ev.target.closest(".ov-bar, .ov-milestone, .bar, [contenteditable]")) return;
+      const laneId = track.dataset.lane;
+      if (!laneId) return;
+      toggleCollapsed(laneId);
+      renderCurrent();
+    });
+  });
+  syncCollapseAllLabel();
   requestAnimationFrame(() => {
     renderArrowsIn(aEl, colW, numMonths, LEFT_W);
     renderTodayLineIn(aEl, colW, numMonths, LEFT_W);
@@ -4571,6 +4603,25 @@ document.getElementById("todayToggle").addEventListener("click", () => {
   applyShowToday();
 });
 applyShowToday();
+
+document.getElementById("collapseAllBtn").addEventListener("click", () => {
+  const anyExpanded = state.lanes.some(l => !collapsedLanes.has(l.id));
+  if (anyExpanded) {
+    state.lanes.forEach(l => collapsedLanes.add(l.id));
+  } else {
+    collapsedLanes.clear();
+  }
+  localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsedLanes]));
+  document.getElementById("collapseAllBtn").textContent = anyExpanded ? "▸ Expand all" : "▾ Collapse all";
+  renderCurrent();
+});
+// Sync button label on initial render
+function syncCollapseAllLabel() {
+  const btn = document.getElementById("collapseAllBtn"); if (!btn) return;
+  const allCollapsed = state.lanes.length > 0 && state.lanes.every(l => collapsedLanes.has(l.id));
+  btn.textContent = allCollapsed ? "▸ Expand all" : "▾ Collapse all";
+}
+syncCollapseAllLabel();
 
 document.addEventListener("mousedown", (e) => {
   const handle = e.target.closest(".phase-resize-handle");
