@@ -1510,7 +1510,8 @@
   <div class="hdr-row hdr-tier2 timeline-only">
     <div class="seg"><label>Start</label><input type="month" id="startDate" /></div>
     <div class="seg"><label>End</label><input type="month" id="endDate" /></div>
-    <div class="seg zoom"><label>Zoom</label><input type="range" id="zoom" min="40" max="240" step="5" value="70" /></div>
+    <div class="seg zoom"><label>Zoom</label><input type="range" id="zoom" min="15" max="240" step="5" value="70" /></div>
+    <button class="chip" id="fitBtn" title="Fit the whole project into the visible width">⤢ Fit</button>
     <div class="spacer"></div>
     <button class="chip" id="todayToggle" title="Show / hide today line">📍 Today</button>
     <button class="chip" id="autoSeq" title="Lay bars out in dependency order">✨ Auto-sequence</button>
@@ -3610,6 +3611,25 @@ document.querySelectorAll(".view-btn").forEach(b => {
 document.getElementById("startDate").addEventListener("change", (e) => { state.start = e.target.value; renderCurrent(); });
 document.getElementById("endDate").addEventListener("change", (e) => { state.end = e.target.value; renderCurrent(); });
 document.getElementById("autoSeq").addEventListener("click", autoSequence);
+
+function fitToWidth() {
+  syncActiveTimeline();
+  const wrap = activeWrap;
+  if (!wrap || !wrap.clientWidth) return;
+  const numMonths = monthsBetween(state.start, state.end).length;
+  if (numMonths <= 0) return;
+  // Left offset depends on which view is active
+  let leftOffset = PHASE_W + TASK_W;
+  if (currentView === "viewB" || currentView === "overview") leftOffset = PHASE_W;
+  const available = Math.max(100, wrap.clientWidth - leftOffset - 12);
+  const target = Math.max(15, Math.min(400, Math.floor(available / numMonths)));
+  state.colWidth = target;
+  const zoomInput = document.getElementById("zoom");
+  if (zoomInput) zoomInput.value = target;
+  saveState();
+  renderCurrent();
+}
+document.getElementById("fitBtn").addEventListener("click", fitToWidth);
 
 const SHOW_TODAY_KEY = "proplan.showToday";
 function applyShowToday() {
