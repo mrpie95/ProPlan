@@ -659,6 +659,83 @@
     flex-shrink: 0;
   }
   [data-theme="dark"] .wp-total { background: rgba(255,255,255,0.07); }
+
+  .wp-phase-select {
+    align-self: center;
+    flex-shrink: 0;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--panel);
+    font: inherit; font-size: 12px; font-weight: 700;
+    color: var(--ink); cursor: pointer;
+  }
+  .wp-phase-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+
+  .ps-phases {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    border-top: 1px dashed var(--border);
+    padding-top: 10px;
+    margin-top: 2px;
+  }
+  .ps-phases-label {
+    font-size: 11px; font-weight: 700; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-right: 4px;
+  }
+  .ps-phase-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--c);
+    border-radius: 6px;
+    font-size: 12px; font-weight: 600; color: var(--ink-soft);
+  }
+  .ps-phase-chip .ps-phase-code {
+    font-size: 11px; font-weight: 800; color: var(--c);
+    letter-spacing: 0.04em;
+  }
+  [data-theme="dark"] .ps-phase-chip { background: rgba(255,255,255,0.05); }
+
+  .phase-group-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px;
+    padding: 8px 14px;
+    margin-top: 8px;
+    background: color-mix(in srgb, var(--phase-bg, var(--surface-2)) 50%, var(--panel));
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--phase-c, var(--border-strong));
+    border-radius: 8px;
+  }
+  [data-theme="dark"] .phase-group-header {
+    background: color-mix(in srgb, var(--phase-bg, var(--surface-2)) 18%, var(--panel));
+  }
+  .phase-group-header.is-unassigned {
+    background: var(--surface);
+    border-left-color: var(--border-strong);
+  }
+  .pgh-left { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .pgh-code {
+    font-size: 14px; font-weight: 800; color: var(--phase-tx, var(--ink));
+    letter-spacing: 0.04em;
+  }
+  [data-theme="dark"] .pgh-code { color: color-mix(in srgb, var(--phase-tx, white) 45%, white); }
+  .phase-group-header.is-unassigned .pgh-code { color: var(--ink-soft); }
+  .pgh-name {
+    font-size: 12.5px; font-weight: 500; color: var(--ink-soft);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .pgh-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .pgh-count {
+    font-size: 11px; font-weight: 600; color: var(--muted);
+  }
+  .pgh-total {
+    font-size: 12px; font-weight: 700; color: var(--ink);
+    background: rgba(255,255,255,0.55);
+    padding: 4px 10px; border-radius: 999px;
+  }
+  [data-theme="dark"] .pgh-total { background: rgba(255,255,255,0.08); }
   .task-type-select {
     border: none; background: transparent;
     font: inherit; font-size: 11px; font-weight: 700;
@@ -1437,6 +1514,25 @@ function fmtDur(wk) {
 function laneEffWeeks(lane) {
   return (lane.bars || []).reduce((sum, b) => sum + effSpan(b), 0);
 }
+
+/* SOP-18 phase ordering + lookup helpers */
+const PHASE_ORDER = { PRS: 0, DP: 1, DO: 2, FP: 3 };
+function sopPhase(code) { return SOP18 && SOP18.phases.find(p => p.code === code); }
+function phaseColorFor(lane, laneIdx) {
+  const sp = lane.phase && sopPhase(lane.phase);
+  if (sp) return sp.color;
+  return getPhaseColor(laneIdx);
+}
+function sortLanesByPhase(lanes) {
+  return lanes
+    .map((lane, idx) => ({ lane, idx }))
+    .sort((a, b) => {
+      const pa = PHASE_ORDER[a.lane.phase] ?? 999;
+      const pb = PHASE_ORDER[b.lane.phase] ?? 999;
+      if (pa !== pb) return pa - pb;
+      return a.idx - b.idx;
+    });
+}
 /* Convert month-based spans to week-based (v3 → v4). 1 month ≈ WEEKS_PER_MONTH weeks. */
 function spansToWeeks(s) {
   for (const lane of s.lanes || []) {
@@ -1513,13 +1609,25 @@ function renderPlan() {
   const planEl = document.getElementById("planView");
   const map = buildBarMap();
   let rawTotal = 0, effTotal = 0, taskTotal = 0;
-  state.lanes.forEach(l => l.bars.forEach(b => {
-    if (b.type === "milestone") return;
-    rawTotal += (b.span || 0);
-    effTotal += effSpan(b);
-    taskTotal++;
-  }));
+  const phaseTotals = { PRS: 0, DP: 0, DO: 0, FP: 0, _none: 0 };
+  state.lanes.forEach(l => {
+    const pk = (l.phase && PHASE_ORDER[l.phase] !== undefined) ? l.phase : "_none";
+    l.bars.forEach(b => {
+      if (b.type === "milestone") return;
+      rawTotal += (b.span || 0);
+      const e = effSpan(b);
+      effTotal += e;
+      taskTotal++;
+      phaseTotals[pk] += e;
+    });
+  });
   const bufferPct = rawTotal ? Math.round((effTotal - rawTotal) / rawTotal * 100) : 0;
+  const phaseBreakdownHtml = ["PRS","DP","DO","FP","_none"].filter(k => phaseTotals[k] > 0).map(k => {
+    const sp = k === "_none" ? null : sopPhase(k);
+    const code = sp ? sp.code : "—";
+    const color = sp ? sp.color.accent : "var(--muted)";
+    return `<span class="ps-phase-chip" style="--c:${color};"><span class="ps-phase-code">${code}</span> ${Math.round(phaseTotals[k])} wk</span>`;
+  }).join("");
   let html = `<div class="plan">`;
   html += `<div class="project-summary">
     <div class="ps-title">Project summary</div>
@@ -1530,15 +1638,40 @@ function renderPlan() {
       <div class="ps-stat"><span class="ps-num">${taskTotal}</span><span class="ps-unit">tasks</span></div>
       <div class="ps-stat ps-buf"><span class="ps-num">+${effTotal - rawTotal ? Math.round(effTotal - rawTotal) : 0}</span><span class="ps-unit">wk buffer (~${bufferPct}%)</span></div>
     </div>
+    ${phaseBreakdownHtml ? `<div class="ps-phases"><span class="ps-phases-label">By SOP phase</span>${phaseBreakdownHtml}</div>` : ""}
   </div>`;
-  state.lanes.forEach((lane, laneIdx) => {
+  const sortedLanes = sortLanesByPhase(state.lanes);
+  let prevPhase = "__init__";
+  sortedLanes.forEach(({ lane, idx: laneIdx }) => {
+    const phaseKey = lane.phase || "";
+    if (phaseKey !== prevPhase) {
+      const sp = lane.phase && sopPhase(lane.phase);
+      const wkSum = phaseTotals[lane.phase || "_none"] || 0;
+      const wpCount = sortedLanes.filter(s => (s.lane.phase || "") === phaseKey).length;
+      html += `<div class="phase-group-header${sp ? '' : ' is-unassigned'}" ${sp ? `style="--phase-c:${sp.color.accent}; --phase-bg:${sp.color.bg}; --phase-tx:${sp.color.text};"` : ''}>
+        <div class="pgh-left">
+          <span class="pgh-code">${sp ? sp.code : "Unassigned"}</span>
+          <span class="pgh-name">${sp ? escapeHtml(sp.name) : "No SOP phase assigned"}</span>
+        </div>
+        <div class="pgh-right">
+          <span class="pgh-count">${wpCount} WP${wpCount === 1 ? "" : "s"}</span>
+          <span class="pgh-total">${fmtDur(wkSum)}</span>
+        </div>
+      </div>`;
+      prevPhase = phaseKey;
+    }
     const laneWk = laneEffWeeks(lane);
+    const phaseOpts = ["PRS","DP","DO","FP"].map(c => `<option value="${c}" ${lane.phase===c?'selected':''}>${c}</option>`).join("");
     html += `<div class="wp-card" data-lane="${lane.id}">
       <div class="wp-header">
         <div class="info">
           <div class="wp-code" contenteditable="true" data-field="code" data-placeholder="WP code">${escapeHtml(lane.code)}</div>
           <div class="wp-desc" contenteditable="true" data-field="desc" data-placeholder="Discipline / responsibility">${escapeHtml(lane.desc)}</div>
         </div>
+        <select class="wp-phase-select" data-field="phase" title="SOP-18 phase">
+          <option value="" ${!lane.phase?'selected':''}>— No phase</option>
+          ${phaseOpts}
+        </select>
         <div class="wp-total" title="Sum of buffered estimates in this work package">${fmtDur(laneWk)}</div>
         <div class="wp-actions">
           <button class="wp-icon-btn" data-laneact="up" title="Move up">↑</button>
@@ -1612,6 +1745,17 @@ function attachPlanHandlers() {
       });
       e.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); e.blur(); } });
     });
+
+    // Phase select
+    const phaseSel = card.querySelector(".wp-phase-select");
+    if (phaseSel) {
+      phaseSel.addEventListener("change", () => {
+        const lane = state.lanes.find(l => l.id === laneId); if (!lane) return;
+        lane.phase = phaseSel.value || null;
+        saveState();
+        renderPlan();
+      });
+    }
 
     // Lane actions
     card.querySelectorAll("[data-laneact]").forEach(b => {
@@ -1816,7 +1960,7 @@ function renderTimeline() {
 
   // Body rows — one row per task, phase cell spans all tasks in that WP
   state.lanes.forEach((lane, laneIdx) => {
-    const phase = getPhaseColor(laneIdx);
+    const phase = phaseColorFor(lane, laneIdx);
     const numTasks = lane.bars.length;
     const collapsed = isCollapsed(lane.id);
     const rowSpan = collapsed ? 1 : Math.max(1, numTasks);
@@ -2048,7 +2192,7 @@ function renderOverview() {
   }
 
   state.lanes.forEach((lane, laneIdx) => {
-    const phase = getPhaseColor(laneIdx);
+    const phase = phaseColorFor(lane, laneIdx);
     html += `<div class="phase-cell" data-lane="${lane.id}"
       style="--phase-bg:${phase.bg}; --phase-accent:${phase.accent}; --phase-text:${phase.text};">
       <div class="phase-text">${escapeHtml(lane.code)}</div>
@@ -2285,7 +2429,7 @@ function renderViewA() {
   }
 
   state.lanes.forEach((lane, laneIdx) => {
-    const phase = getPhaseColor(laneIdx);
+    const phase = phaseColorFor(lane, laneIdx);
     const numTasks = lane.bars.length;
     const collapsed = isCollapsed(lane.id);
     const chev = collapsed ? "▸" : "▾";
@@ -2362,7 +2506,7 @@ function renderViewB() {
   }
 
   state.lanes.forEach((lane, laneIdx) => {
-    const phase = getPhaseColor(laneIdx);
+    const phase = phaseColorFor(lane, laneIdx);
     const numTasks = lane.bars.length;
     const collapsed = isCollapsed(lane.id);
     const rowSpan = collapsed ? 1 : Math.max(1, numTasks);
