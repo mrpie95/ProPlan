@@ -642,7 +642,7 @@
   }
   .task-row {
     display: grid;
-    grid-template-columns: 100px 64px minmax(140px, 1fr) 220px minmax(180px, 1.05fr) 40px;
+    grid-template-columns: 100px 64px minmax(140px, 1fr) 220px minmax(180px, 1.05fr) 92px;
     gap: 10px; align-items: center;
     padding: 8px 12px;
     background: var(--surface);
@@ -911,7 +911,15 @@
     font: inherit; font-weight: 500;
   }
   .dep-add-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
-  .task-actions { display: flex; gap: 4px; }
+  .task-actions { display: flex; gap: 3px; justify-content: flex-end; }
+  .task-actions button[data-action="task-up"],
+  .task-actions button[data-action="task-down"] {
+    color: var(--muted);
+  }
+  .task-actions button[data-action="task-up"]:hover,
+  .task-actions button[data-action="task-down"]:hover {
+    color: var(--accent); border-color: var(--accent); background: var(--accent-soft);
+  }
   .task-actions button {
     padding: 4px 8px; font-size: 13px;
     border-radius: 6px; border: 1px solid var(--border);
@@ -1936,6 +1944,8 @@ function renderTaskRow(bar, map) {
       <button class="dep-add-btn" data-action="edit-deps">+ dep</button>
     </span>
     <span class="task-actions">
+      <button data-action="task-up" title="Move up">↑</button>
+      <button data-action="task-down" title="Move down">↓</button>
       <button data-action="del-task" title="Delete task">✕</button>
     </span>
   </div>`;
@@ -2097,6 +2107,21 @@ function attachPlanHandlers() {
           renderPlan();
         });
       }
+
+      // Reorder task up/down within its WP
+      const upBtn = row.querySelector("[data-action='task-up']");
+      const downBtn = row.querySelector("[data-action='task-down']");
+      const reorder = (delta) => {
+        const lane = state.lanes.find(l => l.id === laneId); if (!lane) return;
+        const i = lane.bars.findIndex(b => b.id === barId);
+        const j = i + delta;
+        if (i < 0 || j < 0 || j >= lane.bars.length) return;
+        [lane.bars[i], lane.bars[j]] = [lane.bars[j], lane.bars[i]];
+        saveState();
+        renderPlan();
+      };
+      if (upBtn) upBtn.addEventListener("click", (ev) => { ev.stopPropagation(); reorder(-1); });
+      if (downBtn) downBtn.addEventListener("click", (ev) => { ev.stopPropagation(); reorder(+1); });
     });
   });
 
