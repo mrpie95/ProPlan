@@ -600,13 +600,26 @@
   }
   .task-row {
     display: grid;
-    grid-template-columns: 110px minmax(160px, 1fr) 230px minmax(200px, 1.1fr) 40px;
-    gap: 12px; align-items: center;
+    grid-template-columns: 100px 64px minmax(140px, 1fr) 220px minmax(180px, 1.05fr) 40px;
+    gap: 10px; align-items: center;
     padding: 8px 12px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
   }
+  .task-phase-select {
+    border: 1px solid var(--c);
+    background: color-mix(in srgb, var(--c) 14%, var(--panel));
+    color: var(--c);
+    border-radius: 999px;
+    padding: 4px 6px;
+    font: inherit; font-size: 11px; font-weight: 800;
+    text-align: center;
+    cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+  }
+  .task-phase-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  [data-theme="dark"] .task-phase-select { background: color-mix(in srgb, var(--c) 22%, var(--panel)); }
   .task-row.is-milestone { background: #fef9c3; border-color: #facc15; }
   .task-buf {
     display: inline-flex; align-items: center; gap: 1px;
@@ -659,6 +672,28 @@
     flex-shrink: 0;
   }
   [data-theme="dark"] .wp-total { background: rgba(255,255,255,0.07); }
+
+  .wp-phase-mix {
+    display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px;
+  }
+  .wp-mix-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 2px 8px;
+    background: color-mix(in srgb, var(--c, var(--muted)) 14%, var(--panel));
+    border: 1px solid color-mix(in srgb, var(--c, var(--border)) 45%, transparent);
+    border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+  }
+  .wp-mix-chip .wp-mix-code { color: var(--c, var(--ink-soft)); letter-spacing: 0.04em; }
+  .wp-mix-chip .wp-mix-count {
+    background: var(--c, var(--muted)); color: #fff;
+    padding: 1px 6px; border-radius: 999px;
+    font-size: 10px; font-weight: 800;
+  }
+  .wp-mix-chip.is-unassigned { background: var(--surface-2); border-color: var(--border); }
+  .wp-mix-chip.is-unassigned .wp-mix-code,
+  .wp-mix-chip.is-unassigned .wp-mix-count { color: var(--ink-soft); background: transparent; }
+  [data-theme="dark"] .wp-mix-chip.is-unassigned { background: rgba(255,255,255,0.06); }
 
   .wp-phase-select {
     align-self: center;
@@ -1050,6 +1085,18 @@
     white-space: normal; overflow: visible;
   }
   .bar.selected { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .bar .bar-phase-stripe,
+  .ov-bar .bar-phase-stripe {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .ov-bar .bar-phase-stripe { border-radius: 11px 11px 0 0; }
 
   .bar .bar-type {
     position: absolute;
@@ -1611,13 +1658,13 @@ function renderPlan() {
   let rawTotal = 0, effTotal = 0, taskTotal = 0;
   const phaseTotals = { PRS: 0, DP: 0, DO: 0, FP: 0, _none: 0 };
   state.lanes.forEach(l => {
-    const pk = (l.phase && PHASE_ORDER[l.phase] !== undefined) ? l.phase : "_none";
     l.bars.forEach(b => {
       if (b.type === "milestone") return;
       rawTotal += (b.span || 0);
       const e = effSpan(b);
       effTotal += e;
       taskTotal++;
+      const pk = (b.phase && PHASE_ORDER[b.phase] !== undefined) ? b.phase : "_none";
       phaseTotals[pk] += e;
     });
   });
@@ -1640,38 +1687,27 @@ function renderPlan() {
     </div>
     ${phaseBreakdownHtml ? `<div class="ps-phases"><span class="ps-phases-label">By SOP phase</span>${phaseBreakdownHtml}</div>` : ""}
   </div>`;
-  const sortedLanes = sortLanesByPhase(state.lanes);
-  let prevPhase = "__init__";
-  sortedLanes.forEach(({ lane, idx: laneIdx }) => {
-    const phaseKey = lane.phase || "";
-    if (phaseKey !== prevPhase) {
-      const sp = lane.phase && sopPhase(lane.phase);
-      const wkSum = phaseTotals[lane.phase || "_none"] || 0;
-      const wpCount = sortedLanes.filter(s => (s.lane.phase || "") === phaseKey).length;
-      html += `<div class="phase-group-header${sp ? '' : ' is-unassigned'}" ${sp ? `style="--phase-c:${sp.color.accent}; --phase-bg:${sp.color.bg}; --phase-tx:${sp.color.text};"` : ''}>
-        <div class="pgh-left">
-          <span class="pgh-code">${sp ? sp.code : "Unassigned"}</span>
-          <span class="pgh-name">${sp ? escapeHtml(sp.name) : "No SOP phase assigned"}</span>
-        </div>
-        <div class="pgh-right">
-          <span class="pgh-count">${wpCount} WP${wpCount === 1 ? "" : "s"}</span>
-          <span class="pgh-total">${fmtDur(wkSum)}</span>
-        </div>
-      </div>`;
-      prevPhase = phaseKey;
-    }
+  state.lanes.forEach((lane, laneIdx) => {
     const laneWk = laneEffWeeks(lane);
-    const phaseOpts = ["PRS","DP","DO","FP"].map(c => `<option value="${c}" ${lane.phase===c?'selected':''}>${c}</option>`).join("");
+    // Phase mix for this WP — count tasks per phase
+    const mix = { PRS: 0, DP: 0, DO: 0, FP: 0, _none: 0 };
+    lane.bars.forEach(b => {
+      if (b.type === "milestone") return;
+      const pk = (b.phase && PHASE_ORDER[b.phase] !== undefined) ? b.phase : "_none";
+      mix[pk]++;
+    });
+    const mixHtml = ["PRS","DP","DO","FP"].filter(k => mix[k] > 0).map(k => {
+      const sp = sopPhase(k);
+      return `<span class="wp-mix-chip" style="--c:${sp.color.accent};"><span class="wp-mix-code">${k}</span><span class="wp-mix-count">${mix[k]}</span></span>`;
+    }).join("");
+    const untaggedCount = mix._none;
     html += `<div class="wp-card" data-lane="${lane.id}">
       <div class="wp-header">
         <div class="info">
           <div class="wp-code" contenteditable="true" data-field="code" data-placeholder="WP code">${escapeHtml(lane.code)}</div>
           <div class="wp-desc" contenteditable="true" data-field="desc" data-placeholder="Discipline / responsibility">${escapeHtml(lane.desc)}</div>
+          ${(mixHtml || untaggedCount) ? `<div class="wp-phase-mix" title="Phase mix across this WP's tasks">${mixHtml}${untaggedCount ? `<span class="wp-mix-chip is-unassigned"><span class="wp-mix-code">—</span><span class="wp-mix-count">${untaggedCount}</span></span>` : ""}</div>` : ""}
         </div>
-        <select class="wp-phase-select" data-field="phase" title="SOP-18 phase">
-          <option value="" ${!lane.phase?'selected':''}>— No phase</option>
-          ${phaseOpts}
-        </select>
         <div class="wp-total" title="Sum of buffered estimates in this work package">${fmtDur(laneWk)}</div>
         <div class="wp-actions">
           <button class="wp-icon-btn" data-laneact="up" title="Move up">↑</button>
@@ -1706,10 +1742,18 @@ function renderTaskRow(bar, map) {
   const typeOptions = Object.entries(TYPES).map(([k, v]) =>
     `<option value="${k}" ${k === bar.type ? "selected" : ""}>${v.label}</option>`
   ).join("");
+  const phaseOptions = ["PRS","DP","DO","FP"].map(c =>
+    `<option value="${c}" ${bar.phase === c ? "selected" : ""}>${c}</option>`
+  ).join("");
+  const phaseAccent = bar.phase ? (sopPhase(bar.phase)?.color.accent || "var(--muted)") : "var(--muted)";
 
   return `<div class="task-row ${isMilestone ? "is-milestone" : ""}" data-bar="${bar.id}">
     <select class="task-type-select" data-action="set-type" style="background:${t.bar};color:${t.border};">
       ${typeOptions}
+    </select>
+    <select class="task-phase-select" data-action="set-phase" style="--c:${phaseAccent};" title="SOP-18 phase for this task">
+      <option value="" ${!bar.phase ? "selected" : ""}>—</option>
+      ${phaseOptions}
     </select>
     <span class="task-label" contenteditable="true" data-action="set-label" data-placeholder="Task label">${escapeHtml(bar.label || "")}</span>
     <span class="task-span">
@@ -1800,6 +1844,18 @@ function attachPlanHandlers() {
           bar.type = typeSel.value;
           if (bar.type === "milestone") bar.span = 0;
           else if (bar.span === 0) bar.span = WEEKS_PER_MONTH;
+          saveState();
+          renderPlan();
+        });
+      }
+
+      // Phase select (per task)
+      const phaseSel = row.querySelector("select.task-phase-select");
+      if (phaseSel) {
+        phaseSel.addEventListener("change", () => {
+          const lane = state.lanes.find(l => l.id === laneId);
+          const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
+          bar.phase = phaseSel.value || null;
           saveState();
           renderPlan();
         });
@@ -1960,7 +2016,7 @@ function renderTimeline() {
 
   // Body rows — one row per task, phase cell spans all tasks in that WP
   state.lanes.forEach((lane, laneIdx) => {
-    const phase = phaseColorFor(lane, laneIdx);
+    const phase = getPhaseColor(laneIdx);
     const numTasks = lane.bars.length;
     const collapsed = isCollapsed(lane.id);
     const rowSpan = collapsed ? 1 : Math.max(1, numTasks);
@@ -2034,8 +2090,10 @@ function renderSingleBar(b, colW) {
   const x = b.startIdx * colW;
   const w = Math.max(1, effSpan(b) / WEEKS_PER_MONTH) * colW;
   const narrowCls = w < 64 ? " narrow" : "";
+  const phaseStripe = b.phase ? `<div class="bar-phase-stripe" style="background:${sopPhase(b.phase)?.color.accent || "var(--muted)"};" title="SOP-18 phase: ${b.phase}"></div>` : "";
   return `<div class="bar${narrowCls}" data-bar="${b.id}" title="${tip}"
     style="left:${x}px; width:${w}px; top:calc(50% - 14px); background:${t.bar}; border-color:${t.border};">
+    ${phaseStripe}
     <div class="resize l"></div>
     <div class="resize r"></div>
     <span class="bar-type">${escapeHtml(t.label)}</span>
@@ -2192,7 +2250,7 @@ function renderOverview() {
   }
 
   state.lanes.forEach((lane, laneIdx) => {
-    const phase = phaseColorFor(lane, laneIdx);
+    const phase = getPhaseColor(laneIdx);
     html += `<div class="phase-cell" data-lane="${lane.id}"
       style="--phase-bg:${phase.bg}; --phase-accent:${phase.accent}; --phase-text:${phase.text};">
       <div class="phase-text">${escapeHtml(lane.code)}</div>
@@ -2224,8 +2282,9 @@ function renderOverviewBar(b, colW) {
   }
   const x = b.startIdx * colW;
   const w = Math.max(1, effSpan(b) / WEEKS_PER_MONTH) * colW;
+  const phaseStripe = b.phase ? `<div class="bar-phase-stripe" style="background:${sopPhase(b.phase)?.color.accent || "var(--muted)"};"></div>` : "";
   return `<div class="ov-bar" data-bar="${b.id}" title="${tip}"
-    style="left:${x}px; width:${w}px; background:${t.bar}; border-color:${t.border};">${escapeHtml(labelText)}</div>`;
+    style="left:${x}px; width:${w}px; background:${t.bar}; border-color:${t.border};">${phaseStripe}${escapeHtml(labelText)}</div>`;
 }
 
 function renderTodayLineIn(targetEl, colW, numMonths, leftOffset) {
@@ -2429,7 +2488,7 @@ function renderViewA() {
   }
 
   state.lanes.forEach((lane, laneIdx) => {
-    const phase = phaseColorFor(lane, laneIdx);
+    const phase = getPhaseColor(laneIdx);
     const numTasks = lane.bars.length;
     const collapsed = isCollapsed(lane.id);
     const chev = collapsed ? "▸" : "▾";
@@ -2506,7 +2565,7 @@ function renderViewB() {
   }
 
   state.lanes.forEach((lane, laneIdx) => {
-    const phase = phaseColorFor(lane, laneIdx);
+    const phase = getPhaseColor(laneIdx);
     const numTasks = lane.bars.length;
     const collapsed = isCollapsed(lane.id);
     const rowSpan = collapsed ? 1 : Math.max(1, numTasks);
