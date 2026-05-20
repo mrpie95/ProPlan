@@ -1736,6 +1736,38 @@ function barFillColor(b) {
   const t = TYPES[b.type] || TYPES.work;
   return sp ? { bar: sp.color.bg, border: sp.color.accent } : { bar: t.bar, border: t.border };
 }
+
+/* Sort a WP's tasks so they're grouped by SOP phase (PRS → DP → DO → FP → untagged). */
+function sortLaneBarsByPhase(lane) {
+  const rank = b => (b.phase && PHASE_ORDER[b.phase] !== undefined) ? PHASE_ORDER[b.phase] : 999;
+  lane.bars.sort((a, b) => {
+    const r = rank(a) - rank(b);
+    if (r !== 0) return r;
+    return a.startIdx - b.startIdx;
+  });
+}
+
+/* Enforce strict phase ordering across the whole project: no task in a later phase
+   may start before the latest end of any earlier phase. Pushes startIdx forward
+   (snapped to week grid) where needed. Untagged tasks are unconstrained. */
+function enforcePhaseOrder() {
+  let cumulativeMaxEnd = 0;
+  for (const phase of ["PRS", "DP", "DO", "FP"]) {
+    let phaseMaxEnd = cumulativeMaxEnd;
+    for (const lane of state.lanes) {
+      for (const b of lane.bars) {
+        if (b.phase !== phase) continue;
+        if (b.startIdx < cumulativeMaxEnd) {
+          // Snap up to the next week boundary
+          b.startIdx = Math.ceil(cumulativeMaxEnd * WEEKS_PER_MONTH) / WEEKS_PER_MONTH;
+        }
+        const end = b.startIdx + (b.type === "milestone" ? 0 : effSpan(b) / WEEKS_PER_MONTH);
+        if (end > phaseMaxEnd) phaseMaxEnd = end;
+      }
+    }
+    cumulativeMaxEnd = phaseMaxEnd;
+  }
+}
 function sortLanesByPhase(lanes) {
   return lanes
     .map((lane, idx) => ({ lane, idx }))
@@ -2036,6 +2068,8 @@ function attachPlanHandlers() {
             const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
             bar.phase = btn.dataset.v || null;
             phasePicker.removeAttribute("open");
+            sortLaneBarsByPhase(lane);
+            enforcePhaseOrder();
             saveState();
             renderPlan();
           });
@@ -2061,7 +2095,7 @@ function attachPlanHandlers() {
           const lane = state.lanes.find(l => l.id === laneId);
           const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
           const v = parseFloat(spanInp.value);
-          if (Number.isFinite(v) && v > 0) { bar.span = v; saveState(); renderPlan(); }
+          if (Number.isFinite(v) && v > 0) { bar.span = v; enforcePhaseOrder(); saveState(); renderPlan(); }
           else { spanInp.value = bar.span; }
         });
       }
@@ -2073,7 +2107,7 @@ function attachPlanHandlers() {
           const lane = state.lanes.find(l => l.id === laneId);
           const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
           const v = parseFloat(bufInp.value);
-          if (Number.isFinite(v) && v >= 0) { bar.buffer = v; saveState(); renderPlan(); }
+          if (Number.isFinite(v) && v >= 0) { bar.buffer = v; enforcePhaseOrder(); saveState(); renderPlan(); }
           else { bufInp.value = bar.buffer ?? 10; }
         });
       }
@@ -3041,6 +3075,7 @@ function autoSequence() {
     bar.startIdx = earliest;
     if (bar.type !== "milestone" && (!bar.span || bar.span <= 0)) bar.span = 1;
   }
+  enforcePhaseOrder();
   renderCurrent();
 }
 
@@ -3251,6 +3286,7 @@ function beginBarDrag(barId, laneId, mode, startEvent, colW) {
     window.removeEventListener("mousemove", onMove);
     window.removeEventListener("mouseup", onUp);
     barEl?.classList.remove("dragging");
+    enforcePhaseOrder();
     saveState(); renderCurrent();
   }
   window.addEventListener("mousemove", onMove);
@@ -3463,6 +3499,8 @@ function openDeliverablePicker(lane) {
         phase,
         dependsOn: []
       });
+      sortLaneBarsByPhase(lane);
+      enforcePhaseOrder();
       backdrop.remove();
       saveState();
       renderPlan();
