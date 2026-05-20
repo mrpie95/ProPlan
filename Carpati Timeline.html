@@ -1793,21 +1793,65 @@
   }
   .ov-bar .bar-phase-stripe { border-radius: 11px 11px 0 0; }
 
-  .bar .bar-type {
-    position: absolute;
-    left: 12px; top: 50%;
-    transform: translateY(-50%);
-    font-size: 10px; font-weight: 700;
-    color: rgba(15, 23, 42, 0.6);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+  /* Bar inner content — type pill + task name (name visible only in compact mode where left column is hidden) */
+  .bar { display: flex; align-items: center; padding: 0 10px; gap: 8px; }
+  .bar > .resize, .bar > .connect-handle, .bar > .dep-chip { flex-shrink: 0; }
+  .bar .bar-content {
+    flex: 1; min-width: 0;
+    display: flex; align-items: center; gap: 6px;
     pointer-events: none;
-    white-space: nowrap;
     overflow: hidden;
-    max-width: calc(100% - 22px);
-    text-overflow: clip;
   }
-  .bar.narrow .bar-type { display: none; }
+  .bar .bar-type-tag {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(15, 23, 42, 0.55);
+    background: rgba(255,255,255,0.55);
+    padding: 1px 6px; border-radius: 5px;
+    white-space: nowrap; flex-shrink: 0;
+    line-height: 1.4;
+  }
+  .bar .bar-task-name {
+    display: none;  /* hidden in normal mode (task name lives in the left column) */
+    font-size: 11.5px; font-weight: 600;
+    color: rgba(15, 23, 42, 0.85);
+    line-height: 1.2;
+    overflow: hidden;
+    flex: 1; min-width: 0;
+  }
+  .bar.narrow .bar-type-tag,
+  .bar.narrow .bar-task-name { display: none; }
+
+  /* Compact mode: task names hidden from left column → surface them inside taller bars with wrapping */
+  body[data-compact-labels="1"] #viewATimeline .bar {
+    height: 44px !important;
+    top: calc(50% - 22px) !important;
+    border-radius: 12px;
+  }
+  body[data-compact-labels="1"] #viewATimeline .bar .bar-content {
+    flex-direction: column; align-items: flex-start; gap: 1px;
+  }
+  body[data-compact-labels="1"] #viewATimeline .bar .bar-task-name {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+    word-break: break-word;
+    width: 100%;
+    text-overflow: ellipsis;
+  }
+  body[data-compact-labels="1"] #viewATimeline .task-track { min-height: 52px; }
+  body[data-compact-labels="1"] #viewATimeline .left-cell.task-row-cell { min-height: 52px; }
+  /* In compact mode, narrow bars still get a name (wrapped); hide only the type pill if very tight */
+  body[data-compact-labels="1"] #viewATimeline .bar.narrow .bar-task-name { display: -webkit-box; }
+  [data-theme="dark"] .bar .bar-task-name {
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 0 3px rgba(0,0,0,0.45);
+  }
+  [data-theme="dark"] .bar .bar-type-tag {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255,255,255,0.12);
+  }
 
   .bar .connect-handle {
     position: absolute;
@@ -2891,7 +2935,10 @@ function renderSingleBar(b, colW) {
     style="left:${x}px; width:${w}px; top:calc(50% - 14px); background:${c.bar}; border-color:${c.border};">
     <div class="resize l"></div>
     <div class="resize r"></div>
-    <span class="bar-type">${escapeHtml(t.label)}</span>
+    <div class="bar-content">
+      <span class="bar-type-tag">${escapeHtml(t.label)}</span>
+      <span class="bar-task-name">${escapeHtml(labelText)}</span>
+    </div>
     <div class="connect-handle" data-action="start-connect" title="Drag onto another bar to set dependency"></div>
     ${depChip}
   </div>`;
@@ -4658,6 +4705,7 @@ function applyCompactLabelsButton() {
   const on = isCompactLabels();
   btn.classList.toggle("primary", on);
   btn.textContent = on ? "📐 Compact ✓" : "📐 Compact";
+  document.body.dataset.compactLabels = on ? "1" : "0";
 }
 document.getElementById("compactToggle").addEventListener("click", () => {
   const on = isCompactLabels();
