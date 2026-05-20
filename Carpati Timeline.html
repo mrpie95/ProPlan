@@ -472,6 +472,129 @@
   .ph-status-callout.ph-callout-closed { border-left-color: #22c55e; background: color-mix(in srgb, #dcfce7 50%, var(--panel)); }
   [data-theme="dark"] .ph-status-callout.ph-callout-closed { background: color-mix(in srgb, #14532d 30%, var(--panel)); }
 
+  /* Phase detail (drill-down for the active phase) */
+  .phase-detail {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+  }
+  .phase-detail-header {
+    padding: 14px 20px;
+    background: color-mix(in srgb, var(--bg, var(--panel)) 50%, var(--panel));
+    border-left: 5px solid var(--c, var(--border-strong));
+    border-bottom: 1px solid var(--border);
+  }
+  [data-theme="dark"] .phase-detail-header { background: color-mix(in srgb, var(--bg) 20%, var(--panel)); }
+  .ph-detail-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .phase-detail-header h2 {
+    margin: 4px 0 4px; font-size: 17px; font-weight: 800; color: var(--c, var(--ink));
+    line-height: 1.25;
+  }
+  [data-theme="dark"] .phase-detail-header h2 { color: color-mix(in srgb, var(--c) 55%, white); }
+  .phase-detail-header p { margin: 0; font-size: 12.5px; color: var(--ink-soft); line-height: 1.5; }
+
+  .phd-wrap { overflow-x: auto; }
+  .phd-grid {
+    display: grid;
+    position: relative;
+  }
+  .phd-corner {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    position: sticky; left: 0; z-index: 3;
+    padding: 8px 14px;
+    font-size: 12px; font-weight: 800;
+    color: var(--ink);
+    display: flex; align-items: center;
+  }
+  .phd-year {
+    background: var(--year-bg); color: var(--year-fg);
+    text-align: center; padding: 6px 0;
+    font-size: 12px; font-weight: 700;
+    border-right: 1px solid rgba(255,255,255,0.15);
+  }
+  .phd-month {
+    background: var(--surface); color: var(--ink-soft);
+    text-align: center; padding: 5px 0;
+    font-size: 11px; font-weight: 500;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+  .phd-lane-label {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    border-left: 4px solid var(--border-strong);
+    position: sticky; left: 0; z-index: 2;
+    padding: 8px 14px;
+    display: flex; flex-direction: column; gap: 2px;
+    justify-content: center;
+    min-height: 46px;
+  }
+  .phd-lane-code { font-size: 12px; font-weight: 700; color: var(--ink); line-height: 1.25; }
+  .phd-lane-desc { font-size: 10.5px; color: var(--ink-soft); opacity: 0.85; line-height: 1.3; }
+  .phd-track {
+    position: relative;
+    background: var(--track);
+    border-bottom: 1px solid var(--border);
+    min-height: 46px;
+  }
+  .phd-bar {
+    position: absolute;
+    top: 50%; transform: translateY(-50%);
+    height: 30px; border-radius: 14px;
+    border: 1px solid rgba(0,0,0,0.06);
+    box-shadow: 0 2px 6px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.5);
+    background-image: linear-gradient(180deg, rgba(255,255,255,0.4), rgba(255,255,255,0));
+    padding: 0 12px;
+    display: flex; align-items: center; gap: 10px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .phd-bar-type {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(15,23,42,0.6);
+    flex-shrink: 0;
+  }
+  .phd-bar-label {
+    font-size: 12px; font-weight: 600;
+    color: rgba(15,23,42,0.82);
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  [data-theme="dark"] .phd-bar { filter: brightness(0.6) saturate(0.7); }
+  [data-theme="dark"] .phd-bar-type,
+  [data-theme="dark"] .phd-bar-label { color: rgba(255,255,255,0.92); text-shadow: 0 0 3px rgba(0,0,0,0.45); }
+  .phd-milestone {
+    position: absolute;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .phd-ms-label {
+    font-size: 10px; font-weight: 700; color: var(--ink);
+    white-space: nowrap;
+  }
+  .phd-today {
+    position: absolute; top: 0; bottom: 0;
+    width: 0;
+    pointer-events: none;
+    z-index: 5;
+    border-left: 2px dashed #f43f5e;
+  }
+  .phd-today-pill {
+    position: absolute; top: 4px; left: 4px;
+    background: #f43f5e; color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 6px; border-radius: 999px;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(244,63,94,0.35);
+  }
+
   /* Today marker over the strip */
   .ph-today {
     position: absolute; top: 0; bottom: 0;
@@ -2915,6 +3038,107 @@ function renderProcess() {
   root.innerHTML = html;
 }
 
+/* Detail section for the Phase view — mini timeline of only the active phase's tasks, grouped by WP */
+function renderActivePhaseDetail(activePhase, phaseRanges, presentPhases, fmtMonthOffset, startYM) {
+  if (!activePhase || activePhase === "_closed") return "";
+  const sp = sopPhase(activePhase);
+  const range = phaseRanges[activePhase];
+  if (!sp || !range) return "";
+
+  // Gather all bars tagged with this phase, grouped by lane
+  const bucketByLane = new Map();
+  state.lanes.forEach(lane => {
+    const bars = lane.bars.filter(b => b.phase === activePhase);
+    if (bars.length) bucketByLane.set(lane, bars);
+  });
+  if (!bucketByLane.size) {
+    return `<section class="phase-detail">
+      <div class="phase-detail-header" style="--c:${sp.color.accent}; --bg:${sp.color.bg};">
+        <span class="ph-detail-label">Detail</span>
+        <h2>${activePhase} — ${escapeHtml(sp.name)}</h2>
+        <p>No tasks tagged with ${activePhase} yet. Tag tasks in Plan view to see them here.</p>
+      </div>
+    </section>`;
+  }
+
+  // Time bounds for the detail view — floor/ceil to whole months for clean grid
+  const detStart = Math.floor(range.start);
+  const detEnd = Math.ceil(range.end + 0.001);  // ensure we include the final month
+  const numCols = Math.max(1, detEnd - detStart);
+  const colW = Math.max(60, Math.min(140, state.colWidth));  // detail-specific width
+  const LABEL_COL_W = 220;
+
+  // Month + year header cells
+  const monthCells = [];
+  for (let i = 0; i < numCols; i++) {
+    let y = startYM.y, m = startYM.m + (detStart + i);
+    while (m > 12) { m -= 12; y++; }
+    while (m < 1) { m += 12; y--; }
+    monthCells.push({ m, y });
+  }
+  const yearSpans = [];
+  for (const mc of monthCells) {
+    const last = yearSpans[yearSpans.length - 1];
+    if (last && last.y === mc.y) last.span++;
+    else yearSpans.push({ y: mc.y, span: 1 });
+  }
+
+  // Build the grid HTML
+  let grid = "";
+  // Corner (spans 2 header rows)
+  grid += `<div class="phd-corner" style="grid-row: span 2;">${activePhase} — ${escapeHtml(sp.name)}</div>`;
+  // Year row
+  for (const ys of yearSpans) grid += `<div class="phd-year" style="grid-column: span ${ys.span};">${ys.y}</div>`;
+  // Month row
+  for (const mc of monthCells) grid += `<div class="phd-month">${MONTH_NAMES[mc.m - 1]}</div>`;
+
+  // Per WP: label + track with this phase's bars
+  for (const [lane, bars] of bucketByLane) {
+    grid += `<div class="phd-lane-label" title="${escapeHtml(lane.desc || "")}">
+      <div class="phd-lane-code">${escapeHtml(lane.code)}</div>
+      ${lane.desc ? `<div class="phd-lane-desc">${escapeHtml(lane.desc)}</div>` : ""}
+    </div>`;
+    const barsHtml = bars.map(b => {
+      const t = TYPES[b.type] || TYPES.work;
+      const cFill = barFillColor(b);
+      if (b.type === "milestone") {
+        const x = (b.startIdx - detStart) * colW + colW / 2;
+        return `<div class="phd-milestone" title="${escapeHtml(b.label || "")}" style="left:${x}px; top:50%; transform:translate(-50%, -50%);">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M 12 2.2 L 14.6 8.7 L 21.6 9.1 L 16.2 13.7 L 18 20.5 L 12 16.7 L 6 20.5 L 7.8 13.7 L 2.4 9.1 L 9.4 8.7 Z" fill="${cFill.bar}" stroke="${cFill.border}" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <span class="phd-ms-label">${escapeHtml(b.label || "")}</span>
+        </div>`;
+      }
+      const x = (b.startIdx - detStart) * colW;
+      const w = Math.max(20, effSpan(b) / WEEKS_PER_MONTH * colW);
+      return `<div class="phd-bar" title="${escapeHtml((b.label || "(untitled)") + " · " + t.label + " · " + b.span + "wk +" + (b.buffer||0) + "%")}" style="left:${x}px; width:${w}px; background:${cFill.bar}; border-color:${cFill.border};">
+        <span class="phd-bar-type">${escapeHtml(t.label)}</span>
+        <span class="phd-bar-label">${escapeHtml(b.label || "(untitled)")}</span>
+      </div>`;
+    }).join("");
+    grid += `<div class="phd-track" style="grid-column: span ${numCols};">${barsHtml}</div>`;
+  }
+
+  // Today marker (if today falls within detail range)
+  const today = new Date();
+  const todayMonths = (today.getFullYear() - startYM.y) * 12 + (today.getMonth() + 1 - startYM.m) + (today.getDate() - 1) / 30;
+  const todayInDetail = todayMonths >= detStart && todayMonths <= detEnd;
+  const todayX = todayInDetail ? (todayMonths - detStart) * colW : null;
+
+  return `<section class="phase-detail">
+    <div class="phase-detail-header" style="--c:${sp.color.accent}; --bg:${sp.color.bg};">
+      <span class="ph-detail-label">Detail · Active phase</span>
+      <h2>${activePhase} — ${escapeHtml(sp.name)}</h2>
+      <p>Tasks tagged with <strong>${activePhase}</strong>, grouped by work package.</p>
+    </div>
+    <div class="phd-wrap">
+      <div class="phd-grid" style="grid-template-columns: ${LABEL_COL_W}px repeat(${numCols}, ${colW}px);">
+        ${grid}
+        ${todayX !== null ? `<div class="phd-today" style="left:${LABEL_COL_W + todayX}px;"><div class="phd-today-pill">Today</div></div>` : ""}
+      </div>
+    </div>
+  </section>`;
+}
+
 /* =================== PHASE VIEW =================== */
 function renderPhase() {
   const root = document.getElementById("phaseView");
@@ -3079,6 +3303,7 @@ function renderPhase() {
       <div class="ph-legend-item"><span class="ph-legend-swatch ph-now"></span>Active — current phase</div>
       <div class="ph-legend-item"><span class="ph-legend-swatch ph-locked"></span>Locked — behind a gate</div>
     </div>
+    ${renderActivePhaseDetail(activePhase, phaseRanges, presentPhases, fmtMonthOffset, startYM)}
   </div>`;
 
   // Wire actions
