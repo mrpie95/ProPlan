@@ -235,15 +235,17 @@
   main { padding: 16px; }
 
   /* ======================== VIEW SWITCHING ======================== */
-  body[data-view="plan"] :is(#timelineView, #viewAView, #viewBView, #overviewView, #processView, #presentView) { display: none; }
-  body[data-view="timeline"] :is(#planView, #viewAView, #viewBView, #overviewView, #processView, #presentView) { display: none; }
-  body[data-view="viewA"] :is(#planView, #timelineView, #viewBView, #overviewView, #processView, #presentView) { display: none; }
-  body[data-view="viewB"] :is(#planView, #timelineView, #viewAView, #overviewView, #processView, #presentView) { display: none; }
-  body[data-view="overview"] :is(#planView, #timelineView, #viewAView, #viewBView, #processView, #presentView) { display: none; }
-  body[data-view="process"] :is(#planView, #timelineView, #viewAView, #viewBView, #overviewView, #presentView) { display: none; }
-  body[data-view="present"] :is(#planView, #timelineView, #viewAView, #viewBView, #overviewView, #processView) { display: none; }
+  body[data-view="plan"] :is(#timelineView, #viewAView, #viewBView, #phaseView, #overviewView, #processView, #presentView) { display: none; }
+  body[data-view="timeline"] :is(#planView, #viewAView, #viewBView, #phaseView, #overviewView, #processView, #presentView) { display: none; }
+  body[data-view="viewA"] :is(#planView, #timelineView, #viewBView, #phaseView, #overviewView, #processView, #presentView) { display: none; }
+  body[data-view="viewB"] :is(#planView, #timelineView, #viewAView, #phaseView, #overviewView, #processView, #presentView) { display: none; }
+  body[data-view="phase"] :is(#planView, #timelineView, #viewAView, #viewBView, #overviewView, #processView, #presentView) { display: none; }
+  body[data-view="overview"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #presentView) { display: none; }
+  body[data-view="process"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #overviewView, #presentView) { display: none; }
+  body[data-view="present"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #overviewView, #processView) { display: none; }
   body[data-view="present"] .timeline-only,
-  body[data-view="process"] .timeline-only { display: none !important; }
+  body[data-view="process"] .timeline-only,
+  body[data-view="phase"] .timeline-only { display: none !important; }
   body[data-view="overview"] .hdr-tier2,
   body[data-view="viewA"] .hdr-tier2,
   body[data-view="viewB"] .hdr-tier2 { display: flex; }
@@ -298,6 +300,202 @@
     cursor: default;
   }
   .ov-milestone svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 1px 2px rgba(180,83,9,0.3)); }
+
+  /* ======================== PHASE VIEW ======================== */
+  .phase-view {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 22px;
+    padding: 4px 0 32px;
+  }
+  .phase-view-header {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
+    flex-wrap: wrap;
+  }
+  .ph-eyebrow {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .ph-title h1 {
+    margin: 4px 0 0; font-size: 26px; font-weight: 800; color: var(--ink);
+  }
+  .ph-active-callout {
+    background: color-mix(in srgb, var(--bg) 60%, var(--panel));
+    border: 1px solid color-mix(in srgb, var(--c) 35%, var(--border));
+    border-left: 5px solid var(--c);
+    border-radius: var(--radius-lg);
+    padding: 14px 18px;
+    min-width: 260px;
+    box-shadow: var(--shadow-sm);
+  }
+  [data-theme="dark"] .ph-active-callout { background: color-mix(in srgb, var(--bg) 20%, var(--panel)); }
+  .ph-active-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .ph-active-name {
+    font-size: 17px; font-weight: 800; color: var(--c);
+    margin: 4px 0 10px; line-height: 1.25;
+  }
+  [data-theme="dark"] .ph-active-name { color: color-mix(in srgb, var(--c) 60%, white); }
+  .ph-active-progress {
+    height: 7px; background: var(--surface-2); border-radius: 999px;
+    overflow: hidden; margin-bottom: 6px;
+  }
+  .ph-active-progress-bar { height: 100%; border-radius: 999px; transition: width var(--transition); }
+  .ph-active-meta { font-size: 12px; color: var(--ink-soft); font-weight: 500; }
+
+  .phase-strip {
+    position: relative;
+    display: flex; align-items: stretch;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    min-height: 200px;
+    overflow: hidden;
+  }
+  .ph-block {
+    position: relative;
+    padding: 18px 18px 30px;
+    display: flex; flex-direction: column; gap: 4px;
+    min-width: 100px;
+    overflow: hidden;
+    transition: filter var(--transition);
+  }
+  .ph-block + .ph-gate + .ph-block { border-left: 0; }
+  .ph-block-state {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 8px; border-radius: 999px;
+    align-self: flex-start;
+    background: rgba(255,255,255,0.6);
+  }
+  .ph-block-code { font-size: 22px; font-weight: 800; line-height: 1; margin-top: 2px; }
+  .ph-block-name { font-size: 12px; font-weight: 500; opacity: 0.85; }
+  .ph-block-dates { font-size: 11px; opacity: 0.75; font-weight: 500; margin-top: 4px; }
+  .ph-block-stats { font-size: 11px; opacity: 0.75; font-weight: 500; }
+  .ph-block-milestones {
+    position: absolute; left: 0; right: 0; bottom: 8px; height: 18px;
+  }
+  .ph-milestone {
+    position: absolute; top: 0;
+    transform: translateX(-50%);
+    cursor: default;
+  }
+
+  /* States */
+  .ph-block.ph-done {
+    background: color-mix(in srgb, #dcfce7 60%, var(--panel));
+    color: #14532d;
+  }
+  .ph-block.ph-done .ph-block-code,
+  .ph-block.ph-done .ph-block-state { color: #14532d; }
+  .ph-block.ph-done .ph-block-state { background: #86efac; }
+
+  .ph-block.ph-now {
+    background: var(--bg);
+    color: var(--tx);
+    box-shadow: inset 0 0 0 3px var(--c), 0 8px 22px color-mix(in srgb, var(--c) 18%, transparent);
+    z-index: 2;
+  }
+  .ph-block.ph-now .ph-block-state {
+    background: var(--c); color: #fff;
+  }
+  .ph-block.ph-now .ph-block-code { color: var(--tx); }
+
+  .ph-block.ph-locked {
+    background: var(--surface);
+    color: var(--muted);
+    filter: saturate(0.5);
+  }
+  .ph-block.ph-locked .ph-block-state { background: var(--surface-2); color: var(--muted); }
+  .ph-block.ph-locked .ph-block-code { color: var(--ink-soft); }
+
+  [data-theme="dark"] .ph-block.ph-done { background: color-mix(in srgb, #14532d 30%, var(--panel)); color: #bbf7d0; }
+  [data-theme="dark"] .ph-block.ph-done .ph-block-code,
+  [data-theme="dark"] .ph-block.ph-done .ph-block-state { color: #bbf7d0; }
+  [data-theme="dark"] .ph-block.ph-done .ph-block-state { background: #14532d; }
+  [data-theme="dark"] .ph-block.ph-now { background: color-mix(in srgb, var(--bg) 20%, var(--panel)); color: color-mix(in srgb, var(--tx) 60%, white); }
+  [data-theme="dark"] .ph-block.ph-now .ph-block-code { color: color-mix(in srgb, var(--tx) 50%, white); }
+  [data-theme="dark"] .ph-block.ph-locked { background: rgba(255,255,255,0.04); }
+  [data-theme="dark"] .ph-block-state { background: rgba(255,255,255,0.1); }
+
+  /* Gates */
+  .ph-gate {
+    position: relative;
+    width: 40px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ph-gate-line {
+    position: absolute; top: 8px; bottom: 8px; left: 50%; width: 2px;
+    background: var(--border-strong); border-radius: 1px;
+    transform: translateX(-50%);
+  }
+  .ph-gate-diamond {
+    position: relative; z-index: 1;
+    width: 28px; height: 28px;
+    transform: rotate(45deg);
+    border: 2px solid var(--border-strong);
+    background: var(--panel);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 800;
+  }
+  .ph-gate-diamond > * { transform: rotate(-45deg); }
+  .ph-gate.ph-gate-passed .ph-gate-diamond { background: #22c55e; border-color: #16a34a; color: #fff; }
+  .ph-gate.ph-gate-passed .ph-gate-line { background: #22c55e; }
+  .ph-gate.ph-gate-next .ph-gate-diamond { background: var(--panel); border-color: var(--accent); color: var(--accent); }
+  .ph-gate.ph-gate-next .ph-gate-line { background: var(--accent); opacity: 0.4; }
+  .ph-gate.ph-gate-locked .ph-gate-diamond { background: var(--surface); border-color: var(--border-strong); color: var(--muted); }
+  [data-theme="dark"] .ph-gate-diamond { background: rgba(255,255,255,0.08); }
+
+  /* Today marker over the strip */
+  .ph-today {
+    position: absolute; top: 0; bottom: 0;
+    width: 0; pointer-events: none;
+    z-index: 3;
+  }
+  .ph-today-line {
+    position: absolute; top: 8px; bottom: 8px;
+    width: 2px; left: -1px;
+    background: #f43f5e; opacity: 0.85;
+    border-radius: 1px;
+  }
+  .ph-today-pill {
+    position: absolute; top: -10px; left: -22px;
+    background: #f43f5e; color: #fff;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 999px;
+    box-shadow: 0 2px 6px rgba(244,63,94,0.4);
+    letter-spacing: 0.04em;
+  }
+
+  .phase-legend {
+    display: flex; gap: 18px; flex-wrap: wrap;
+    padding: 12px 18px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 12px; color: var(--ink-soft);
+  }
+  .ph-legend-item { display: flex; align-items: center; gap: 8px; }
+  .ph-legend-swatch {
+    width: 14px; height: 14px; border-radius: 4px;
+  }
+  .ph-legend-swatch.ph-done { background: #86efac; }
+  .ph-legend-swatch.ph-now { background: #a855f7; box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.3); }
+  .ph-legend-swatch.ph-locked { background: var(--surface-2); border: 1px solid var(--border); }
+
+  .phase-view-empty {
+    max-width: 520px; margin: 80px auto; text-align: center;
+    padding: 40px 28px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+  }
+  .phase-empty-icon { font-size: 40px; line-height: 1; margin-bottom: 12px; opacity: 0.6; }
+  .phase-view-empty h2 { margin: 0 0 8px; font-size: 18px; color: var(--ink); }
+  .phase-view-empty p { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.55; }
 
   /* ======================== PROCESS VIEW (SOP-18 reference) ======================== */
   .process-view {
@@ -1487,6 +1685,7 @@
     <div class="view-toggle">
       <button class="view-btn selected" data-view="plan">Plan</button>
       <button class="view-btn" data-view="viewA">Timeline</button>
+      <button class="view-btn" data-view="phase" title="Phase-focused project status">Phase</button>
       <button class="view-btn" data-view="overview" title="WP roll-up">Overview</button>
       <button class="view-btn" data-view="process" title="SOP-18 process reference">Process</button>
       <button class="view-btn" data-view="present" title="Coming soon">Present</button>
@@ -1559,6 +1758,7 @@
       <div class="timeline" id="overviewTimeline"></div>
     </div>
   </div>
+  <div id="phaseView"></div>
   <div id="processView"></div>
   <div id="presentView">
     <div class="present-stub">
@@ -1842,6 +2042,7 @@ function renderCurrent() {
   else if (currentView === "timeline") renderTimeline();
   else if (currentView === "viewA") renderViewA();
   else if (currentView === "viewB") renderViewB();
+  else if (currentView === "phase") renderPhase();
   else if (currentView === "overview") renderOverview();
   else if (currentView === "process") renderProcess();
   // present: static stub, nothing to render
@@ -2686,6 +2887,153 @@ function renderProcess() {
     </div>
   </div>`;
   root.innerHTML = html;
+}
+
+/* =================== PHASE VIEW =================== */
+function renderPhase() {
+  const root = document.getElementById("phaseView");
+  // Compute per-phase ranges from tagged tasks
+  const phaseRanges = {};
+  const phaseStats = { PRS: { tasks: 0, milestones: 0 }, DP: { tasks: 0, milestones: 0 }, DO: { tasks: 0, milestones: 0 }, FP: { tasks: 0, milestones: 0 } };
+  const phaseMilestones = { PRS: [], DP: [], DO: [], FP: [] };
+  state.lanes.forEach(lane => lane.bars.forEach(b => {
+    if (!b.phase || !PHASE_ORDER.hasOwnProperty(b.phase)) return;
+    const start = b.startIdx;
+    const end = b.startIdx + (b.type === "milestone" ? 0 : effSpan(b) / WEEKS_PER_MONTH);
+    const r = phaseRanges[b.phase];
+    if (!r) phaseRanges[b.phase] = { start, end };
+    else { r.start = Math.min(r.start, start); r.end = Math.max(r.end, end); }
+    phaseStats[b.phase].tasks++;
+    if (b.type === "milestone") {
+      phaseStats[b.phase].milestones++;
+      phaseMilestones[b.phase].push({ pos: b.startIdx, label: b.label || "(milestone)" });
+    }
+  }));
+  const presentPhases = ["PRS","DP","DO","FP"].filter(c => phaseRanges[c]);
+
+  // Derive done / now / locked state from today's date vs phase ranges
+  const today = new Date();
+  const start = parseYM(state.start);
+  const todayMonthsFromStart = (today.getFullYear() - start.y) * 12 + (today.getMonth() + 1 - start.m) + (today.getDate() - 1) / 30;
+  function stateOf(code) {
+    const r = phaseRanges[code]; if (!r) return "locked";
+    if (todayMonthsFromStart >= r.end) return "done";
+    if (todayMonthsFromStart >= r.start) return "now";
+    return "locked";
+  }
+
+  if (!presentPhases.length) {
+    root.innerHTML = `<div class="phase-view-empty">
+      <div class="phase-empty-icon">⚑</div>
+      <h2>No phases tagged yet</h2>
+      <p>Tag tasks with a SOP-18 phase (PRS / DP / DO / FP) in the Plan view, then come back here to see the project at a phase level.</p>
+    </div>`;
+    return;
+  }
+
+  // Project bounds: from earliest phase start to latest phase end
+  const projStart = Math.min(...presentPhases.map(c => phaseRanges[c].start));
+  const projEnd = Math.max(...presentPhases.map(c => phaseRanges[c].end));
+  const totalSpan = Math.max(1, projEnd - projStart);
+
+  const fmtMonthOffset = (monthsFromStart) => {
+    const totalMonths = monthsFromStart;
+    let y = start.y, m = start.m + Math.floor(totalMonths);
+    while (m > 12) { m -= 12; y++; }
+    while (m < 1) { m += 12; y--; }
+    return `${MONTH_NAMES[m - 1]} ${y}`;
+  };
+
+  // Build phase block HTML — width % = phase span / total span
+  const blocks = presentPhases.map((code, i) => {
+    const r = phaseRanges[code];
+    const sp = sopPhase(code);
+    const st = stateOf(code);
+    const widthPct = ((r.end - r.start) / totalSpan) * 100;
+    const milestonesHtml = (phaseMilestones[code] || []).map(ms => {
+      const relPos = (ms.pos - r.start) / Math.max(0.01, r.end - r.start);
+      return `<div class="ph-milestone" style="left:${(relPos * 100).toFixed(2)}%;" title="${escapeHtml(ms.label)}">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M 12 2.2 L 14.6 8.7 L 21.6 9.1 L 16.2 13.7 L 18 20.5 L 12 16.7 L 6 20.5 L 7.8 13.7 L 2.4 9.1 L 9.4 8.7 Z" fill="${sp.color.accent}" stroke="${sp.color.text}" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </div>`;
+    }).join("");
+    return `<div class="ph-block ph-${st}" style="flex-basis:${widthPct}%; --c:${sp.color.accent}; --bg:${sp.color.bg}; --tx:${sp.color.text};">
+      <div class="ph-block-state">${st === "done" ? "✓ Done" : st === "now" ? "● Now" : "🔒 Locked"}</div>
+      <div class="ph-block-code">${code}</div>
+      <div class="ph-block-name">${escapeHtml(sp.name)}</div>
+      <div class="ph-block-dates">${fmtMonthOffset(r.start)} → ${fmtMonthOffset(r.end)}</div>
+      <div class="ph-block-stats">${phaseStats[code].tasks} task${phaseStats[code].tasks === 1 ? "" : "s"}${phaseStats[code].milestones ? ` · ${phaseStats[code].milestones} milestone${phaseStats[code].milestones === 1 ? "" : "s"}` : ""}</div>
+      ${milestonesHtml ? `<div class="ph-block-milestones">${milestonesHtml}</div>` : ""}
+    </div>`;
+  });
+
+  // Gates between phases
+  const gates = [];
+  for (let i = 0; i < presentPhases.length - 1; i++) {
+    const cur = stateOf(presentPhases[i]);
+    const next = stateOf(presentPhases[i + 1]);
+    let gs = "locked";
+    if (cur === "done") gs = "passed";
+    else if (next === "now" || cur === "now") gs = "next";
+    gates.push(gs);
+  }
+
+  // Interleave blocks and gates
+  let stripHtml = "";
+  blocks.forEach((b, i) => {
+    stripHtml += b;
+    if (i < gates.length) {
+      const g = gates[i];
+      const sym = g === "passed" ? "✓" : g === "next" ? "◇" : "🔒";
+      stripHtml += `<div class="ph-gate ph-gate-${g}" title="Phase review">
+        <div class="ph-gate-line"></div>
+        <div class="ph-gate-diamond">${sym}</div>
+      </div>`;
+    }
+  });
+
+  // Today marker overlay (only if today is within total span)
+  const todayInRange = todayMonthsFromStart >= projStart && todayMonthsFromStart <= projEnd;
+  const todayPct = todayInRange ? ((todayMonthsFromStart - projStart) / totalSpan) * 100 : null;
+
+  // Active phase callout
+  const activeCode = presentPhases.find(c => stateOf(c) === "now");
+  let activeCalloutHtml = "";
+  if (activeCode) {
+    const sp = sopPhase(activeCode);
+    const r = phaseRanges[activeCode];
+    const elapsed = todayMonthsFromStart - r.start;
+    const total = r.end - r.start;
+    const pct = Math.max(0, Math.min(100, (elapsed / total) * 100));
+    activeCalloutHtml = `<div class="ph-active-callout" style="--c:${sp.color.accent}; --bg:${sp.color.bg};">
+      <div class="ph-active-label">Currently in</div>
+      <div class="ph-active-name">${activeCode} — ${escapeHtml(sp.name)}</div>
+      <div class="ph-active-progress">
+        <div class="ph-active-progress-bar" style="width:${pct.toFixed(1)}%; background:${sp.color.accent};"></div>
+      </div>
+      <div class="ph-active-meta">${pct.toFixed(0)}% through · ends ${fmtMonthOffset(r.end)}</div>
+    </div>`;
+  }
+
+  root.innerHTML = `<div class="phase-view">
+    <header class="phase-view-header">
+      <div class="ph-title">
+        <span class="ph-eyebrow">Project Phase</span>
+        <h1>Where we are in the process</h1>
+      </div>
+      ${activeCalloutHtml}
+    </header>
+
+    <div class="phase-strip">
+      ${stripHtml}
+      ${todayPct !== null ? `<div class="ph-today" style="left:${todayPct.toFixed(2)}%;"><div class="ph-today-pill">Today</div><div class="ph-today-line"></div></div>` : ""}
+    </div>
+
+    <div class="phase-legend">
+      <div class="ph-legend-item"><span class="ph-legend-swatch ph-done"></span>Done — gate passed</div>
+      <div class="ph-legend-item"><span class="ph-legend-swatch ph-now"></span>Now — active phase</div>
+      <div class="ph-legend-item"><span class="ph-legend-swatch ph-locked"></span>Locked — behind a gate</div>
+    </div>
+  </div>`;
 }
 
 function renderViewA() {
@@ -3814,7 +4162,7 @@ window.addEventListener("resize", () => {
 /* =================== INIT =================== */
 let savedView = localStorage.getItem(VIEW_KEY);
 if (savedView === "timeline" || savedView === "viewB") savedView = "viewA";
-if (["plan", "viewA", "overview", "process", "present"].includes(savedView)) currentView = savedView;
+if (["plan", "viewA", "phase", "overview", "process", "present"].includes(savedView)) currentView = savedView;
 document.body.dataset.view = currentView;
 document.querySelectorAll(".view-btn").forEach(b => {
   b.classList.toggle("selected", b.dataset.view === currentView);
