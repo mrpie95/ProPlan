@@ -471,43 +471,30 @@
   .aux-list li:last-child { border-bottom: 0; }
   .aux-list strong { color: var(--ink); font-weight: 700; }
 
-  /* Phase swimlane band (single row, all phases on it) */
-  .phase-band-cell {
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    border-right: 1px solid var(--border);
-    border-left: 4px solid var(--border-strong);
-    position: sticky; left: 0; z-index: 4;
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 12px;
-    font-size: 11px;
-    min-height: 34px;
-  }
-  .phase-band-cell .pb-code { font-weight: 800; color: var(--ink); letter-spacing: 0.05em; text-transform: uppercase; font-size: 11px; }
+  /* Phase swimlane band — single row above months, square edge-to-edge blocks */
   .phase-band-track {
     position: relative;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
-    min-height: 34px;
+    min-height: 26px;
   }
   .phase-band-block {
     position: absolute;
-    top: 5px; bottom: 5px;
-    border: 1px solid;
-    border-radius: 999px;
-    display: flex; align-items: center;
+    top: 0; bottom: 0;
+    border: 0;
+    border-radius: 0;
+    display: flex; align-items: center; justify-content: center;
     padding: 0 12px;
     font-size: 11px; font-weight: 700;
     white-space: nowrap;
     overflow: hidden;
-    opacity: 0.92;
-    box-shadow: 0 1px 2px rgba(15,23,42,0.05);
   }
-  .phase-band-block:hover { opacity: 1; z-index: 2; }
+  .phase-band-block + .phase-band-block { border-left: 1px solid rgba(255,255,255,0.5); }
   [data-theme="dark"] .phase-band-block {
     color: color-mix(in srgb, currentColor 50%, white) !important;
-    filter: brightness(0.85) saturate(0.85);
+    filter: brightness(0.7) saturate(0.85);
   }
+  [data-theme="dark"] .phase-band-block + .phase-band-block { border-left-color: rgba(0,0,0,0.35); }
   .pbb-label { overflow: hidden; text-overflow: ellipsis; }
 
   /* ======================== VIEW A — Stacked / hierarchical ======================== */
@@ -2707,16 +2694,7 @@ function renderViewA() {
     else yearSpans.push({ y: m.y, span: 1 });
   }
 
-  let html = "";
-  html += `<div class="header-corner phase-corner" style="grid-row: span 2;">Tasks<div class="phase-resize-handle" title="Drag to resize"></div></div>`;
-  for (const ys of yearSpans) {
-    html += `<div class="year-cell" style="grid-column: span ${ys.span};">${ys.y}</div>`;
-  }
-  for (const m of months) {
-    html += `<div class="month-cell">${MONTH_NAMES[m.m - 1]}</div>`;
-  }
-
-  // Phase swimlane bands — computed from tasks tagged with each phase
+  // Phase swimlane band — computed from tasks tagged with each phase. Single row above the months.
   const phaseRanges = {};
   state.lanes.forEach(lane => lane.bars.forEach(b => {
     if (!b.phase) return;
@@ -2726,22 +2704,36 @@ function renderViewA() {
     if (!r) phaseRanges[b.phase] = { start, end };
     else { r.start = Math.min(r.start, start); r.end = Math.max(r.end, end); }
   }));
-  const anyPhases = ["PRS","DP","DO","FP"].some(c => phaseRanges[c]);
+  const presentPhases = ["PRS","DP","DO","FP"].filter(c => phaseRanges[c]);
+  const anyPhases = presentPhases.length > 0;
+  const headerRowSpan = anyPhases ? 3 : 2;
+
+  let html = "";
+  html += `<div class="header-corner phase-corner" style="grid-row: span ${headerRowSpan};">Tasks<div class="phase-resize-handle" title="Drag to resize"></div></div>`;
+
+  // Row 1 (only when phases exist): phase band, edge-to-edge square blocks filling next phase's start
   if (anyPhases) {
-    html += `<div class="phase-band-cell phase-band-cell-all">
-      <span class="pb-code">SOP Phases</span>
-    </div>`;
-    const blocks = ["PRS","DP","DO","FP"].map(code => {
+    const blocks = presentPhases.map((code, i) => {
       const range = phaseRanges[code];
-      if (!range) return "";
       const sp = sopPhase(code);
+      const nextCode = presentPhases[i + 1];
+      const blockEndPos = nextCode ? phaseRanges[nextCode].start : range.end;
       const left = range.start * colW;
-      const width = Math.max(8, (range.end - range.start) * colW);
-      return `<div class="phase-band-block" style="left:${left}px; width:${width}px; background:${sp.color.bg}; border-color:${sp.color.accent}; color:${sp.color.text};" title="${escapeHtml(sp.name)}">
+      const width = Math.max(8, (blockEndPos - range.start) * colW);
+      return `<div class="phase-band-block" style="left:${left}px; width:${width}px; background:${sp.color.bg}; color:${sp.color.text};" title="${escapeHtml(sp.name)}">
         <span class="pbb-label">${code} — ${escapeHtml(sp.name)}</span>
       </div>`;
     }).join("");
     html += `<div class="phase-band-track phase-band-track-all" style="grid-column: span ${numMonths};">${blocks}</div>`;
+  }
+
+  // Row 2 (or 1): year cells
+  for (const ys of yearSpans) {
+    html += `<div class="year-cell" style="grid-column: span ${ys.span};">${ys.y}</div>`;
+  }
+  // Row 3 (or 2): month cells
+  for (const m of months) {
+    html += `<div class="month-cell">${MONTH_NAMES[m.m - 1]}</div>`;
   }
 
   state.lanes.forEach((lane, laneIdx) => {
