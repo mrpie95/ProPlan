@@ -930,6 +930,71 @@
   }
   .add-task-btn:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 
+  .add-row {
+    display: flex; gap: 8px; margin-top: 10px;
+  }
+  .add-row .add-task-btn { margin-top: 0; flex: 1; }
+  .add-sop-btn {
+    padding: 8px 14px;
+    background: linear-gradient(135deg, rgba(236, 72, 153, 0.12), rgba(168, 85, 247, 0.12));
+    border: 1px dashed color-mix(in srgb, #a855f7 50%, transparent);
+    border-radius: var(--radius);
+    color: #8b5cf6; font: inherit; font-weight: 700; cursor: pointer;
+    flex-shrink: 0;
+    transition: background var(--transition), border-color var(--transition);
+  }
+  .add-sop-btn:hover {
+    background: linear-gradient(135deg, rgba(236, 72, 153, 0.22), rgba(168, 85, 247, 0.22));
+    border-color: #a855f7;
+  }
+  [data-theme="dark"] .add-sop-btn { color: #c4b5fd; }
+
+  /* SOP deliverable picker modal */
+  .deliv-modal { max-width: 600px; }
+  .deliv-list-wrap { display: flex; flex-direction: column; gap: 14px; padding: 8px; }
+  .deliv-phase {
+    border-left: 4px solid var(--c, var(--border-strong));
+    background: color-mix(in srgb, var(--bg, var(--surface)) 30%, var(--panel));
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  [data-theme="dark"] .deliv-phase { background: color-mix(in srgb, var(--bg, var(--surface)) 12%, var(--panel)); }
+  .deliv-phase-common { --c: var(--border-strong); --bg: var(--surface); }
+  .deliv-phase-header {
+    display: flex; align-items: baseline; gap: 8px;
+    margin-bottom: 6px;
+  }
+  .deliv-phase-code {
+    font-size: 11px; font-weight: 800; letter-spacing: 0.06em;
+    color: var(--c, var(--ink));
+    text-transform: uppercase;
+  }
+  .deliv-phase-name { font-size: 11.5px; color: var(--ink-soft); font-weight: 500; }
+  .deliv-list { display: flex; flex-direction: column; gap: 4px; }
+  .deliv-row {
+    display: flex; flex-direction: column; gap: 2px; align-items: stretch;
+    text-align: left;
+    padding: 7px 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    font: inherit; cursor: pointer;
+    transition: background var(--transition), border-color var(--transition), transform 60ms;
+  }
+  .deliv-row:hover { background: color-mix(in srgb, var(--c, var(--accent)) 8%, var(--panel)); border-color: var(--c, var(--accent)); }
+  .deliv-row:active { transform: scale(0.99); }
+  .deliv-row.is-dup { opacity: 0.55; }
+  .deliv-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .deliv-desc { font-size: 11px; color: var(--ink-soft); line-height: 1.35; }
+  .deliv-badge {
+    display: inline-block;
+    margin-top: 2px;
+    font-size: 10px; font-weight: 700; color: var(--muted);
+    background: var(--surface);
+    padding: 1px 6px; border-radius: 999px;
+    align-self: flex-start;
+  }
+
   .add-wp-btn {
     margin-top: 8px;
     padding: 14px;
@@ -1814,7 +1879,10 @@ function renderPlan() {
       <div class="task-list">
         ${lane.bars.map(bar => renderTaskRow(bar, map)).join("")}
       </div>
-      <button class="add-task-btn" data-laneact="add-task">+ Add task / deliverable</button>
+      <div class="add-row">
+        <button class="add-task-btn" data-laneact="add-task">+ Add task</button>
+        <button class="add-sop-btn" data-laneact="add-deliverable" title="Pick a pre-defined SOP-18 deliverable">★ from SOP</button>
+      </div>
     </div>`;
   });
   html += `<button class="add-wp-btn" id="addWpPlan">+ Add Work Package</button>`;
@@ -1925,6 +1993,9 @@ function attachPlanHandlers() {
             id: bid(), type: activeType === "milestone" ? "work" : activeType,
             startIdx: 0, span: WEEKS_PER_MONTH, label: "New task", dependsOn: []
           });
+        } else if (action === "add-deliverable") {
+          openDeliverablePicker(state.lanes[idx]);
+          return; // picker handles its own save + render
         }
         saveState();
         renderPlan();
@@ -3299,6 +3370,83 @@ function outsideClose(e) {
 function closeCtxMenu() { if (ctxMenuEl) ctxMenuEl.remove(); ctxMenuEl = null; }
 
 /* =================== SHARED: Dep editor (used by both views) =================== */
+function openDeliverablePicker(lane) {
+  if (!lane) return;
+  // Build the list: SOP-18 phase deliverables + common deliverables
+  const existing = new Set((lane.bars || []).map(b => (b.label || "").trim().toLowerCase()));
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  const sections = SOP18.phases.map(p => `
+    <div class="deliv-phase" style="--c:${p.color.accent}; --bg:${p.color.bg};">
+      <div class="deliv-phase-header">
+        <span class="deliv-phase-code">${p.code}</span>
+        <span class="deliv-phase-name">${escapeHtml(p.name)}</span>
+      </div>
+      <div class="deliv-list">
+        ${p.deliverables.map(d => {
+          const dup = existing.has(d.trim().toLowerCase());
+          return `<button type="button" class="deliv-row${dup ? ' is-dup' : ''}" data-name="${escapeHtml(d)}" data-phase="${p.code}">
+            <span class="deliv-name">${escapeHtml(d)}</span>
+            ${dup ? `<span class="deliv-badge">already in this WP</span>` : ""}
+          </button>`;
+        }).join("")}
+      </div>
+    </div>
+  `).join("");
+  const commonSection = `
+    <div class="deliv-phase deliv-phase-common">
+      <div class="deliv-phase-header">
+        <span class="deliv-phase-code">Common</span>
+        <span class="deliv-phase-name">Runs through every phase</span>
+      </div>
+      <div class="deliv-list">
+        ${SOP18.commonDeliverables.map(d => {
+          const dup = existing.has(d.name.trim().toLowerCase());
+          return `<button type="button" class="deliv-row${dup ? ' is-dup' : ''}" data-name="${escapeHtml(d.name)}" data-phase="">
+            <span class="deliv-name">${escapeHtml(d.name)}</span>
+            <span class="deliv-desc">${escapeHtml(d.desc)}</span>
+            ${dup ? `<span class="deliv-badge">already in this WP</span>` : ""}
+          </button>`;
+        }).join("")}
+      </div>
+    </div>`;
+  const modal = document.createElement("div");
+  modal.className = "modal deliv-modal";
+  modal.innerHTML = `
+    <h3>Add SOP-18 deliverable</h3>
+    <div class="sub">Pick one — it's added to <strong>${escapeHtml(lane.code)}</strong> as a task, phase pre-tagged.</div>
+    <div class="list deliv-list-wrap">
+      ${sections}
+      ${commonSection}
+    </div>
+    <div class="modal-actions">
+      <button class="chip" id="delivCancel">Cancel</button>
+    </div>
+  `;
+  backdrop.appendChild(modal); document.body.appendChild(backdrop);
+  modal.querySelector("#delivCancel").addEventListener("click", () => backdrop.remove());
+  backdrop.addEventListener("click", (e) => { if (e.target === backdrop) backdrop.remove(); });
+  modal.querySelectorAll(".deliv-row").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const name = btn.dataset.name;
+      const phase = btn.dataset.phase || null;
+      lane.bars.push({
+        id: bid(),
+        type: "work",
+        startIdx: 0,
+        span: WEEKS_PER_MONTH,
+        buffer: 10,
+        label: name,
+        phase,
+        dependsOn: []
+      });
+      backdrop.remove();
+      saveState();
+      renderPlan();
+    });
+  });
+}
+
 function openDepEditor(barId, onClose) {
   const map = buildBarMap();
   const entry = map[barId]; if (!entry) return;
