@@ -607,19 +607,52 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
   }
-  .task-phase-select {
-    border: 1px solid var(--c);
-    background: color-mix(in srgb, var(--c) 14%, var(--panel));
-    color: var(--c);
-    border-radius: 999px;
-    padding: 4px 6px;
-    font: inherit; font-size: 11px; font-weight: 800;
-    text-align: center;
+  .task-phase-picker { position: relative; align-self: center; }
+  .task-phase-picker > summary {
+    list-style: none;
     cursor: pointer;
-    appearance: none; -webkit-appearance: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 4px 10px;
+    background: color-mix(in srgb, var(--c) 14%, var(--panel));
+    border: 1px solid var(--c);
+    border-radius: 999px;
+    font-size: 11px; font-weight: 800;
+    color: var(--c);
+    min-width: 44px;
   }
-  .task-phase-select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-  [data-theme="dark"] .task-phase-select { background: color-mix(in srgb, var(--c) 22%, var(--panel)); }
+  .task-phase-picker > summary::-webkit-details-marker { display: none; }
+  .task-phase-picker > summary::marker { content: ""; }
+  .task-phase-picker[open] > summary { box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 25%, transparent); }
+  [data-theme="dark"] .task-phase-picker > summary { background: color-mix(in srgb, var(--c) 22%, var(--panel)); }
+  .phase-picker-menu {
+    position: absolute;
+    top: calc(100% + 6px); left: 0;
+    z-index: 80;
+    min-width: 320px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow-lg);
+    padding: 4px;
+    display: flex; flex-direction: column;
+  }
+  .phase-pick-item {
+    text-align: left;
+    padding: 8px 12px;
+    background: transparent; border: 0; cursor: pointer;
+    border-radius: 7px;
+    font: inherit; font-size: 13px; color: var(--ink);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .phase-pick-item::before {
+    content: "";
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--c, var(--muted));
+    flex-shrink: 0;
+  }
+  .phase-pick-item:hover { background: var(--surface); }
+  .phase-pick-item.is-selected { background: color-mix(in srgb, var(--c, var(--accent)) 14%, var(--surface)); font-weight: 700; }
+  [data-theme="dark"] .phase-pick-item:hover { background: rgba(255,255,255,0.06); }
   .task-row.is-milestone { background: #fef9c3; border-color: #facc15; }
   .task-buf {
     display: inline-flex; align-items: center; gap: 1px;
@@ -1742,19 +1775,23 @@ function renderTaskRow(bar, map) {
   const typeOptions = Object.entries(TYPES).map(([k, v]) =>
     `<option value="${k}" ${k === bar.type ? "selected" : ""}>${v.label}</option>`
   ).join("");
-  const phaseOptions = ["PRS","DP","DO","FP"].map(c =>
-    `<option value="${c}" ${bar.phase === c ? "selected" : ""}>${c}</option>`
-  ).join("");
   const phaseAccent = bar.phase ? (sopPhase(bar.phase)?.color.accent || "var(--muted)") : "var(--muted)";
+  const pickerItems = [
+    { v: "", label: "— No phase", short: "—" },
+    ...["PRS","DP","DO","FP"].map(c => { const sp = sopPhase(c); return { v: c, label: `${c} — ${sp.name}`, short: c, accent: sp.color.accent }; })
+  ];
+  const summaryText = bar.phase || "—";
 
   return `<div class="task-row ${isMilestone ? "is-milestone" : ""}" data-bar="${bar.id}">
     <select class="task-type-select" data-action="set-type" style="background:${t.bar};color:${t.border};">
       ${typeOptions}
     </select>
-    <select class="task-phase-select" data-action="set-phase" style="--c:${phaseAccent};" title="SOP-18 phase for this task">
-      <option value="" ${!bar.phase ? "selected" : ""}>—</option>
-      ${phaseOptions}
-    </select>
+    <details class="task-phase-picker" data-action="set-phase" style="--c:${phaseAccent};">
+      <summary title="Click to set SOP-18 phase">${escapeHtml(summaryText)}</summary>
+      <div class="phase-picker-menu">
+        ${pickerItems.map(it => `<button type="button" class="phase-pick-item${it.v === (bar.phase || "") ? " is-selected" : ""}" data-v="${it.v}" ${it.accent ? `style="--c:${it.accent};"` : ""}>${escapeHtml(it.label)}</button>`).join("")}
+      </div>
+    </details>
     <span class="task-label" contenteditable="true" data-action="set-label" data-placeholder="Task label">${escapeHtml(bar.label || "")}</span>
     <span class="task-span">
       ${isMilestone
@@ -1849,15 +1886,18 @@ function attachPlanHandlers() {
         });
       }
 
-      // Phase select (per task)
-      const phaseSel = row.querySelector("select.task-phase-select");
-      if (phaseSel) {
-        phaseSel.addEventListener("change", () => {
-          const lane = state.lanes.find(l => l.id === laneId);
-          const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
-          bar.phase = phaseSel.value || null;
-          saveState();
-          renderPlan();
+      // Phase picker (per task) — custom <details> dropdown w/ full names
+      const phasePicker = row.querySelector(".task-phase-picker");
+      if (phasePicker) {
+        phasePicker.querySelectorAll(".phase-pick-item").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const lane = state.lanes.find(l => l.id === laneId);
+            const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
+            bar.phase = btn.dataset.v || null;
+            phasePicker.removeAttribute("open");
+            saveState();
+            renderPlan();
+          });
         });
       }
 
