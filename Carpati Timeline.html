@@ -471,6 +471,48 @@
   .aux-list li:last-child { border-bottom: 0; }
   .aux-list strong { color: var(--ink); font-weight: 700; }
 
+  /* Phase swimlane bands (top of Timeline) */
+  .phase-band-cell {
+    background: color-mix(in srgb, var(--phase-bg, var(--panel)) 35%, var(--panel));
+    border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    border-left: 4px solid var(--phase-accent, var(--border-strong));
+    position: sticky; left: 0; z-index: 4;
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 12px;
+    font-size: 11px;
+    min-height: 26px;
+  }
+  .phase-band-cell .pb-code { font-weight: 800; color: var(--phase-text, var(--ink)); letter-spacing: 0.04em; }
+  .phase-band-cell .pb-name { font-size: 10.5px; color: var(--ink-soft); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  [data-theme="dark"] .phase-band-cell {
+    background: color-mix(in srgb, var(--phase-bg) 20%, var(--panel));
+  }
+  [data-theme="dark"] .phase-band-cell .pb-code { color: color-mix(in srgb, var(--phase-text) 45%, white); }
+  .phase-band-track {
+    position: relative;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    min-height: 26px;
+  }
+  .phase-band-block {
+    position: absolute;
+    top: 3px; bottom: 3px;
+    border: 1px solid;
+    border-radius: 999px;
+    display: flex; align-items: center;
+    padding: 0 12px;
+    font-size: 11px; font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    opacity: 0.92;
+  }
+  [data-theme="dark"] .phase-band-block {
+    color: color-mix(in srgb, currentColor 50%, white) !important;
+    filter: brightness(0.85) saturate(0.85);
+  }
+  .pbb-label { overflow: hidden; text-overflow: ellipsis; }
+
   /* ======================== VIEW A — Stacked / hierarchical ======================== */
   .left-cell {
     background: var(--panel);
@@ -2546,6 +2588,33 @@ function renderViewA() {
   for (const m of months) {
     html += `<div class="month-cell">${MONTH_NAMES[m.m - 1]}</div>`;
   }
+
+  // Phase swimlane bands — computed from tasks tagged with each phase
+  const phaseRanges = {};
+  state.lanes.forEach(lane => lane.bars.forEach(b => {
+    if (!b.phase) return;
+    const start = b.startIdx;
+    const end = b.startIdx + (b.type === "milestone" ? 0.25 : effSpan(b) / WEEKS_PER_MONTH);
+    const r = phaseRanges[b.phase];
+    if (!r) phaseRanges[b.phase] = { start, end };
+    else { r.start = Math.min(r.start, start); r.end = Math.max(r.end, end); }
+  }));
+  ["PRS","DP","DO","FP"].forEach(code => {
+    const range = phaseRanges[code];
+    if (!range) return;
+    const sp = sopPhase(code);
+    html += `<div class="phase-band-cell" style="--phase-bg:${sp.color.bg}; --phase-accent:${sp.color.accent}; --phase-text:${sp.color.text};">
+      <span class="pb-code">${code}</span>
+      <span class="pb-name">${escapeHtml(sp.name)}</span>
+    </div>`;
+    const left = range.start * colW;
+    const width = Math.max(8, (range.end - range.start) * colW);
+    html += `<div class="phase-band-track" style="grid-column: span ${numMonths};">
+      <div class="phase-band-block" style="left:${left}px; width:${width}px; background:${sp.color.bg}; border-color:${sp.color.accent}; color:${sp.color.text};">
+        <span class="pbb-label">${code} — ${escapeHtml(sp.name)}</span>
+      </div>
+    </div>`;
+  });
 
   state.lanes.forEach((lane, laneIdx) => {
     const phase = lanePaletteColor(lane, laneIdx);
