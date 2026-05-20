@@ -497,6 +497,16 @@
   [data-theme="dark"] .phase-band-block + .phase-band-block { border-left-color: rgba(0,0,0,0.35); }
   .pbb-label { overflow: hidden; text-overflow: ellipsis; }
 
+  /* Faint phase column tint extending top-to-bottom through every track */
+  .phase-col-bg {
+    position: absolute;
+    top: 0; bottom: 0;
+    pointer-events: none;
+    opacity: 0.18;
+    z-index: 0;
+  }
+  [data-theme="dark"] .phase-col-bg { opacity: 0.22; filter: brightness(0.75) saturate(0.85); }
+
   /* ======================== VIEW A — Stacked / hierarchical ======================== */
   .left-cell {
     background: var(--panel);
@@ -2708,6 +2718,16 @@ function renderViewA() {
   const presentPhases = ["PRS","DP","DO","FP"].filter(c => phaseRanges[c]);
   const anyPhases = presentPhases.length > 0;
   const headerRowSpan = anyPhases ? 3 : 2;
+  // Pre-build phase column overlay HTML (faint full-height tint behind bars/arrows)
+  const phaseColsHtml = presentPhases.map((code, i) => {
+    const range = phaseRanges[code];
+    const nextCode = presentPhases[i + 1];
+    const blockEndPos = nextCode ? phaseRanges[nextCode].start : range.end;
+    const sp = sopPhase(code);
+    const left = range.start * colW;
+    const width = Math.max(0, (blockEndPos - range.start) * colW);
+    return `<div class="phase-col-bg" style="left:${left}px; width:${width}px; background:${sp.color.bg};"></div>`;
+  }).join("");
 
   let html = "";
   html += `<div class="header-corner phase-corner" style="grid-row: span ${headerRowSpan};">Tasks<div class="phase-resize-handle" title="Drag to resize"></div></div>`;
@@ -2752,6 +2772,7 @@ function renderViewA() {
 
     if (collapsed) {
       html += `<div class="task-track rolled-up" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">
+        ${phaseColsHtml}
         ${lane.bars.map(b => renderOverviewBar(b, colW)).join("")}
       </div>`;
     } else {
@@ -2763,12 +2784,13 @@ function renderViewA() {
         const sWidth = Math.max(8, (latest - earliest) * colW);
         summaryHtml = `<div class="wp-summary-span" style="left:${sLeft}px; width:${sWidth}px; background:${phase.accent};"></div>`;
       }
-      html += `<div class="task-track wp-header-track" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">${summaryHtml}</div>`;
+      html += `<div class="task-track wp-header-track" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">${phaseColsHtml}${summaryHtml}</div>`;
       lane.bars.forEach(bar => {
         html += `<div class="left-cell task-row-cell" data-bar="${bar.id}" data-lane="${lane.id}" style="--phase-bg:${phase.bg};">
           <span class="task-name" contenteditable="true">${escapeHtml(bar.label || "(untitled)")}</span>
         </div>`;
         html += `<div class="task-track" data-bar="${bar.id}" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">
+          ${phaseColsHtml}
           ${renderSingleBar(bar, colW)}
         </div>`;
       });
