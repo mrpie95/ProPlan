@@ -1061,8 +1061,8 @@
   }
   .left-cell.task-row-cell {
     background: var(--panel);
-    padding: 2px 12px 2px 30px;
-    min-height: 32px;
+    padding: 4px 12px 4px 30px;
+    min-height: 52px;
   }
   .left-cell.task-row-cell .task-name {
     font-size: 12px; font-weight: 400; color: var(--ink);
@@ -1072,7 +1072,7 @@
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .left-cell.task-row-cell .task-name:focus { background: var(--surface); white-space: normal; }
-  #viewATimeline .task-track { min-height: 32px; }
+  #viewATimeline .task-track { min-height: 52px; }
   #viewATimeline .task-track.wp-header-track {
     min-height: 28px;
     background: color-mix(in srgb, var(--phase-bg, var(--track)) 35%, var(--track));
@@ -1747,7 +1747,7 @@
 
   .bar {
     position: absolute; z-index: 2;
-    height: 28px; border-radius: 12px;
+    height: 44px; border-radius: 12px;
     box-shadow: 0 2px 6px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.55);
     cursor: grab; user-select: none;
     border: 1px solid rgba(0,0,0,0.06);
@@ -1793,64 +1793,36 @@
   }
   .ov-bar .bar-phase-stripe { border-radius: 11px 11px 0 0; }
 
-  /* Bar inner content — type pill + task name (name visible only in compact mode where left column is hidden) */
-  .bar { display: flex; align-items: center; padding: 0 10px; gap: 8px; }
+  /* Bar inner content — wrapped task name, visible in BOTH compact and expanded modes */
+  .bar { display: flex; align-items: center; padding: 0 12px; }
   .bar > .resize, .bar > .connect-handle, .bar > .dep-chip { flex-shrink: 0; }
   .bar .bar-content {
     flex: 1; min-width: 0;
-    display: flex; align-items: center; gap: 6px;
     pointer-events: none;
     overflow: hidden;
   }
-  .bar .bar-type-tag {
-    font-size: 9px; font-weight: 800; letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: rgba(15, 23, 42, 0.55);
-    background: rgba(255,255,255,0.55);
-    padding: 1px 6px; border-radius: 5px;
-    white-space: nowrap; flex-shrink: 0;
-    line-height: 1.4;
-  }
   .bar .bar-task-name {
-    display: none;  /* hidden in normal mode (task name lives in the left column) */
-    font-size: 11.5px; font-weight: 600;
-    color: rgba(15, 23, 42, 0.85);
-    line-height: 1.2;
-    overflow: hidden;
-    flex: 1; min-width: 0;
-  }
-  .bar.narrow .bar-type-tag,
-  .bar.narrow .bar-task-name { display: none; }
-
-  /* Compact mode: task names hidden from left column → surface them inside taller bars with wrapping */
-  body[data-compact-labels="1"] #viewATimeline .bar {
-    height: 44px !important;
-    top: calc(50% - 22px) !important;
-    border-radius: 12px;
-  }
-  body[data-compact-labels="1"] #viewATimeline .bar .bar-content {
-    flex-direction: column; align-items: flex-start; gap: 1px;
-  }
-  body[data-compact-labels="1"] #viewATimeline .bar .bar-task-name {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     white-space: normal;
     word-break: break-word;
-    width: 100%;
+    font-size: 12px; font-weight: 600;
+    color: rgba(15, 23, 42, 0.88);
+    line-height: 1.2;
+    overflow: hidden;
     text-overflow: ellipsis;
+    width: 100%;
   }
-  body[data-compact-labels="1"] #viewATimeline .task-track { min-height: 52px; }
-  body[data-compact-labels="1"] #viewATimeline .left-cell.task-row-cell { min-height: 52px; }
-  /* In compact mode, narrow bars still get a name (wrapped); hide only the type pill if very tight */
-  body[data-compact-labels="1"] #viewATimeline .bar.narrow .bar-task-name { display: -webkit-box; }
+  .bar.narrow .bar-task-name { display: none; }
+
+  /* Bigger row min-height to fit the 44 px bars */
+  #viewATimeline .task-track { min-height: 52px; }
+  #viewATimeline .left-cell.task-row-cell { min-height: 52px; }
+
   [data-theme="dark"] .bar .bar-task-name {
     color: rgba(255, 255, 255, 0.95);
     text-shadow: 0 0 3px rgba(0,0,0,0.45);
-  }
-  [data-theme="dark"] .bar .bar-type-tag {
-    color: rgba(255, 255, 255, 0.9);
-    background: rgba(255,255,255,0.12);
   }
 
   .bar .connect-handle {
@@ -2932,11 +2904,10 @@ function renderSingleBar(b, colW) {
   const narrowCls = w < 64 ? " narrow" : "";
   const c = barFillColor(b);
   return `<div class="bar${narrowCls}" data-bar="${b.id}" title="${tip}"
-    style="left:${x}px; width:${w}px; top:calc(50% - 14px); background:${c.bar}; border-color:${c.border};">
+    style="left:${x}px; width:${w}px; top:calc(50% - 22px); background:${c.bar}; border-color:${c.border};">
     <div class="resize l"></div>
     <div class="resize r"></div>
     <div class="bar-content">
-      <span class="bar-type-tag">${escapeHtml(t.label)}</span>
       <span class="bar-task-name">${escapeHtml(labelText)}</span>
     </div>
     <div class="connect-handle" data-action="start-connect" title="Drag onto another bar to set dependency"></div>
