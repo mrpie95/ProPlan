@@ -236,14 +236,15 @@
   main { padding: 16px; }
 
   /* ======================== VIEW SWITCHING ======================== */
-  body[data-view="plan"] :is(#timelineView, #viewAView, #viewBView, #phaseView, #overviewView, #processView, #presentView) { display: none; }
-  body[data-view="timeline"] :is(#planView, #viewAView, #viewBView, #phaseView, #overviewView, #processView, #presentView) { display: none; }
-  body[data-view="viewA"] :is(#planView, #timelineView, #viewBView, #phaseView, #overviewView, #processView, #presentView) { display: none; }
-  body[data-view="viewB"] :is(#planView, #timelineView, #viewAView, #phaseView, #overviewView, #processView, #presentView) { display: none; }
-  body[data-view="phase"] :is(#planView, #timelineView, #viewAView, #viewBView, #overviewView, #processView, #presentView) { display: none; }
-  body[data-view="overview"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #presentView) { display: none; }
-  body[data-view="process"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #overviewView, #presentView) { display: none; }
-  body[data-view="present"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #overviewView, #processView) { display: none; }
+  body[data-view="plan"] :is(#timelineView, #viewAView, #viewBView, #phaseView, #overviewView, #processView, #proposalView, #presentView) { display: none; }
+  body[data-view="timeline"] :is(#planView, #viewAView, #viewBView, #phaseView, #overviewView, #processView, #proposalView, #presentView) { display: none; }
+  body[data-view="viewA"] :is(#planView, #timelineView, #viewBView, #phaseView, #overviewView, #processView, #proposalView, #presentView) { display: none; }
+  body[data-view="viewB"] :is(#planView, #timelineView, #viewAView, #phaseView, #overviewView, #processView, #proposalView, #presentView) { display: none; }
+  body[data-view="phase"] :is(#planView, #timelineView, #viewAView, #viewBView, #overviewView, #processView, #proposalView, #presentView) { display: none; }
+  body[data-view="overview"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #proposalView, #presentView) { display: none; }
+  body[data-view="process"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #overviewView, #proposalView, #presentView) { display: none; }
+  body[data-view="proposal"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #overviewView, #processView, #presentView) { display: none; }
+  body[data-view="present"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #overviewView, #processView, #proposalView) { display: none; }
   body[data-view="present"] .timeline-only,
   body[data-view="process"] .timeline-only,
   body[data-view="phase"] .timeline-only { display: none !important; }
@@ -1189,9 +1190,186 @@
   body[data-view="plan"] #timelineView { display: none; }
   body[data-view="timeline"] #planView { display: none; }
 
+  /* ========== Proposal Timeline view ========== */
+  .proposal-wrap {
+    max-width: 1200px; margin: 0 auto;
+    padding: 8px 0 40px;
+  }
+  .proposal-toolbar {
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 18px;
+  }
+  .proposal-title { margin: 0; font-size: 22px; color: var(--accent); font-weight: 700; }
+  .proposal-meta { flex: 1; color: var(--muted); font-size: 12px; }
+  .proposal-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--panel);
+    border: 1px solid var(--border-strong);
+    font-size: 11px;
+  }
+  .proposal-table th, .proposal-table td {
+    border: 1px solid var(--border);
+    padding: 4px 6px;
+    text-align: center;
+    vertical-align: middle;
+  }
+  .proposal-table thead th {
+    background: #fbe7f3;          /* faint pink, matches the user's template */
+    font-weight: 700; color: var(--ink);
+    padding: 6px 6px;
+  }
+  .proposal-table th.ptbl-wp, .proposal-table td.ptbl-wp {
+    width: 56px; font-weight: 700;
+  }
+  .proposal-table th.ptbl-desc, .proposal-table td.ptbl-desc {
+    text-align: left;
+    min-width: 280px;
+  }
+  .proposal-table th.ptbl-mo { width: 56px; }
+  .ptbl-mo-yr {
+    font-size: 9px; color: var(--muted); font-weight: 500; margin-top: 1px;
+  }
+  /* Discipline section row: full-width coloured band */
+  .proposal-table tr.ptbl-group td {
+    background: var(--group-c);
+    color: white;
+    text-align: left;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-color: var(--group-c);
+  }
+  .ptbl-group-label { letter-spacing: 0.01em; }
+  /* WP rows */
+  .proposal-table tr.ptbl-row td.ptbl-cell {
+    color: var(--ink);
+  }
+  .proposal-table tr.ptbl-row td.ptbl-cell.has-h {
+    background: #d1fae5;          /* green tint for non-zero hours */
+    font-weight: 600;
+  }
+  /* Footer totals */
+  .proposal-table tfoot td {
+    background: #f8fafc;
+    font-weight: 700;
+    border-top: 2px solid var(--border-strong);
+  }
+  .proposal-table tr.ptbl-totals-soft td { font-weight: 600; color: var(--muted); }
+  .proposal-table tr.ptbl-grand td:first-child {
+    text-align: right;
+    padding-right: 12px;
+  }
+  .proposal-table tr.ptbl-grand td:last-child {
+    background: #fde68a; color: #92400e;
+    font-size: 13px;
+  }
+  .proposal-caption {
+    margin-top: 10px;
+    text-align: center;
+    font-style: italic;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  /* Print: hide chrome, expand the table, use page-wide layout */
+  @media print {
+    body[data-view="proposal"] header,
+    body[data-view="proposal"] .hint,
+    body[data-view="proposal"] .no-print { display: none !important; }
+    body[data-view="proposal"] { background: white; }
+    body[data-view="proposal"] .proposal-wrap { max-width: none; margin: 0; padding: 8mm; }
+    body[data-view="proposal"] .proposal-table { font-size: 9px; }
+    body[data-view="proposal"] .proposal-table tr.ptbl-row td.ptbl-cell.has-h { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body[data-view="proposal"] .proposal-table tr.ptbl-group td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
   .plan {
     max-width: 1100px; margin: 0 auto;
     display: flex; flex-direction: column; gap: 16px;
+  }
+
+  /* Two-column layout when the TOC sidebar is rendered: 240px TOC | 1fr main.
+     On narrow screens it collapses to a single column. */
+  .plan-with-toc {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 20px;
+    max-width: 1400px;
+  }
+  .plan-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .plan-toc {
+    position: sticky; top: 12px; align-self: start;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 10px 8px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+    box-shadow: var(--shadow-sm);
+    font-size: 13px;
+  }
+  .plan-toc-header {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--muted);
+    padding: 4px 8px 8px;
+  }
+  .plan-toc-wps, .plan-toc-tasks {
+    list-style: none; margin: 0; padding: 0;
+  }
+  .plan-toc-wp-item + .plan-toc-wp-item { margin-top: 4px; }
+  .plan-toc-wp {
+    display: flex; align-items: center; gap: 6px;
+    width: 100%;
+    padding: 5px 6px;
+    background: transparent; border: 0; border-radius: 6px;
+    cursor: pointer; text-align: left;
+    font: inherit; color: var(--ink); font-weight: 600;
+  }
+  .plan-toc-wp:hover { background: var(--accent-soft); }
+  .plan-toc-wp .wp-num-pill {
+    padding: 1px 6px; font-size: 10px;
+  }
+  .plan-toc-wp-name {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .plan-toc-wp-count {
+    flex-shrink: 0;
+    font-size: 10px; font-weight: 600; color: var(--muted);
+    background: var(--surface);
+    border-radius: 999px;
+    padding: 1px 7px;
+    min-width: 22px; text-align: center;
+  }
+  .plan-toc-tasks {
+    padding-left: 22px; margin: 2px 0 4px;
+    border-left: 1px solid var(--border);
+    margin-left: 13px;
+  }
+  .plan-toc-task {
+    display: block; width: 100%;
+    padding: 3px 6px;
+    background: transparent; border: 0; border-radius: 4px;
+    cursor: pointer; text-align: left;
+    font: inherit; font-size: 12px; color: var(--muted);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .plan-toc-task:hover { background: var(--accent-soft); color: var(--accent); }
+  .plan-toc-task.is-ms { color: #b45309; font-weight: 600; }
+  .plan-toc-task.is-ms:hover { background: #fef3c7; color: #92400e; }
+  .plan-toc-empty {
+    padding: 8px; color: var(--muted); font-size: 12px; font-style: italic;
+  }
+  /* Brief highlight on the jumped-to card / row so the user sees where they landed */
+  .plan-jump-flash {
+    animation: plan-jump-flash 1.2s ease-out;
+  }
+  @keyframes plan-jump-flash {
+    0%   { background: var(--accent-soft); box-shadow: 0 0 0 4px var(--accent-soft); }
+    100% { background: transparent; box-shadow: 0 0 0 0 transparent; }
+  }
+  @media (max-width: 900px) {
+    .plan-with-toc { grid-template-columns: 1fr; }
+    .plan-toc { position: static; max-height: 300px; }
   }
 
   .wp-card {
@@ -1204,11 +1382,31 @@
     display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px;
   }
   .wp-header .info { flex: 1; min-width: 0; }
-  .wp-code {
+  /* WP code-row: a "WP N" pill (auto-generated from position, not editable)
+     beside the editable name field. Replaces the older single-field that
+     mixed prefix and name together. */
+  .wp-code-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .wp-num-pill {
+    flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 2px 9px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+    color: var(--ink);
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: 999px;
+    user-select: none;
+  }
+  .wp-name {
+    flex: 1; min-width: 0;
     font-size: 16px; font-weight: 700; outline: none; color: var(--ink);
     padding: 2px 4px; border-radius: 4px; cursor: text;
   }
-  .wp-code:focus { background: var(--surface); }
+  .wp-name:focus { background: var(--surface); }
+  .wp-name:empty::before {
+    content: attr(data-placeholder);
+    color: var(--muted); font-weight: 500;
+  }
   .wp-desc {
     font-size: 13px; color: var(--muted); outline: none;
     padding: 2px 4px; border-radius: 4px; cursor: text; margin-top: 2px;
@@ -1229,6 +1427,18 @@
   .wp-icon-btn:hover { background: var(--surface); border-color: var(--border-strong); color: var(--ink); }
   .wp-icon-btn.danger { color: var(--danger); border-color: #fecaca; }
   .wp-icon-btn.danger:hover { background: #fef2f2; border-color: #fca5a5; color: var(--danger); }
+  /* Compact ↑ / ↓ reorder buttons next to Delete. Square, icon-only,
+     disabled when the WP is already at the top / bottom of the list. */
+  .wp-icon-btn.wp-move-btn {
+    min-width: 28px; width: 28px; padding: 0;
+    font-size: 14px; font-weight: 600;
+  }
+  .wp-icon-btn.wp-move-btn:disabled {
+    opacity: 0.35; cursor: not-allowed;
+  }
+  .wp-icon-btn.wp-move-btn:hover:not(:disabled) {
+    color: var(--accent); border-color: var(--accent); background: var(--accent-soft);
+  }
 
   .task-list {
     display: flex; flex-direction: column; gap: 6px;
@@ -1632,6 +1842,62 @@
     background: #fff; cursor: pointer; color: var(--muted);
   }
   .task-actions button:hover { color: var(--danger); border-color: #fecaca; background: #fef2f2; }
+  /* Move-task button + popup. <details>/<summary> handles open/close
+     natively; we just style the summary as a button and absolutely-position
+     the popup so it doesn't push other row content around. */
+  .task-actions .task-move-menu { position: relative; }
+  .task-actions .task-move-btn {
+    display: inline-block;
+    padding: 4px 8px; font-size: 13px; line-height: 1;
+    border-radius: 6px; border: 1px solid var(--border);
+    background: #fff; color: var(--muted); cursor: pointer;
+    list-style: none;
+    user-select: none;
+  }
+  .task-actions .task-move-btn::-webkit-details-marker { display: none; }
+  .task-actions .task-move-btn::marker { content: ""; }
+  .task-actions .task-move-btn:hover {
+    color: var(--accent); border-color: var(--accent); background: var(--accent-soft);
+  }
+  .task-actions .task-move-menu[open] .task-move-btn {
+    color: var(--accent); border-color: var(--accent); background: var(--accent-soft);
+  }
+  .task-actions .task-move-popup {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 200px;
+    max-width: 280px;
+    max-height: 320px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(15,23,42,0.12);
+    padding: 4px;
+    z-index: 30;
+    display: flex; flex-direction: column;
+  }
+  .task-actions .task-move-popup button {
+    text-align: left;
+    padding: 6px 10px;
+    font-size: 12px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .task-actions .task-move-popup button:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .task-actions .task-move-empty {
+    padding: 6px 10px; font-size: 12px; color: var(--muted);
+  }
 
   .add-task-btn {
     margin-top: 10px;
@@ -2387,6 +2653,7 @@
       <button class="view-btn" data-view="phase" title="Phase-focused project status">Phase</button>
       <button class="view-btn" data-view="overview" title="WP roll-up">Overview</button>
       <button class="view-btn" data-view="process" title="SOP-18 process reference">Process</button>
+      <button class="view-btn" data-view="proposal" title="Hours-per-month rollup table — printable for proposals">Proposal Timeline</button>
       <button class="view-btn" data-view="present" title="Coming soon">Present</button>
     </div>
 
@@ -2431,6 +2698,7 @@
     <button class="chip" id="weeksToggle" title="Show / hide ISO week numbers under each month">📅 Weeks</button>
     <button class="chip" id="arrowsToggle" title="Show / hide dependency arrows between bars">↳ Arrows</button>
     <button class="chip" id="milestonesToggle" title="Show / hide milestones">★ Milestones</button>
+    <button class="chip" id="colorByWpToggle" title="Toggle bar colour: by phase (default) ↔ by work package">🎨 By WP</button>
     <button class="chip" id="autoSeq" title="Lay bars out in dependency order">✨ Auto-sequence</button>
   </div>
 
@@ -2469,6 +2737,7 @@
   </div>
   <div id="phaseView"></div>
   <div id="processView"></div>
+  <div id="proposalView"></div>
   <div id="presentView">
     <div class="present-stub">
       <div class="emoji">🎬</div>
@@ -2618,6 +2887,9 @@ function presetState() {
 
 let state = loadState() || presetState();
 normaliseState(state);
+// One-shot renumber on boot so legacy data (where users typed manual WP
+// numbers that may now be out of order) immediately reflects display order.
+renumberWPs();
 
 function normaliseState(s) {
   for (const lane of s.lanes || []) {
@@ -2766,7 +3038,26 @@ function lanePaletteColor(lane, laneIdx) {
   for (const c of String(lane && lane.id || "")) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return PHASE_PALETTE[h % PHASE_PALETTE.length];
 }
+/* Toolbar toggle: when "Colour by WP" is on, every bar (work, review,
+   milestone…) uses its work-package's palette colour instead of its
+   phase colour. Useful when the user wants WP-level visual separation
+   over phase-level grouping. */
+const COLOR_BY_WP_KEY = "proplan.colorByWP";
+function isColorByWP() { return localStorage.getItem(COLOR_BY_WP_KEY) === "1"; }
+function _barOwnerLane(b) {
+  for (let i = 0; i < state.lanes.length; i++) {
+    if (state.lanes[i].bars.indexOf(b) >= 0) return { lane: state.lanes[i], laneIdx: i };
+  }
+  return null;
+}
 function barFillColor(b) {
+  if (isColorByWP()) {
+    const owner = _barOwnerLane(b);
+    if (owner) {
+      const c = lanePaletteColor(owner.lane, owner.laneIdx);
+      return { bar: c.bg, border: c.accent };
+    }
+  }
   const sp = b.phase && sopPhase(b.phase);
   const t = TYPES[b.type] || TYPES.work;
   return sp ? { bar: sp.color.bg, border: sp.color.accent } : { bar: t.bar, border: t.border };
@@ -2906,7 +3197,27 @@ function loadState() {
     return null;
   } catch { return null; }
 }
-function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+/* Strip the "WP <n> — " prefix from a lane code, returning just the name.
+   Used when rendering the editable name field separately from the WP-number
+   pill in the Plan view. */
+function wpNameOnly(code) {
+  const s = (code || "").trim();
+  const m = s.match(/^WP\s*\d+\s*(?:[—\-:]\s*)?(.*)$/i);
+  return (m ? m[1] : s).trim();
+}
+/* Renumber every WP's code so they read "WP 1 — Name", "WP 2 — Name", …
+   in display order. Preserves whatever the user typed after the number
+   (the "— Name" tail). Runs on every saveState so add / delete / reorder
+   all renumber automatically — keeps the sequence gap-free. */
+function renumberWPs() {
+  if (!Array.isArray(state.lanes)) return;
+  state.lanes.forEach((lane, i) => {
+    const n = i + 1;
+    const name = wpNameOnly(lane.code) || "New work package";
+    lane.code = `WP ${n} — ${name}`;
+  });
+}
+function saveState() { renumberWPs(); localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
 
 /* Parse either "YYYY-MM" (legacy) or "YYYY-MM-DD" (new) into {y, m, d}.
    Defaults the day to 1 if absent so callers that only care about month still work. */
@@ -2965,6 +3276,7 @@ function renderCurrent() {
   else if (currentView === "phase") renderPhase();
   else if (currentView === "overview") renderOverview();
   else if (currentView === "process") renderProcess();
+  else if (currentView === "proposal") renderProposal();
   // present: static stub, nothing to render
 }
 
@@ -2998,7 +3310,31 @@ function renderPlan() {
     const color = sp ? sp.color.accent : "var(--muted)";
     return `<span class="ps-phase-chip" style="--c:${color};"><span class="ps-phase-code">${code}</span> ${Math.round(phaseTotals[k])} wk</span>`;
   }).join("");
-  let html = `<div class="plan">`;
+  // Build the left-side Table-of-Contents — one entry per WP with its tasks
+  // nested below. Buttons carry data-jump-* attributes; a click handler in
+  // attachPlanHandlers smooth-scrolls to the matching card or task row.
+  const tocHtml = state.lanes.map((lane, i) => {
+    const taskLis = lane.bars.map(b => {
+      const isMs = b.type === "milestone";
+      const labelText = b.label || (isMs ? "(milestone)" : "(untitled)");
+      return `<li><button class="plan-toc-task${isMs ? " is-ms" : ""}" data-jump-bar="${b.id}" title="${escapeHtml(labelText)}">${isMs ? "★ " : ""}${escapeHtml(labelText)}</button></li>`;
+    }).join("");
+    return `<li class="plan-toc-wp-item">
+      <button class="plan-toc-wp" data-jump-lane="${lane.id}" title="${escapeHtml(lane.code)}">
+        <span class="wp-num-pill">WP ${i + 1}</span>
+        <span class="plan-toc-wp-name">${escapeHtml(wpNameOnly(lane.code))}</span>
+        <span class="plan-toc-wp-count" title="${lane.bars.length} item${lane.bars.length === 1 ? "" : "s"}">${lane.bars.length}</span>
+      </button>
+      ${taskLis ? `<ul class="plan-toc-tasks">${taskLis}</ul>` : ""}
+    </li>`;
+  }).join("");
+
+  let html = `<div class="plan plan-with-toc">`;
+  html += `<aside class="plan-toc" aria-label="Work packages and tasks">
+    <div class="plan-toc-header">Contents</div>
+    <ul class="plan-toc-wps">${tocHtml || `<li class="plan-toc-empty">No work packages yet.</li>`}</ul>
+  </aside>`;
+  html += `<div class="plan-main">`;
   html += `<div class="project-summary">
     <div class="ps-title">Project summary</div>
     <div class="ps-stats">
@@ -3029,12 +3365,17 @@ function renderPlan() {
       <div class="wp-header">
         <span class="drag-handle wp-drag-handle" title="Drag to reorder work package" aria-label="Reorder">⋮⋮</span>
         <div class="info">
-          <div class="wp-code" contenteditable="true" data-field="code" data-placeholder="WP code">${escapeHtml(lane.code)}</div>
+          <div class="wp-code-row">
+            <span class="wp-num-pill" title="Auto-numbered from position">WP ${laneIdx + 1}</span>
+            <div class="wp-name" contenteditable="true" data-field="name" data-placeholder="Work package name">${escapeHtml(wpNameOnly(lane.code))}</div>
+          </div>
           <div class="wp-desc" contenteditable="true" data-field="desc" data-placeholder="Discipline / responsibility">${escapeHtml(lane.desc)}</div>
           ${(mixHtml || untaggedCount) ? `<div class="wp-phase-mix" title="Phase mix across this WP's tasks">${mixHtml}${untaggedCount ? `<span class="wp-mix-chip is-unassigned"><span class="wp-mix-code">—</span><span class="wp-mix-count">${untaggedCount}</span></span>` : ""}</div>` : ""}
         </div>
         <div class="wp-total" title="Sum of buffered estimates in this work package">${fmtDur(laneWk)}</div>
         <div class="wp-actions">
+          <button class="wp-icon-btn wp-move-btn" data-laneact="up" title="Move WP up" ${laneIdx === 0 ? "disabled" : ""}>↑</button>
+          <button class="wp-icon-btn wp-move-btn" data-laneact="down" title="Move WP down" ${laneIdx === state.lanes.length - 1 ? "disabled" : ""}>↓</button>
           <button class="wp-icon-btn danger" data-laneact="del" title="Delete WP">Delete</button>
         </div>
       </div>
@@ -3048,7 +3389,8 @@ function renderPlan() {
     </div>`;
   });
   html += `<button class="add-wp-btn" id="addWpPlan">+ Add Work Package</button>`;
-  html += `</div>`;
+  html += `</div>`;   // .plan-main
+  html += `</div>`;   // .plan
   planEl.innerHTML = html;
   attachPlanHandlers();
 }
@@ -3056,6 +3398,7 @@ function renderPlan() {
 function renderTaskRow(bar, map) {
   const t = TYPES[bar.type] || TYPES.work;
   const isMilestone = bar.type === "milestone";
+  const laneId = (map[bar.id] && map[bar.id].lane && map[bar.id].lane.id) || "";
   const deps = (bar.dependsOn || []).map(d => {
     const e = map[d];
     if (!e) return "";
@@ -3122,6 +3465,12 @@ function renderTaskRow(bar, map) {
       <button class="dep-add-btn" data-action="edit-deps">+ dep</button>
     </span>
     <span class="task-actions">
+      <details class="task-move-menu">
+        <summary class="task-move-btn" title="Move this task to another WP">⇄</summary>
+        <div class="task-move-popup">
+          ${state.lanes.filter(l => l.id !== laneId).map(l => `<button type="button" data-action="move-task" data-target="${l.id}">→ ${escapeHtml(l.code || "(untitled)")}</button>`).join("") || `<div class="task-move-empty">No other WPs</div>`}
+        </div>
+      </details>
       <button data-action="del-task" title="Delete task">✕</button>
     </span>
   </div>`;
@@ -3134,12 +3483,20 @@ function attachPlanHandlers() {
   planEl.querySelectorAll(".wp-card").forEach(card => {
     const laneId = card.dataset.lane;
 
-    // Editable code/desc
+    // Editable WP name / desc. The "name" field stores just the WP name —
+    // we hand it to lane.code, and renumberWPs() (inside saveState) prepends
+    // the "WP <n> — " prefix from the lane's current position.
     card.querySelectorAll("[contenteditable][data-field]").forEach(e => {
       e.addEventListener("blur", () => {
         const lane = state.lanes.find(l => l.id === laneId); if (!lane) return;
-        lane[e.dataset.field] = e.textContent.trim();
+        const v = e.textContent.trim();
+        if (e.dataset.field === "name") {
+          lane.code = v;
+        } else {
+          lane[e.dataset.field] = v;
+        }
         saveState();
+        if (e.dataset.field === "name") renderPlan();   // refresh pill prefix
       });
       e.addEventListener("keydown", ev => { if (ev.key === "Enter") { ev.preventDefault(); e.blur(); } });
     });
@@ -3170,6 +3527,14 @@ function attachPlanHandlers() {
               bar.dependsOn = (bar.dependsOn || []).filter(d => !removedIds.has(d));
             }
           }
+        } else if (action === "up") {
+          if (idx === 0) return;
+          const [moved] = state.lanes.splice(idx, 1);
+          state.lanes.splice(idx - 1, 0, moved);
+        } else if (action === "down") {
+          if (idx === state.lanes.length - 1) return;
+          const [moved] = state.lanes.splice(idx, 1);
+          state.lanes.splice(idx + 1, 0, moved);
         } else if (action === "add-task") {
           state.lanes[idx].bars.push({
             id: bid(), type: activeType === "milestone" ? "work" : activeType,
@@ -3297,6 +3662,30 @@ function attachPlanHandlers() {
         });
       }
 
+      // Move task to another WP — button (summary) that expands into a popup
+      // listing every other WP. Click a target → move + close. Reuses native
+      // <details> for open/close; only the move action needs JS.
+      const moveMenu = row.querySelector(".task-move-menu");
+      if (moveMenu) {
+        moveMenu.addEventListener("click", (ev) => ev.stopPropagation());
+        moveMenu.querySelectorAll("[data-action='move-task']").forEach(btn => {
+          btn.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            ev.preventDefault();
+            const targetLaneId = btn.dataset.target;
+            const srcLane = state.lanes.find(l => l.id === laneId);
+            const dstLane = state.lanes.find(l => l.id === targetLaneId);
+            if (!srcLane || !dstLane || srcLane === dstLane) { moveMenu.open = false; return; }
+            const idx = srcLane.bars.findIndex(b => b.id === barId);
+            if (idx === -1) { moveMenu.open = false; return; }
+            const [moved] = srcLane.bars.splice(idx, 1);
+            dstLane.bars.push(moved);
+            saveState();
+            renderPlan();
+          });
+        });
+      }
+
       // Delete task
       const delBtn = row.querySelector("[data-action='del-task']");
       if (delBtn) {
@@ -3320,6 +3709,29 @@ function attachPlanHandlers() {
 
   // Drag-and-drop reordering for WP cards and tasks
   attachPlanDragReorder(planEl);
+
+  // Table-of-contents: clicking a WP or task scrolls the main pane to it.
+  // We highlight the target briefly so it's obvious where it landed.
+  const flashTarget = (el) => {
+    el.classList.add("plan-jump-flash");
+    setTimeout(() => el.classList.remove("plan-jump-flash"), 1200);
+  };
+  planEl.querySelectorAll("[data-jump-lane]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const target = planEl.querySelector(`.wp-card[data-lane="${btn.dataset.jumpLane}"]`);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      flashTarget(target);
+    });
+  });
+  planEl.querySelectorAll("[data-jump-bar]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const target = planEl.querySelector(`.task-row[data-bar="${btn.dataset.jumpBar}"]`);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      flashTarget(target);
+    });
+  });
 
   // Add WP
   const addWpBtn = document.getElementById("addWpPlan");
@@ -3741,11 +4153,16 @@ function renderArrowsIn(targetEl, colW, numMonths, offsetX) {
         if (!predGeo || !succGeo) continue;
         const x1 = predGeo.right; const y1 = predGeo.centerY;
         const x2 = succGeo.left;  const y2 = succGeo.centerY;
-        // Tolerance: only treat as a violation if the successor starts MORE than
-        // one week before the predecessor's end. Tiny overlaps from rounding,
-        // packing, or visual margins are accepted as fine.
-        const violationTolerancePx = colW / WEEKS_PER_MONTH;   // px per week
-        const invalid = (x1 - x2) > violationTolerancePx;
+        // Violation check uses the DATA MODEL (months) rather than DOM rects.
+        // CSS padding / border / sub-pixel rendering can make the rect's right
+        // edge sit a few px past the bar's logical end, which used to produce
+        // false-positive red arrows right after Auto-sequence. Tolerance: 1
+        // week, same as before.
+        const predEndMonths = pred.bar.startIdx + (pred.bar.type === "milestone"
+          ? 0 : effSpan(pred.bar) / WEEKS_PER_MONTH);
+        const succStartMonths = bar.startIdx;
+        const toleranceMonths = 1 / WEEKS_PER_MONTH;
+        const invalid = (predEndMonths - succStartMonths) > toleranceMonths;
         if (invalid) {
           const node = findBarEl(bar.id, targetEl);
           if (node) node.classList.add("dep-violation");
@@ -3764,34 +4181,21 @@ function renderArrowsIn(targetEl, colW, numMonths, offsetX) {
         if (sameRow && !invalid) {
           paths += `<path class="${cls}"${styleAttr}${dataAttrs} d="M ${x1} ${y1} L ${x2} ${y2}" marker-end="url(#dep-arrow)">${titleEl}</path>`;
         } else {
-          // Arrow always exits the source from its RIGHT side. The entry point
-          // adapts to the horizontal gap:
-          //   - SMALL gap (successor is almost directly below/above the source):
-          //     enter from the LEFT side at the bar's vertical centre, with a
-          //     short S-curve. Avoids the ugly tall loop that "enter from top"
-          //     creates when there's no horizontal room to fit it.
-          //   - LARGER gap: enter from the TOP, a short way inside the bar,
-          //     so the arrowhead reads cleanly as "this is the successor".
+          // Arrow exits the source from its RIGHT edge and enters the
+          // successor from its LEFT edge — always. (No more top-entry: the
+          // tall vertical loop it produced when bars were on different rows
+          // read as a mistake more than a routing decision.) The S-curve's
+          // control-point arc length scales with both horizontal gap and
+          // vertical distance so it stays graceful at any spacing.
           const sx = predGeo.right;
           const sy = predGeo.centerY;
-          const rawGap = succGeo.left - predGeo.right;
-          const useSideEntry = rawGap < 40;
-          let ex, ey, cp1x, cp1y, cp2x, cp2y;
-          if (useSideEntry) {
-            ex = succGeo.left;
-            ey = succGeo.centerY;
-            const arc = Math.max(12, Math.min(50, Math.abs(ey - sy) * 0.45));
-            cp1x = sx + arc; cp1y = sy;
-            cp2x = ex - arc; cp2y = ey;
-          } else {
-            const succW = succGeo.right - succGeo.left;
-            ex = succGeo.left + Math.min(Math.max(16, succW * 0.3), 40);
-            ey = succGeo.top;
-            const dx = invalid ? 70 : Math.max(16, Math.min(90, rawGap * 0.5));
-            const dy = Math.max(28, Math.min(140, Math.abs(ey - sy) * 0.75));
-            cp1x = sx + dx; cp1y = sy;
-            cp2x = ex;       cp2y = ey - dy;
-          }
+          const ex = succGeo.left;
+          const ey = succGeo.centerY;
+          const rawGap = ex - sx;
+          const vDist = Math.abs(ey - sy);
+          const arc = Math.max(14, Math.min(90, Math.max(rawGap * 0.45, vDist * 0.4)));
+          const cp1x = sx + arc; const cp1y = sy;
+          const cp2x = ex - arc; const cp2y = ey;
           paths += `<path class="${cls}"${styleAttr}${dataAttrs} d="M ${sx} ${sy}
             C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${ex} ${ey}" marker-end="url(#dep-arrow)">${titleEl}</path>`;
         }
@@ -4248,6 +4652,148 @@ function renderProcess() {
       </section>
     </div>
   </div>`;
+  root.innerHTML = html;
+}
+
+/* =================== PROPOSAL TIMELINE =================== */
+/* Hours-per-month rollup table for proposal documents. WPs grouped by
+   discipline (lane.desc), columns = calendar months from state.start to
+   state.end (or last bar's end if later), hours computed from each bar's
+   buffered span × HOURS_PER_WEEK distributed across the months it covers.
+   Layout matches the user's proposal template — disciplines as coloured
+   section header rows, monthly totals (hrs + days) and grand total below.
+   Print-styled so File → Print produces a clean PDF. */
+const PROPOSAL_HOURS_PER_WEEK = 40;
+function renderProposal() {
+  const root = document.getElementById("proposalView");
+
+  // Determine the calendar-month columns. Use state.start as the anchor,
+  // extend to whichever is later: state.end or the last bar's end.
+  const start = parseYM(state.start);
+  let lastMonthIdx = 0;
+  for (const lane of state.lanes) {
+    for (const b of lane.bars) {
+      const end = b.startIdx + (b.type === "milestone" ? 0 : effSpan(b) / WEEKS_PER_MONTH);
+      if (end > lastMonthIdx) lastMonthIdx = end;
+    }
+  }
+  const declaredEnd = parseYM(state.end);
+  const declaredMonths = (declaredEnd.y - start.y) * 12 + (declaredEnd.m - start.m) + 1;
+  const numMonths = Math.max(1, declaredMonths, Math.ceil(lastMonthIdx) + 1);
+  const months = [];
+  for (let i = 0; i < numMonths; i++) {
+    const y = start.y + Math.floor((start.m - 1 + i) / 12);
+    const m = ((start.m - 1 + i) % 12) + 1;
+    months.push({ y, m, label: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m - 1] });
+  }
+
+  // Compute hours per WP per month.
+  function barHoursDist(b) {
+    if (b.type === "milestone") return new Array(numMonths).fill(0);
+    const effMonths = effSpan(b) / WEEKS_PER_MONTH;     // bar duration in "data months"
+    const sIdx = b.startIdx;
+    const eIdx = sIdx + effMonths;
+    const dist = new Array(numMonths).fill(0);
+    const firstM = Math.max(0, Math.floor(sIdx));
+    const lastM  = Math.min(numMonths - 1, Math.ceil(eIdx) - 1);
+    for (let m = firstM; m <= lastM; m++) {
+      const chunkStart = Math.max(m, sIdx);
+      const chunkEnd   = Math.min(m + 1, eIdx);
+      const chunkLen   = Math.max(0, chunkEnd - chunkStart);   // in data-months
+      const chunkHours = chunkLen * WEEKS_PER_MONTH * PROPOSAL_HOURS_PER_WEEK;
+      dist[m] += chunkHours;
+    }
+    return dist;
+  }
+  const wpRows = state.lanes.map(lane => {
+    const total = new Array(numMonths).fill(0);
+    for (const b of lane.bars) {
+      const d = barHoursDist(b);
+      for (let i = 0; i < numMonths; i++) total[i] += d[i];
+    }
+    return { lane, hours: total };
+  });
+
+  // Group WPs by lane.desc (discipline). Order: first-occurrence in state.lanes
+  // so the grouping respects the user's WP ordering rather than alphabetising.
+  const groupOrder = [];
+  const groups = new Map();
+  wpRows.forEach(entry => {
+    const disc = (entry.lane.desc || "").trim() || "Other";
+    if (!groups.has(disc)) { groups.set(disc, []); groupOrder.push(disc); }
+    groups.get(disc).push(entry);
+  });
+
+  // Stable colour per discipline — cycle through a small palette.
+  const DISC_COLOURS = [
+    "#0ea5e9", "#2563eb", "#15803d", "#f59e0b", "#9333ea",
+    "#e11d48", "#0891b2", "#65a30d",
+  ];
+  const discColour = (i) => DISC_COLOURS[i % DISC_COLOURS.length];
+
+  // Monthly totals across all WPs
+  const monthlyTotals = new Array(numMonths).fill(0);
+  wpRows.forEach(r => r.hours.forEach((h, i) => monthlyTotals[i] += h));
+  const grandTotal = monthlyTotals.reduce((a, b) => a + b, 0);
+
+  const fmt = (h) => h > 0 ? Math.round(h).toString() : "";
+  const fmtDays = (h) => h > 0 ? (h / 8).toFixed(1) : "";
+
+  // Build HTML
+  let html = `<div class="proposal-wrap">
+    <div class="proposal-toolbar no-print">
+      <h2 class="proposal-title">Proposal Timeline</h2>
+      <div class="proposal-meta">
+        Hours per month, ${PROPOSAL_HOURS_PER_WEEK} h/week assumed · ${state.lanes.length} WPs ·
+        ${months.length} month${months.length === 1 ? "" : "s"} · Total ${Math.round(grandTotal)} h
+      </div>
+      <button class="chip primary" onclick="window.print()" title="Print or Save as PDF">🖨 Print / PDF</button>
+    </div>
+    <table class="proposal-table">
+      <thead>
+        <tr>
+          <th class="ptbl-wp">WP</th>
+          <th class="ptbl-desc">Description</th>
+          ${months.map(m => `<th class="ptbl-mo">${m.label}${m.m === 1 || months.indexOf(m) === 0 ? `<div class="ptbl-mo-yr">${m.y}</div>` : ""}</th>`).join("")}
+        </tr>
+      </thead>
+      <tbody>`;
+
+  groupOrder.forEach((disc, gIdx) => {
+    const colour = discColour(gIdx);
+    html += `<tr class="ptbl-group" style="--group-c:${colour};">
+      <td colspan="${2 + numMonths}"><span class="ptbl-group-label">${escapeHtml(disc)}</span></td>
+    </tr>`;
+    groups.get(disc).forEach(({ lane, hours }) => {
+      const wpLabel = `WP${state.lanes.indexOf(lane) + 1}`;
+      const desc = wpNameOnly(lane.code) || lane.code || "(untitled)";
+      html += `<tr class="ptbl-row">
+        <td class="ptbl-wp">${wpLabel}</td>
+        <td class="ptbl-desc">${escapeHtml(desc)}</td>
+        ${hours.map(h => `<td class="ptbl-cell${h > 0 ? " has-h" : ""}">${fmt(h)}</td>`).join("")}
+      </tr>`;
+    });
+  });
+
+  html += `</tbody>
+    <tfoot>
+      <tr class="ptbl-totals">
+        <td colspan="2">Monthly Totals (hrs)</td>
+        ${monthlyTotals.map(h => `<td>${fmt(h)}</td>`).join("")}
+      </tr>
+      <tr class="ptbl-totals ptbl-totals-soft">
+        <td colspan="2">Monthly Totals (days)</td>
+        ${monthlyTotals.map(h => `<td>${fmtDays(h)}</td>`).join("")}
+      </tr>
+      <tr class="ptbl-grand">
+        <td colspan="${1 + numMonths}">Total</td>
+        <td>${Math.round(grandTotal)}</td>
+      </tr>
+    </tfoot>
+    </table>
+    <div class="proposal-caption no-print">Table 2: Proposed timeline for the project.</div>
+  </div>`;
+
   root.innerHTML = html;
 }
 
@@ -5088,19 +5634,40 @@ function autoSequence() {
   const map = buildBarMap();
   const order = topoOrder(map);
   if (!order) { alert("Dependency cycle detected — cannot auto-sequence."); return; }
-  for (const barId of order) {
-    const entry = map[barId]; if (!entry) continue;
-    const bar = entry.bar;
-    let earliest = 0;
-    for (const predId of (bar.dependsOn || [])) {
-      const p = map[predId]; if (!p) continue;
-      const pe = p.bar.startIdx + (p.bar.type === "milestone" ? 0 : Math.max(1, Math.ceil(effSpan(p.bar) / WEEKS_PER_MONTH)));
-      if (pe > earliest) earliest = pe;
+  // First pass (ratchet=false): reset each bar to the tightest position its
+  // predecessors allow. Subsequent passes (ratchet=true) only move bars
+  // FORWARD — needed because enforcePhaseOrder can push a predecessor forward
+  // to clear a phase gate, and the successor must then re-place against the
+  // new (later) end. Without the ratchet, the next topo pass would revert the
+  // predecessor and successors would sit overlapping the predecessor's true
+  // end, producing false-positive red arrows.
+  const topoPass = (ratchet) => {
+    for (const barId of order) {
+      const entry = map[barId]; if (!entry) continue;
+      const bar = entry.bar;
+      let earliest = ratchet ? bar.startIdx : 0;
+      for (const predId of (bar.dependsOn || [])) {
+        const p = map[predId]; if (!p) continue;
+        const pe = p.bar.type === "milestone"
+          ? p.bar.startIdx
+          : p.bar.startIdx + effSpan(p.bar) / WEEKS_PER_MONTH;
+        if (pe > earliest) earliest = pe;
+      }
+      bar.startIdx = earliest;
+      if (bar.type !== "milestone" && (!bar.span || bar.span <= 0)) bar.span = 1;
     }
-    bar.startIdx = earliest;
-    if (bar.type !== "milestone" && (!bar.span || bar.span <= 0)) bar.span = 1;
-  }
+  };
+  const snapshot = () => order.map(id => map[id] && map[id].bar.startIdx).join(",");
+  topoPass(false);
   enforcePhaseOrder();
+  let prev = snapshot();
+  for (let iter = 0; iter < 16; iter++) {
+    topoPass(true);
+    enforcePhaseOrder();
+    const cur = snapshot();
+    if (cur === prev) break;
+    prev = cur;
+  }
   renderCurrent();
 }
 
@@ -5705,6 +6272,24 @@ document.getElementById("weeksToggle").addEventListener("click", () => {
   renderCurrent();
 });
 applyWeeksToggleButton();
+
+function applyColorByWpButton() {
+  const btn = document.getElementById("colorByWpToggle"); if (!btn) return;
+  const on = isColorByWP();
+  btn.classList.toggle("primary", on);
+  btn.textContent = on ? "🎨 By WP ✓" : "🎨 By phase";
+  btn.title = on
+    ? "Bars are coloured by WP. Click to colour by phase instead."
+    : "Bars are coloured by phase. Click to colour by WP instead.";
+}
+document.getElementById("colorByWpToggle").addEventListener("click", () => {
+  const on = isColorByWP();
+  if (on) localStorage.removeItem(COLOR_BY_WP_KEY);
+  else localStorage.setItem(COLOR_BY_WP_KEY, "1");
+  applyColorByWpButton();
+  renderCurrent();
+});
+applyColorByWpButton();
 
 function applyArrowsToggleButton() {
   const btn = document.getElementById("arrowsToggle"); if (!btn) return;
