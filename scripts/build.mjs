@@ -75,6 +75,10 @@ if (hasMarkers) {
   // Switch the script tag from module → regular so the inlined body works
   // in a top-level scope.
   html = html.replace('<script type="module">', '<script>');
+  // The dev HTML destructures Core into bare names with `const { ... } = Core;`.
+  // After inlining, those names ARE already top-level consts (from the module
+  // body), so the destructure would re-declare them → SyntaxError. Strip it.
+  html = html.replace(/const \{[^}]*\} = Core;\n?/, '');
   console.log('✓ Converted dev HTML (module import) to inlined form.');
 } else {
   console.error('✗ Could not find inlined-block markers OR the module import line.');

@@ -3272,16 +3272,8 @@ function barHoursDist(b, {
 const Core = { WEEKS_PER_MONTH, PHASE_ORDER, PHASE_CODES_IN_ORDER, MONTH_NAMES, PROPOSAL_HOURS_PER_WEEK, TYPES, lid, bid, parseYM, toDateInputValue, monthsBetween, effSpan, rnd1, fmtDur, laneEffWeeks, wpNameOnly, renumberWPs, normaliseState, spansToWeeks, buildBarMap, isBleedingBar, phaseSpanCodes, computePhaseRanges, computePhaseGates, enforcePhaseOrder, topoOrder, createsCycle, autoSequence, packLaneRows, proposalBarCountsForHours, barHoursDist };
 // === END INLINED proplan-core.mjs ===
 
-const {
-  WEEKS_PER_MONTH, PHASE_ORDER, PHASE_CODES_IN_ORDER, MONTH_NAMES,
-  PROPOSAL_HOURS_PER_WEEK, TYPES,
-  lid, bid, parseYM, toDateInputValue, monthsBetween,
-  effSpan, rnd1, fmtDur, laneEffWeeks,
-  wpNameOnly,
-  normaliseState, spansToWeeks,
-  isBleedingBar, phaseSpanCodes,
-  topoOrder, createsCycle, packLaneRows,
-} = Core;
+// Names from Core are already in scope from the inlined block above. We just
+// expose them on `window` for any debug caller / DevTools poking.
 Object.assign(window, Core);
 
 let activeType = "work";
