@@ -109,6 +109,12 @@ if (hasMarkers) {
   // After inlining, those names ARE already top-level consts (from the module
   // body), so the destructure would re-declare them → SyntaxError. Strip it.
   html = html.replace(/const \{[^}]*\} = Core;\n?/, '');
+  // The dev HTML also does `Object.assign(window, Core)` to expose every
+  // export on window. AFTER inlining that overwrites the hoisted wrapper
+  // functions on window with the renamed module impls, so bare-name calls
+  // skip the wrappers and pass no state — crash on `state.lanes`. Swap it
+  // for an inert assignment that still exposes Core for debugging.
+  html = html.replace(/Object\.assign\(window, Core\);/, 'window.Core = Core;');
   console.log('✓ Converted dev HTML (module import) to inlined form.');
 } else {
   console.error('✗ Could not find inlined-block markers OR the module import line.');

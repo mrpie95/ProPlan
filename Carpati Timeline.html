@@ -3271,7 +3271,11 @@ function barHoursDist(b, {
 }
 const Core = { WEEKS_PER_MONTH, PHASE_ORDER, PHASE_CODES_IN_ORDER, MONTH_NAMES, PROPOSAL_HOURS_PER_WEEK, TYPES, lid, bid, parseYM, toDateInputValue, monthsBetween, effSpan, rnd1, fmtDur, laneEffWeeks, wpNameOnly, renumberWPs: _core_renumberWPs, normaliseState, spansToWeeks, buildBarMap: _core_buildBarMap, isBleedingBar, phaseSpanCodes, computePhaseRanges: _core_computePhaseRanges, computePhaseGates: _core_computePhaseGates, enforcePhaseOrder: _core_enforcePhaseOrder, topoOrder, createsCycle, autoSequence: _core_autoSequence, packLaneRows, proposalBarCountsForHours: _core_proposalBarCountsForHours, barHoursDist };
 // === END INLINED proplan-core.mjs ===
-Object.assign(window, Core);
+// Expose the Core namespace for debug. NOT Object.assign(window, Core) —
+// that would overwrite the hoisted wrapper functions (buildBarMap,
+// renumberWPs, etc.) on window with the renamed module implementations, so
+// bare-name calls would skip the state-passing wrappers and explode.
+window.Core = Core;
 
 let activeType = "work";
 let currentView = "plan";
