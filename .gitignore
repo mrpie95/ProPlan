@@ -1,2 +1,17 @@
 .DS_Store
 .claude/
+
+# Node / npm
+node_modules/
+npm-debug.log*
+
+# Vitest / coverage output
+coverage/
+
+# Build output (single-file release HTML produced by scripts/build.mjs)
+dist/
+
+# Editor / OS
+*.swp
+*.swo
+~$*

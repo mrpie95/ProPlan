@@ -1,0 +1,19 @@
+{
+  "_comment": "Diamond: A -> B, A -> C, B -> D, C -> D. B is longer than C, so after autoSequence D must start at A.end + max(B.span, C.span) / 4 months.",
+  "start": "2026-01",
+  "end": "2026-12",
+  "colWidth": 60,
+  "lanes": [
+    {
+      "id": "l1",
+      "code": "WP 1 — Diamond",
+      "desc": "Engineering",
+      "bars": [
+        { "id": "a", "type": "work", "startIdx": 0, "span": 4, "buffer": 0, "label": "A", "dependsOn": [] },
+        { "id": "b", "type": "work", "startIdx": 0, "span": 8, "buffer": 0, "label": "B", "dependsOn": ["a"] },
+        { "id": "c", "type": "work", "startIdx": 0, "span": 4, "buffer": 0, "label": "C", "dependsOn": ["a"] },
+        { "id": "d", "type": "work", "startIdx": 0, "span": 4, "buffer": 0, "label": "D", "dependsOn": ["b", "c"] }
+      ]
+    }
+  ]
+}

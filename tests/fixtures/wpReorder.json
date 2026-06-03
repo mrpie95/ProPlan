@@ -1,0 +1,30 @@
+{
+  "_comment": "Three WPs with intentionally non-sequential numbering (WP 5, WP 2, WP 9) so renumberWPs has work to do. WP 3 has a task that depends on WP 1's task — used to verify that deleting a WP scrubs its IDs from other lanes' dependsOn.",
+  "start": "2026-01",
+  "end": "2026-12",
+  "colWidth": 60,
+  "lanes": [
+    {
+      "id": "l1",
+      "code": "WP 5 — Foo",
+      "desc": "Engineering",
+      "bars": [
+        { "id": "b1", "type": "work", "startIdx": 0, "span": 4, "buffer": 0, "label": "T1", "dependsOn": [] }
+      ]
+    },
+    {
+      "id": "l2",
+      "code": "WP 2 — Bar",
+      "desc": "Quality",
+      "bars": [
+        { "id": "b2", "type": "work", "startIdx": 0, "span": 4, "buffer": 0, "label": "T2", "dependsOn": ["b1"] }
+      ]
+    },
+    {
+      "id": "l3",
+      "code": "WP 9 — Baz",
+      "desc": "Engineering",
+      "bars": []
+    }
+  ]
+}
