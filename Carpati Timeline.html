@@ -2825,8 +2825,8 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
 /* ProPlan core — pure logic extracted from Carpati Timeline.html.
  *
  * Everything in this module is DOM-free, localStorage-free, and side-effect
- * free (with one obvious exception: the autoSequence + enforcePhaseOrder +
- * renumberWPs family mutate the `state` object you pass in — that's their
+ * free (with one obvious exception: the _core_autoSequence + _core_enforcePhaseOrder +
+ * _core_renumberWPs family mutate the `state` object you pass in — that's their
  * job).
  *
  * The HTML app loads this via <script type="module"> and re-attaches the
@@ -2915,7 +2915,7 @@ function wpNameOnly(code) {
 
 /* Mutate every lane.code so they read "WP 1 — Name", "WP 2 — Name", … in
    display order. Preserves whatever follows the existing prefix. */
-function renumberWPs(state) {
+function _core_renumberWPs(state) {
   if (!state || !Array.isArray(state.lanes)) return;
   state.lanes.forEach((lane, i) => {
     const n = i + 1;
@@ -2948,7 +2948,7 @@ function spansToWeeks(state) {
 }
 
 /* Build a barId → {laneIdx, lane, bar} lookup map. O(n+m). */
-function buildBarMap(state) {
+function _core_buildBarMap(state) {
   const map = {};
   (state.lanes || []).forEach((lane, laneIdx) => {
     (lane.bars || []).forEach(bar => { map[bar.id] = { laneIdx, lane, bar }; });
@@ -2984,9 +2984,9 @@ function phaseSpanCodes(bar) {
  *  - Untagged tasks ignored.
  *  - extendsPhase bars contribute their START to b.phase only (their end is exempted from the gate).
  *    Implemented here by NOT skipping them — same as the original. The end-gate
- *    exemption is enforced in enforcePhaseOrder.
+ *    exemption is enforced in _core_enforcePhaseOrder.
  */
-function computePhaseRanges(state) {
+function _core_computePhaseRanges(state) {
   const ranges = {};
   for (const lane of state.lanes || []) {
     for (const b of lane.bars || []) {
@@ -3013,7 +3013,7 @@ function computePhaseRanges(state) {
    colour — callers (the HTML renderer) enrich them with sopPhase()-derived
    accent/bg colours before drawing. The final phase gets a "Project close"
    gate labelled "END". */
-function computePhaseGates(phaseRanges, presentPhases) {
+function _core_computePhaseGates(phaseRanges, presentPhases) {
   const gates = [];
   for (let i = 0; i < presentPhases.length; i++) {
     const code = presentPhases[i];
@@ -3043,7 +3043,7 @@ function computePhaseGates(phaseRanges, presentPhases) {
  *     - extendsPhase: never contributes (long-running tail exempt from gating).
  * Mutates state.lanes[*].bars[*].startIdx.
  */
-function enforcePhaseOrder(state) {
+function _core_enforcePhaseOrder(state) {
   let cumulativeMaxEnd = 0;
   for (const phase of PHASE_CODES_IN_ORDER) {
     let phaseMaxEnd = cumulativeMaxEnd;
@@ -3107,11 +3107,11 @@ function createsCycle(targetId, predId, map) {
 /* Auto-sequence: place every bar at its earliest legal position given its
  * predecessors and phase-gate constraints.
  *
- * Algorithm: fixpoint loop of (topoPass + enforcePhaseOrder).
+ * Algorithm: fixpoint loop of (topoPass + _core_enforcePhaseOrder).
  *   - First pass (ratchet=false): reset each bar to max(pred end) — gives
  *     tightest layout from scratch.
  *   - Subsequent passes (ratchet=true): bars can only move FORWARD. Needed
- *     because enforcePhaseOrder pushes some predecessors forward to clear an
+ *     because _core_enforcePhaseOrder pushes some predecessors forward to clear an
  *     earlier phase's gate, and their successors must then re-place against
  *     the new (later) end. Without ratchet, a non-ratchet pass would revert
  *     the predecessor to its raw pred-end and successors would oscillate.
@@ -3120,8 +3120,8 @@ function createsCycle(targetId, predId, map) {
  *
  * NOTE: deliberately does NOT call any renderer or alert(). Caller handles UI.
  */
-function autoSequence(state) {
-  const map = buildBarMap(state);
+function _core_autoSequence(state) {
+  const map = _core_buildBarMap(state);
   const order = topoOrder(map);
   if (!order) return { ok: false, iterations: 0, error: "Dependency cycle detected — cannot auto-sequence." };
 
@@ -3144,12 +3144,12 @@ function autoSequence(state) {
   const snapshot = () => order.map(id => map[id] && map[id].bar.startIdx).join(",");
 
   topoPass(false);
-  enforcePhaseOrder(state);
+  _core_enforcePhaseOrder(state);
   let prev = snapshot();
   let iter = 0;
   for (; iter < 16; iter++) {
     topoPass(true);
-    enforcePhaseOrder(state);
+    _core_enforcePhaseOrder(state);
     const cur = snapshot();
     if (cur === prev) break;
     prev = cur;
@@ -3225,7 +3225,7 @@ function packLaneRows(bars, colW = 0, opts = {}) {
  * - Leadtime contributes only when includeLeadtime is true.
  * - Everything else contributes.
  */
-function proposalBarCountsForHours(b, { includeLeadtime = true } = {}) {
+function _core_proposalBarCountsForHours(b, { includeLeadtime = true } = {}) {
   if (!b || b.type === "milestone") return false;
   if (b.type === "leadtime" && !includeLeadtime) return false;
   return true;
@@ -3256,7 +3256,7 @@ function barHoursDist(b, {
   includeLeadtime = true,
 } = {}) {
   const dist = new Array(numMonths).fill(0);
-  if (!proposalBarCountsForHours(b, { includeLeadtime })) return dist;
+  if (!_core_proposalBarCountsForHours(b, { includeLeadtime })) return dist;
   const effMonths = effSpan(b) / WEEKS_PER_MONTH;
   const cs = b.startIdx + startMonthOffset;
   const ce = cs + effMonths;
@@ -3269,11 +3269,8 @@ function barHoursDist(b, {
   }
   return dist;
 }
-const Core = { WEEKS_PER_MONTH, PHASE_ORDER, PHASE_CODES_IN_ORDER, MONTH_NAMES, PROPOSAL_HOURS_PER_WEEK, TYPES, lid, bid, parseYM, toDateInputValue, monthsBetween, effSpan, rnd1, fmtDur, laneEffWeeks, wpNameOnly, renumberWPs, normaliseState, spansToWeeks, buildBarMap, isBleedingBar, phaseSpanCodes, computePhaseRanges, computePhaseGates, enforcePhaseOrder, topoOrder, createsCycle, autoSequence, packLaneRows, proposalBarCountsForHours, barHoursDist };
+const Core = { WEEKS_PER_MONTH, PHASE_ORDER, PHASE_CODES_IN_ORDER, MONTH_NAMES, PROPOSAL_HOURS_PER_WEEK, TYPES, lid, bid, parseYM, toDateInputValue, monthsBetween, effSpan, rnd1, fmtDur, laneEffWeeks, wpNameOnly, renumberWPs: _core_renumberWPs, normaliseState, spansToWeeks, buildBarMap: _core_buildBarMap, isBleedingBar, phaseSpanCodes, computePhaseRanges: _core_computePhaseRanges, computePhaseGates: _core_computePhaseGates, enforcePhaseOrder: _core_enforcePhaseOrder, topoOrder, createsCycle, autoSequence: _core_autoSequence, packLaneRows, proposalBarCountsForHours: _core_proposalBarCountsForHours, barHoursDist };
 // === END INLINED proplan-core.mjs ===
-
-// Names from Core are already in scope from the inlined block above. We just
-// expose them on `window` for any debug caller / DevTools poking.
 Object.assign(window, Core);
 
 let activeType = "work";

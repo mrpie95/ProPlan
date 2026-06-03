@@ -48,17 +48,47 @@ const EXPORT_NAMES = [
   'proposalBarCountsForHours', 'barHoursDist',
 ];
 
+/* Names that the HTML defines its own thin wrapper for (passing the global
+   `state` etc.). When inlined into the same scope, the wrapper's function
+   declaration would be hoisted and OVERRIDE the module's same-name
+   declaration. The Core namespace would then capture the wrapper instead of
+   the pure function, and any wrapper that calls `Core.xxx(state)` would
+   stack-overflow.
+   Fix: rename ALL references to these inside the module body to a `_core_`
+   prefix, then build the Core namespace using shorthand-with-rename. */
+const CONFLICTS = [
+  'renumberWPs',
+  'autoSequence',
+  'buildBarMap',
+  'enforcePhaseOrder',
+  'computePhaseRanges',
+  'computePhaseGates',
+  'proposalBarCountsForHours',
+];
+
 let html = readFileSync(HTML_PATH, 'utf8');
 const moduleSrc = readFileSync(MODULE_PATH, 'utf8');
 
 // Strip `export ` keywords so the module body becomes valid in a non-module
 // <script>. We don't have top-level `import` statements in the module.
-const stripped = moduleSrc.replace(/^export\s+/gm, '').trimEnd();
+let stripped = moduleSrc.replace(/^export\s+/gm, '').trimEnd();
 
+// Prefix every reference to a CONFLICTS name with `_core_` so they don't
+// collide with the HTML's wrapper functions of the same name. \b ensures we
+// don't rename substrings of unrelated identifiers.
+for (const name of CONFLICTS) {
+  stripped = stripped.replace(new RegExp(`\\b${name}\\b`, 'g'), `_core_${name}`);
+}
+
+// Build the Core namespace. Conflicting names use shorthand-with-rename so
+// callers can still do `Core.renumberWPs(state)` and reach the renamed impl.
+const namespaceEntries = EXPORT_NAMES.map(name =>
+  CONFLICTS.includes(name) ? `${name}: _core_${name}` : name
+);
 const block = [
   BEGIN,
   stripped,
-  `const Core = { ${EXPORT_NAMES.join(', ')} };`,
+  `const Core = { ${namespaceEntries.join(', ')} };`,
   END,
 ].join('\n');
 
