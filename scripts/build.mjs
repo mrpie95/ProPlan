@@ -1,51 +1,37 @@
 #!/usr/bin/env node
-/* Single-file release builder.
+/* Re-inline src/proplan-core.mjs into Carpati Timeline.html.
  *
- * The dev HTML loads src/proplan-core.mjs via `<script type="module">`, which
- * needs a local server (CORS blocks file:// modules). For sharing or hosting
- * the HTML on its own, this script inlines the module into the script tag so
- * the result is a true single-file artifact that runs from file://.
+ * Workflow:
+ *   1. Edit src/proplan-core.mjs (logic) and/or Carpati Timeline.html (UI).
+ *   2. Run `npm run build`.
+ *   3. The HTML's inlined module block is replaced with a fresh build.
  *
- * Usage:  node scripts/build.mjs
- * Output: dist/Carpati Timeline.html
+ * The canonical HTML is the inlined one — it runs from file:// without a
+ * server. The .mjs is the source of truth for testing.
+ *
+ * The block to be replaced is delimited by these markers:
+ *
+ *   // === BEGIN INLINED proplan-core.mjs ===
+ *   ... module body ...
+ *   const Core = { ... };
+ *   // === END INLINED proplan-core.mjs ===
+ *
+ * On a fresh dev HTML that still has `import * as Core from './src/proplan-core.mjs';`
+ * we replace THAT line with the marker block. Subsequent runs replace
+ * everything between the markers.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, '..');
-const HTML_IN = resolve(ROOT, 'Carpati Timeline.html');
-const MODULE_IN = resolve(ROOT, 'src', 'proplan-core.mjs');
-const DIST_DIR = resolve(ROOT, 'dist');
-const HTML_OUT = resolve(DIST_DIR, 'Carpati Timeline.html');
+const HTML_PATH = resolve(ROOT, 'Carpati Timeline.html');
+const MODULE_PATH = resolve(ROOT, 'src', 'proplan-core.mjs');
 
-if (!existsSync(HTML_IN)) {
-  console.error(`Missing input HTML: ${HTML_IN}`);
-  process.exit(1);
-}
-if (!existsSync(MODULE_IN)) {
-  console.error(`Missing input module: ${MODULE_IN}`);
-  process.exit(1);
-}
-
-const html = readFileSync(HTML_IN, 'utf8');
-const moduleSrc = readFileSync(MODULE_IN, 'utf8');
-
-// Strip top-level `export ` keywords. The module body is otherwise plain JS
-// (no top-level imports, no dynamic export forms). If we ever add those,
-// revisit this.
-const inlined = moduleSrc.replace(/^export\s+/gm, '');
-
-// In the bundled output the module is no longer a real ESM file: the inline
-// script ran via `import * as Core` and then destructured Core. We need to:
-//   1. Drop the `import` line.
-//   2. Inline the module body so its top-level declarations are in scope.
-//   3. Replace the `import * as Core from ...` + `const {...} = Core; Object.assign(window, Core)`
-//      block with the inlined module followed by a hand-built Core namespace.
-//
-// The IDs of the exports must match what the inline script destructures.
+const BEGIN = '// === BEGIN INLINED proplan-core.mjs ===';
+const END = '// === END INLINED proplan-core.mjs ===';
 
 const EXPORT_NAMES = [
   'WEEKS_PER_MONTH', 'PHASE_ORDER', 'PHASE_CODES_IN_ORDER', 'MONTH_NAMES',
@@ -62,23 +48,43 @@ const EXPORT_NAMES = [
   'proposalBarCountsForHours', 'barHoursDist',
 ];
 
-const coreNamespace = `const Core = { ${EXPORT_NAMES.join(', ')} };`;
+let html = readFileSync(HTML_PATH, 'utf8');
+const moduleSrc = readFileSync(MODULE_PATH, 'utf8');
 
-const moduleEntry = "import * as Core from './src/proplan-core.mjs';";
-if (!html.includes(moduleEntry)) {
-  console.error(`Couldn't find the module-import line in the HTML:\n  ${moduleEntry}`);
+// Strip `export ` keywords so the module body becomes valid in a non-module
+// <script>. We don't have top-level `import` statements in the module.
+const stripped = moduleSrc.replace(/^export\s+/gm, '').trimEnd();
+
+const block = [
+  BEGIN,
+  stripped,
+  `const Core = { ${EXPORT_NAMES.join(', ')} };`,
+  END,
+].join('\n');
+
+const hasMarkers = html.includes(BEGIN) && html.includes(END);
+const moduleImportLine = "import * as Core from './src/proplan-core.mjs';";
+
+if (hasMarkers) {
+  const before = html.slice(0, html.indexOf(BEGIN));
+  const after = html.slice(html.indexOf(END) + END.length);
+  html = before + block + after;
+  console.log('✓ Replaced existing inlined block.');
+} else if (html.includes(moduleImportLine)) {
+  html = html.replace(moduleImportLine, block);
+  // Switch the script tag from module → regular so the inlined body works
+  // in a top-level scope.
+  html = html.replace('<script type="module">', '<script>');
+  console.log('✓ Converted dev HTML (module import) to inlined form.');
+} else {
+  console.error('✗ Could not find inlined-block markers OR the module import line.');
+  console.error(`  Expected one of:`);
+  console.error(`    ${BEGIN}\n    ${END}`);
+  console.error(`  or:`);
+  console.error(`    ${moduleImportLine}`);
   process.exit(1);
 }
 
-const replacement = `${inlined}\n${coreNamespace}\n`;
-let out = html.replace(moduleEntry, replacement);
-
-// Also drop the `type="module"` from the script tag so the bundled HTML is a
-// regular inline script with everything in one scope.
-out = out.replace('<script type="module">', '<script>');
-
-mkdirSync(DIST_DIR, { recursive: true });
-writeFileSync(HTML_OUT, out);
-
-const sizeMb = (out.length / 1024 / 1024).toFixed(2);
-console.log(`✓ Built ${HTML_OUT} (${sizeMb} MB)`);
+writeFileSync(HTML_PATH, html);
+const sizeMb = (html.length / 1024 / 1024).toFixed(2);
+console.log(`✓ Wrote ${HTML_PATH} (${sizeMb} MB)`);

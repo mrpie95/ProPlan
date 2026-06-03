@@ -2815,13 +2815,463 @@ a=bw(aw(t.messages[0].data)[1][0].data);n=Pw({deps:[1],location:r[a].location,ty
 t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="array";return R(a)}var n=0;if(t.sheet){if(typeof t.sheet=="number")n=t.sheet;else n=e.SheetNames.indexOf(t.sheet);if(!e.SheetNames[n])throw new Error("Sheet not found: "+t.sheet+" : "+typeof t.sheet)}switch(t.bookType||"xlsb"){case"xml":;case"xlml":return Ek(Ug(e,t),t);case"slk":;case"sylk":return Ek(Ql.from_sheet(e.Sheets[e.SheetNames[n]],t,e),t);case"htm":;case"html":return Ek(Sb(e.Sheets[e.SheetNames[n]],t),t);case"txt":return Ck(Uk(e.Sheets[e.SheetNames[n]],t),t);case"csv":return Ek(Mk(e.Sheets[e.SheetNames[n]],t),t,"\ufeff");case"dif":return Ek(eo.from_sheet(e.Sheets[e.SheetNames[n]],t),t);case"dbf":return _k(ql.from_sheet(e.Sheets[e.SheetNames[n]],t),t);case"prn":return Ek(to.from_sheet(e.Sheets[e.SheetNames[n]],t),t);case"rtf":return Ek(Ko(e.Sheets[e.SheetNames[n]],t),t);case"eth":return Ek(ro.from_sheet(e.Sheets[e.SheetNames[n]],t),t);case"fods":return Ek(Hb(e,t),t);case"wk1":return _k(no.sheet_to_wk1(e.Sheets[e.SheetNames[n]],t),t);case"wk3":return _k(no.book_to_wk3(e,t),t);case"biff2":if(!t.biff)t.biff=2;case"biff3":if(!t.biff)t.biff=3;case"biff4":if(!t.biff)t.biff=4;return _k(kb(e,t),t);case"biff5":if(!t.biff)t.biff=5;case"biff8":;case"xla":;case"xls":if(!t.biff)t.biff=8;return yk(e,t);case"xlsx":;case"xlsm":;case"xlam":;case"xlsb":;case"numbers":;case"ods":return kk(e,t);default:throw new Error("Unrecognized bookType |"+t.bookType+"|");}}function Ok(e){if(e.bookType)return;var r={xls:"biff8",htm:"html",slk:"sylk",socialcalc:"eth",Sh33tJS:"WTF"};var t=e.file.slice(e.file.lastIndexOf(".")).toLowerCase();if(t.match(/^\.[a-z]+$/))e.bookType=t.slice(1);e.bookType=r[e.bookType]||e.bookType}function Ik(e,r,t){var a=t||{};a.type="file";a.file=r;Ok(a);return xk(e,a)}function Rk(e,r,t){var a=t||{};a.type="file";a.file=r;Ok(a);return Sk(e,a)}function Nk(e,r,t,a){var n=t||{};n.type="file";n.file=e;Ok(n);n.type="buffer";var i=a;if(!(i instanceof Function))i=t;return er.writeFile(e,xk(r,n),i)}function Fk(e,r,t,a,n,i,s){var f=Wa(t);var l=s.defval,o=s.raw||!Object.prototype.hasOwnProperty.call(s,"raw");var c=true,h=e["!data"]!=null;var u=n===1?[]:{};if(n!==1){if(Object.defineProperty)try{Object.defineProperty(u,"__rowNum__",{value:t,enumerable:false})}catch(d){u.__rowNum__=t}else u.__rowNum__=t}if(!h||e["!data"][t])for(var v=r.s.c;v<=r.e.c;++v){var p=h?(e["!data"][t]||[])[v]:e[a[v]+f];if(p==null||p.t===undefined){if(l===undefined)continue;if(i[v]!=null){u[i[v]]=l}continue}var m=p.v;switch(p.t){case"z":if(m==null)break;continue;case"e":m=m==0?null:void 0;break;case"s":;case"b":;case"n":if(!p.z||!Le(p.z))break;m=vr(m);if(typeof m=="number")break;case"d":if(!(s&&(s.UTC||s.raw===false)))m=Fr(new Date(m));break;default:throw new Error("unrecognized type "+p.t);}if(i[v]!=null){if(m==null){if(p.t=="e"&&m===null)u[i[v]]=null;else if(l!==undefined)u[i[v]]=l;else if(o&&m===null)u[i[v]]=null;else continue}else{u[i[v]]=(p.t==="n"&&typeof s.rawNumbers==="boolean"?s.rawNumbers:o)?m:tn(p,m,s)}if(m!=null)c=false}}return{row:u,isempty:c}}function Dk(e,r){if(e==null||e["!ref"]==null)return[];var t={t:"n",v:0},a=0,n=1,i=[],s=0,f="";var l={s:{r:0,c:0},e:{r:0,c:0}};var o=r||{};var c=o.range!=null?o.range:e["!ref"];if(o.header===1)a=1;else if(o.header==="A")a=2;else if(Array.isArray(o.header))a=3;else if(o.header==null)a=0;switch(typeof c){case"string":l=en(c);break;case"number":l=en(e["!ref"]);l.s.r=c;break;default:l=c;}if(a>0)n=0;var h=Wa(l.s.r);var u=[];var d=[];var v=0,p=0;var m=e["!data"]!=null;var g=l.s.r,b=0;var w={};if(m&&!e["!data"][g])e["!data"][g]=[];var k=o.skipHidden&&e["!cols"]||[];var A=o.skipHidden&&e["!rows"]||[];for(b=l.s.c;b<=l.e.c;++b){if((k[b]||{}).hidden)continue;u[b]=$a(b);t=m?e["!data"][g][b]:e[u[b]+h];switch(a){case 1:i[b]=b-l.s.c;break;case 2:i[b]=u[b];break;case 3:i[b]=o.header[b-l.s.c];break;default:if(t==null)t={w:"__EMPTY",t:"s"};f=s=tn(t,null,o);p=w[s]||0;if(!p)w[s]=1;else{do{f=s+"_"+p++}while(w[f]);w[s]=p;w[f]=1}i[b]=f;}}for(g=l.s.r+n;g<=l.e.r;++g){if((A[g]||{}).hidden)continue;var T=Fk(e,l,g,u,a,i,o);if(T.isempty===false||(a===1?o.blankrows!==false:!!o.blankrows))d[v++]=T.row}d.length=v;return d}var Pk=/"/g;function Lk(e,r,t,a,n,i,s,f,l){var o=true;var c=[],h="",u=Wa(t);var d=e["!data"]!=null;var v=d&&e["!data"][t]||[];for(var p=r.s.c;p<=r.e.c;++p){if(!a[p])continue;var m=d?v[p]:e[a[p]+u];if(m==null)h="";else if(m.v!=null){o=false;h=""+(l.rawNumbers&&m.t=="n"?m.v:tn(m,null,l));for(var g=0,b=0;g!==h.length;++g)if((b=h.charCodeAt(g))===n||b===i||b===34||l.forceQuotes){h='"'+h.replace(Pk,'""')+'"';break}if(h=="ID"&&f==0&&c.length==0)h='"ID"'}else if(m.f!=null&&!m.F){o=false;h="="+m.f;if(h.indexOf(",")>=0)h='"'+h.replace(Pk,'""')+'"'}else h="";c.push(h)}if(l.strip)while(c[c.length-1]==="")--c.length;if(l.blankrows===false&&o)return null;return c.join(s)}function Mk(e,r){var t=[];var a=r==null?{}:r;if(e==null||e["!ref"]==null)return"";var n=en(e["!ref"]);var i=a.FS!==undefined?a.FS:",",s=i.charCodeAt(0);var f=a.RS!==undefined?a.RS:"\n",l=f.charCodeAt(0);var o="",c=[];var h=a.skipHidden&&e["!cols"]||[];var u=a.skipHidden&&e["!rows"]||[];for(var d=n.s.c;d<=n.e.c;++d)if(!(h[d]||{}).hidden)c[d]=$a(d);var v=0;for(var p=n.s.r;p<=n.e.r;++p){if((u[p]||{}).hidden)continue;o=Lk(e,n,p,c,s,l,i,v,a);if(o==null){continue}if(o||a.blankrows!==false)t.push((v++?f:"")+o)}return t.join("")}function Uk(e,r){if(!r)r={};r.FS="\t";r.RS="\n";var t=Mk(e,r);if(typeof a=="undefined"||r.type=="string")return t;var n=a.utils.encode(1200,t,"str");return String.fromCharCode(255)+String.fromCharCode(254)+n}function Bk(e,r){var t="",a,n="";if(e==null||e["!ref"]==null)return[];var i=en(e["!ref"]),s="",f=[],l;var o=[];var c=e["!data"]!=null;for(l=i.s.c;l<=i.e.c;++l)f[l]=$a(l);for(var h=i.s.r;h<=i.e.r;++h){s=Wa(h);for(l=i.s.c;l<=i.e.c;++l){t=f[l]+s;a=c?(e["!data"][h]||[])[l]:e[t];n="";if(a===undefined)continue;else if(a.F!=null){t=a.F;if(!a.f)continue;n=a.f;if(t.indexOf(":")==-1)t=t+":"+t}if(a.f!=null)n=a.f;else if(r&&r.values===false)continue;else if(a.t=="z")continue;else if(a.t=="n"&&a.v!=null)n=""+a.v;else if(a.t=="b")n=a.v?"TRUE":"FALSE";else if(a.w!==undefined)n="'"+a.w;else if(a.v===undefined)continue;else if(a.t=="s")n="'"+a.v;else n=""+a.v;o[o.length]=t+"="+n}}return o}function Wk(e,r,t){var a=t||{};var n=e?e["!data"]!=null:a.dense;if(b!=null&&n==null)n=b;var i=+!a.skipHeader;var s=e||{};if(!e&&n)s["!data"]=[];var f=0,l=0;if(s&&a.origin!=null){if(typeof a.origin=="number")f=a.origin;else{var o=typeof a.origin=="string"?Ka(a.origin):a.origin;f=o.r;l=o.c}}var c={s:{c:0,r:0},e:{c:l,r:f+r.length-1+i}};if(s["!ref"]){var h=en(s["!ref"]);c.e.c=Math.max(c.e.c,h.e.c);c.e.r=Math.max(c.e.r,h.e.r);if(f==-1){f=h.e.r+1;c.e.r=f+r.length-1+i}}else{if(f==-1){f=0;c.e.r=r.length-1+i}}var u=a.header||[],d=0;var v=[];r.forEach(function(e,r){if(n&&!s["!data"][f+r+i])s["!data"][f+r+i]=[];if(n)v=s["!data"][f+r+i];ir(e).forEach(function(t){if((d=u.indexOf(t))==-1)u[d=u.length]=t;var o=e[t];var c="z";var h="";var p=n?"":$a(l+d)+Wa(f+r+i);var m=n?v[l+d]:s[p];if(o&&typeof o==="object"&&!(o instanceof Date)){if(n)v[l+d]=o;else s[p]=o}else{if(typeof o=="number")c="n";else if(typeof o=="boolean")c="b";else if(typeof o=="string")c="s";else if(o instanceof Date){c="d";if(!a.UTC)o=Dr(o);if(!a.cellDates){c="n";o=dr(o)}h=m!=null&&m.z&&Le(m.z)?m.z:a.dateNF||q[14]}else if(o===null&&a.nullError){c="e";o=0}if(!m){if(!n)s[p]=m={t:c,v:o};else v[l+d]=m={t:c,v:o}}else{m.t=c;m.v=o;delete m.w;delete m.R;if(h)m.z=h}if(h)m.z=h}})});c.e.c=Math.max(c.e.c,l+u.length-1);var p=Wa(f);if(n&&!s["!data"][f])s["!data"][f]=[];if(i)for(d=0;d<u.length;++d){if(n)s["!data"][f][d+l]={t:"s",v:u[d]};else s[$a(d+l)+p]={t:"s",v:u[d]}}s["!ref"]=Ja(c);return s}function zk(e,r){return Wk(null,e,r)}function Hk(e,r,t){if(typeof r=="string"){if(e["!data"]!=null){var a=Ka(r);if(!e["!data"][a.r])e["!data"][a.r]=[];return e["!data"][a.r][a.c]||(e["!data"][a.r][a.c]={t:"z"})}return e[r]||(e[r]={t:"z"})}if(typeof r!="number")return Hk(e,Ya(r));return Hk(e,$a(t||0)+Wa(r))}function Vk(e,r){if(typeof r=="number"){if(r>=0&&e.SheetNames.length>r)return r;throw new Error("Cannot find sheet # "+r)}else if(typeof r=="string"){var t=e.SheetNames.indexOf(r);if(t>-1)return t;throw new Error("Cannot find sheet name |"+r+"|")}else throw new Error("Cannot find sheet |"+r+"|")}function $k(e,r){var t={SheetNames:[],Sheets:{}};if(e)Xk(t,e,r||"Sheet1");return t}function Xk(e,r,t,a){var n=1;if(!t)for(;n<=65535;++n,t=undefined)if(e.SheetNames.indexOf(t="Sheet"+n)==-1)break;if(!t||e.SheetNames.length>=65535)throw new Error("Too many worksheets");if(a&&e.SheetNames.indexOf(t)>=0&&t.length<32){var i=t.match(/\d+$/);n=i&&+i[0]||0;var s=i&&t.slice(0,i.index)||t;for(++n;n<=65535;++n)if(e.SheetNames.indexOf(t=s+n)==-1)break}Fm(t);if(e.SheetNames.indexOf(t)>=0)throw new Error("Worksheet with name |"+t+"| already exists!");e.SheetNames.push(t);e.Sheets[t]=r;return t}function Gk(e,r,t){if(!e.Workbook)e.Workbook={};if(!e.Workbook.Sheets)e.Workbook.Sheets=[];var a=Vk(e,r);if(!e.Workbook.Sheets[a])e.Workbook.Sheets[a]={};switch(t){case 0:;case 1:;case 2:break;default:throw new Error("Bad sheet visibility setting "+t);}e.Workbook.Sheets[a].Hidden=t}function jk(e,r){e.z=r;return e}function Kk(e,r,t){if(!r){delete e.l}else{e.l={Target:r};if(t)e.l.Tooltip=t}return e}function Yk(e,r,t){return Kk(e,"#"+r,t)}function Zk(e,r,t){if(!e.c)e.c=[];e.c.push({t:r,a:t||"SheetJS"})}function Jk(e,r,t,a){var n=typeof r!="string"?r:en(r);var i=typeof r=="string"?r:Ja(r);for(var s=n.s.r;s<=n.e.r;++s)for(var f=n.s.c;f<=n.e.c;++f){var l=Hk(e,s,f);l.t="n";l.F=i;delete l.v;if(s==n.s.r&&f==n.s.c){l.f=t;if(a)l.D=true}}var o=Za(e["!ref"]);if(o.s.r>n.s.r)o.s.r=n.s.r;if(o.s.c>n.s.c)o.s.c=n.s.c;if(o.e.r<n.e.r)o.e.r=n.e.r;if(o.e.c<n.e.c)o.e.c=n.e.c;e["!ref"]=Ja(o);return e}var qk={encode_col:$a,encode_row:Wa,encode_cell:Ya,encode_range:Ja,decode_col:Va,decode_row:Ba,split_cell:ja,decode_cell:Ka,decode_range:Za,format_cell:tn,sheet_new:nn,sheet_add_aoa:sn,sheet_add_json:Wk,sheet_add_dom:xb,aoa_to_sheet:fn,json_to_sheet:zk,table_to_sheet:Ob,table_to_book:Ib,sheet_to_csv:Mk,sheet_to_txt:Uk,sheet_to_json:Dk,sheet_to_html:Sb,sheet_to_formulae:Bk,sheet_to_row_object_array:Dk,sheet_get_cell:Hk,book_new:$k,book_append_sheet:Xk,book_set_sheet_visibility:Gk,cell_set_number_format:jk,cell_set_hyperlink:Kk,cell_set_internal_link:Yk,cell_add_comment:Zk,sheet_set_array_formula:Jk,consts:{SHEET_VISIBLE:0,SHEET_HIDDEN:1,SHEET_VERY_HIDDEN:2}};var Qk;function eA(e){Qk=e}function rA(e,r){var t=Qk();var a=r==null?{}:r;if(e==null||e["!ref"]==null){t.push(null);return t}var n=en(e["!ref"]);var i=a.FS!==undefined?a.FS:",",s=i.charCodeAt(0);var f=a.RS!==undefined?a.RS:"\n",l=f.charCodeAt(0);var o="",c=[];var h=a.skipHidden&&e["!cols"]||[];var u=a.skipHidden&&e["!rows"]||[];for(var d=n.s.c;d<=n.e.c;++d)if(!(h[d]||{}).hidden)c[d]=$a(d);var v=n.s.r;var p=false,m=0;t._read=function(){if(!p){p=true;return t.push("\ufeff")}while(v<=n.e.r){++v;if((u[v-1]||{}).hidden)continue;o=Lk(e,n,v-1,c,s,l,i,m,a);if(o!=null){if(o||a.blankrows!==false)return t.push((m++?f:"")+o)}}return t.push(null)};return t}function tA(e,r){var t=Qk();var a=r||{};var n=a.header!=null?a.header:yb;var i=a.footer!=null?a.footer:Eb;t.push(n);var s=Za(e["!ref"]);t.push(_b(e,s,a));var f=s.s.r;var l=false;t._read=function(){if(f>s.e.r){if(!l){l=true;t.push("</table>"+i)}return t.push(null)}while(f<=s.e.r){t.push(Tb(e,s,f,a));++f;break}};return t}function aA(e,r){var t=Qk({objectMode:true});if(e==null||e["!ref"]==null){t.push(null);return t}var a={t:"n",v:0},n=0,i=1,s=[],f=0,l="";var o={s:{r:0,c:0},e:{r:0,c:0}};var c=r||{};var h=c.range!=null?c.range:e["!ref"];if(c.header===1)n=1;else if(c.header==="A")n=2;else if(Array.isArray(c.header))n=3;switch(typeof h){case"string":o=en(h);break;case"number":o=en(e["!ref"]);o.s.r=h;break;default:o=h;}if(n>0)i=0;var u=Wa(o.s.r);var d=[];var v=0;var p=e["!data"]!=null;var m=o.s.r,g=0;var b={};if(p&&!e["!data"][m])e["!data"][m]=[];var w=c.skipHidden&&e["!cols"]||[];var k=c.skipHidden&&e["!rows"]||[];for(g=o.s.c;g<=o.e.c;++g){if((w[g]||{}).hidden)continue;d[g]=$a(g);a=p?e["!data"][m][g]:e[d[g]+u];switch(n){case 1:s[g]=g-o.s.c;break;case 2:s[g]=d[g];break;case 3:s[g]=c.header[g-o.s.c];break;default:if(a==null)a={w:"__EMPTY",t:"s"};l=f=tn(a,null,c);v=b[f]||0;if(!v)b[f]=1;else{do{l=f+"_"+v++}while(b[l]);b[f]=v;b[l]=1}s[g]=l;}}m=o.s.r+i;t._read=function(){while(m<=o.e.r){if((k[m-1]||{}).hidden)continue;var r=Fk(e,o,m,d,n,s,c);++m;if(r.isempty===false||(n===1?c.blankrows!==false:!!c.blankrows)){t.push(r.row);return}}return t.push(null)};return t}function nA(e,r){var t=Qk();var a=r==null?{}:r;var n=+a.stride||10;if(!e.SSF)e.SSF=Ar(q);if(e.SSF){$e();Ve(e.SSF);a.revssf=lr(e.SSF);a.revssf[e.SSF[65535]]=0;a.ssf=e.SSF;a.cellXfs=[];Tv(a.cellXfs,{},{revssf:{General:0}})}e.SheetNames.forEach(function(r){var t=e.Sheets[r];if(!t||!t["!ref"])return;var n=Za(t["!ref"]);var i=t["!data"]!=null;var s=i?t["!data"]:[];var f={r:0,c:0};for(var l=n.s.r;l<=n.e.r;++l){f.r=l;if(i&&!s[l])continue;for(var o=n.s.c;o<=n.e.c;++o){f.c=o;var c=i?s[l][o]:t[$a(o)+Wa(l)];if(!c)continue;if(c.t=="d"&&c.z==null){c=Ar(c);c.z=q[14]}void Tv(a.cellXfs,c,a)}}});var i=xg(e,a);var s=0,f=0,l=e.Sheets[e.SheetNames[f]],o=en(l),c=-1,h=false;var u=[],d=0,v=false,p=[],m={r:0,c:0};t._read=function(){switch(s){case 0:{s=1;t.push(at);t.push("<Workbook"+Ut({xmlns:Gt.ss,"xmlns:o":Gt.o,"xmlns:x":Gt.x,"xmlns:ss":Gt.ss,"xmlns:dt":Gt.dt,"xmlns:html":Gt.html})+">")}break;case 1:{s=2;t.push(_g(e,a));t.push(Sg(e,a))}break;case 2:{s=3;t.push(i);t.push(Ig(e,a))}break;case 3:{h=false;if(f>=e.SheetNames.length){s=-1;t.push("");break}t.push("<Worksheet"+Ut({"ss:Name":bt(e.SheetNames[f])})+">");l=e.Sheets[e.SheetNames[f]];if(!l){t.push("</Worksheet>");return void++f}var r=Rg(l,a,f,e);if(r.length)t.push("<Names>"+r+"</Names>");if(!l["!ref"])return s=5;o=en(l["!ref"]);c=o.s.r;s=4}break;case 4:{if(c<0||c>o.e.r){if(h)t.push("</Table>");return void(s=5)}if(c<=o.s.r){if(l["!cols"])l["!cols"].forEach(function(e,r){oc(e);var a=!!e.width;var n=kv(r,e);var i={"ss:Index":r+1};if(a)i["ss:Width"]=nc(n.width);if(e.hidden)i["ss:Hidden"]="1";if(!h){h=true;t.push("<Table>")}t.push(Bt("Column",null,i))});v=l["!data"]!=null;if(v)p=l["!data"];m.r=m.c=0}for(var g=0;c<=o.e.r&&g<n;++c,++g){var b=[Pg(c,(l["!rows"]||[])[c])];m.r=c;if(!(v&&!p[c]))for(var w=o.s.c;w<=o.e.c;++w){m.c=w;var k=false;for(d=0;d!=u.length;++d){if(u[d].s.c>w)continue;if(u[d].s.r>c)continue;if(u[d].e.c<w)continue;if(u[d].e.r<c)continue;if(u[d].s.c!=w||u[d].s.r!=c)k=true;break}if(k)continue;var A=$a(w)+Wa(c),T=v?p[c][w]:l[A];b.push(Dg(T,A,l,a,f,e,m))}b.push("</Row>");if(!h){h=true;t.push("<Table>")}t.push(b.join(""))}}break;case 5:{t.push(Ng(l,a,f,e));if(l&&l["!autofilter"])t.push('<AutoFilter x:Range="'+nu(qa(l["!autofilter"].ref),{r:0,c:0})+'" xmlns="urn:schemas-microsoft-com:office:excel"></AutoFilter>');t.push("</Worksheet>");f++;c=-1;return void(s=3)};case-1:{s=-2;t.push("</Workbook>")}break;case-2:t.push(null);break;}};return t}var iA={to_json:aA,to_html:tA,to_csv:rA,to_xlml:nA,set_readable:eA};if(typeof Kg!=="undefined")e.parse_xlscfb=Kg;e.parse_zip=nk;e.read=mk;e.readFile=gk;e.readFileSync=gk;e.write=xk;e.writeFile=Ik;e.writeFileSync=Ik;e.writeFileAsync=Nk;e.utils=qk;e.writeXLSX=Sk;e.writeFileXLSX=Rk;e.set_fs=rr;e.set_cptable=g;e.SSF=Xe;if(typeof iA!=="undefined")e.stream=iA;if(typeof Qe!=="undefined")e.CFB=Qe;if(typeof require!=="undefined"){var sA=undefined;if((sA||{}).Readable)eA(sA.Readable);try{er=undefined}catch(au){}}}if(typeof exports!=="undefined")make_xlsx_lib(exports);else if(typeof module!=="undefined"&&module.exports)make_xlsx_lib(module.exports);else if(typeof define==="function"&&define.amd)define("xlsx",function(){if(!XLSX.version)make_xlsx_lib(XLSX);return XLSX});else make_xlsx_lib(XLSX);if(typeof window!=="undefined"&&!window.XLSX)try{window.XLSX=XLSX}catch(e){}
 
 </script>
-<script type="module">
+<script>
 /* Pure logic lives in src/proplan-core.mjs (DOM-free, testable). We import
    it here, destructure the bits this inline script references as bare names,
    AND re-attach the whole namespace to `window` so any legacy / debug caller
    can still reach Core.*. Wrappers below adapt the state-taking module APIs
    to the no-arg call sites used throughout this file. */
-import * as Core from './src/proplan-core.mjs';
+// === BEGIN INLINED proplan-core.mjs ===
+/* ProPlan core — pure logic extracted from Carpati Timeline.html.
+ *
+ * Everything in this module is DOM-free, localStorage-free, and side-effect
+ * free (with one obvious exception: the autoSequence + enforcePhaseOrder +
+ * renumberWPs family mutate the `state` object you pass in — that's their
+ * job).
+ *
+ * The HTML app loads this via <script type="module"> and re-attaches the
+ * exports to window so the rest of the inline script can keep referencing
+ * them as globals. Tests import them natively.
+ *
+ * The single-file release inlines the contents of this file back into the
+ * HTML via scripts/build.mjs.
+ */
+
+/* ====================== Constants ====================== */
+
+const WEEKS_PER_MONTH = 4;
+const PHASE_ORDER = { PRS: 0, DP: 1, DO: 2, FP: 3 };
+const PHASE_CODES_IN_ORDER = ["PRS", "DP", "DO", "FP"];
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const PROPOSAL_HOURS_PER_WEEK = 40;
+
+const TYPES = {
+  work:      { label: "Work",      bar: "#bfdbfe", border: "#1d4ed8" },
+  buffer:    { label: "Buffer",    bar: "#fde68a", border: "#b45309" },
+  leadtime:  { label: "Lead Time", bar: "#ddd6fe", border: "#6d28d9" },
+  review:    { label: "Review",    bar: "#bbf7d0", border: "#15803d" },
+  milestone: { label: "Milestone", bar: "#fbbf24", border: "#b45309" },
+};
+
+/* ====================== ID generators ====================== */
+
+function lid() { return "l" + Math.random().toString(36).slice(2, 9); }
+function bid() { return "b" + Math.random().toString(36).slice(2, 9); }
+
+/* ====================== Date / duration ====================== */
+
+/* Parse either "YYYY-MM" (legacy) or "YYYY-MM-DD" into {y, m, d}.
+   Defaults the day to 1 if absent. Defensive against empty / null input. */
+function parseYM(s) {
+  const parts = String(s || "").split("-").map(Number);
+  return { y: parts[0], m: parts[1], d: parts[2] || 1 };
+}
+
+/* Normalise a "YYYY-MM" string to "YYYY-MM-DD" for native <input type="date">. */
+function toDateInputValue(s) {
+  if (!s) return "";
+  const p = parseYM(s);
+  return `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
+}
+
+/* Inclusive list of {y, m} between startStr and endStr. Returns [] if endStr
+   precedes startStr — callers can rely on .length to detect empty ranges. */
+function monthsBetween(startStr, endStr) {
+  const s = parseYM(startStr), e = parseYM(endStr);
+  const out = [];
+  let y = s.y, m = s.m;
+  while (y < e.y || (y === e.y && m <= e.m)) {
+    out.push({ y, m });
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  return out;
+}
+
+/* Effective duration in WEEKS = raw span × (1 + buffer/100). Milestones = 0. */
+function effSpan(b) {
+  return b && b.type === "milestone" ? 0 : ((b && b.span) || 0) * (1 + ((b && b.buffer) || 0) / 100);
+}
+
+function rnd1(n) { return Math.round(n * 10) / 10; }
+
+function fmtDur(wk) {
+  const w = Math.round(wk * 10) / 10;
+  const mo = Math.round(wk / WEEKS_PER_MONTH * 10) / 10;
+  return `${w} wk · ≈${mo} mo`;
+}
+
+function laneEffWeeks(lane) {
+  return (lane.bars || []).reduce((sum, b) => sum + effSpan(b), 0);
+}
+
+/* ====================== WP / lane code ====================== */
+
+/* Strip the "WP <n> — " prefix from a lane code, returning just the name. */
+function wpNameOnly(code) {
+  const s = (code || "").trim();
+  const m = s.match(/^WP\s*\d+\s*(?:[—\-:]\s*)?(.*)$/i);
+  return (m ? m[1] : s).trim();
+}
+
+/* Mutate every lane.code so they read "WP 1 — Name", "WP 2 — Name", … in
+   display order. Preserves whatever follows the existing prefix. */
+function renumberWPs(state) {
+  if (!state || !Array.isArray(state.lanes)) return;
+  state.lanes.forEach((lane, i) => {
+    const n = i + 1;
+    const name = wpNameOnly(lane.code) || "New work package";
+    lane.code = `WP ${n} — ${name}`;
+  });
+}
+
+/* ====================== State helpers ====================== */
+
+/* Fill in missing fields after load/import. Tolerates partial data. */
+function normaliseState(state) {
+  for (const lane of state.lanes || []) {
+    for (const bar of lane.bars || []) {
+      if (!Array.isArray(bar.dependsOn)) bar.dependsOn = [];
+      if (typeof bar.buffer !== "number" || bar.buffer < 0) bar.buffer = 10;
+    }
+  }
+  if (state.activePhase === undefined) state.activePhase = null;
+}
+
+/* v3 → v4 migration: spans were measured in months; v4 measures in weeks. */
+function spansToWeeks(state) {
+  for (const lane of state.lanes || []) {
+    for (const bar of lane.bars || []) {
+      if (bar.type === "milestone") { bar.span = 0; continue; }
+      bar.span = Math.max(1, Math.round((bar.span || 1) * WEEKS_PER_MONTH));
+    }
+  }
+}
+
+/* Build a barId → {laneIdx, lane, bar} lookup map. O(n+m). */
+function buildBarMap(state) {
+  const map = {};
+  (state.lanes || []).forEach((lane, laneIdx) => {
+    (lane.bars || []).forEach(bar => { map[bar.id] = { laneIdx, lane, bar }; });
+  });
+  return map;
+}
+
+/* ====================== Phase logic ====================== */
+
+/* A "bleeding" task starts in one phase and extends into a later one
+   (declared via phaseEnd). */
+function isBleedingBar(bar) {
+  return !!(bar && bar.phase && bar.phaseEnd
+            && PHASE_ORDER.hasOwnProperty(bar.phase)
+            && PHASE_ORDER.hasOwnProperty(bar.phaseEnd)
+            && PHASE_ORDER[bar.phaseEnd] > PHASE_ORDER[bar.phase]);
+}
+
+/* All phase codes a bar covers, in order. Untagged bar → []. */
+function phaseSpanCodes(bar) {
+  if (!bar || !bar.phase || !PHASE_ORDER.hasOwnProperty(bar.phase)) return [];
+  const sIdx = PHASE_ORDER[bar.phase];
+  const endCode = (bar.phaseEnd && PHASE_ORDER.hasOwnProperty(bar.phaseEnd) && PHASE_ORDER[bar.phaseEnd] >= sIdx)
+    ? bar.phaseEnd : bar.phase;
+  const eIdx = PHASE_ORDER[endCode];
+  return PHASE_CODES_IN_ORDER.slice(sIdx, eIdx + 1);
+}
+
+/* Visual start..end range of each phase across the whole project.
+ * Rules:
+ *  - Milestones are EXCLUDED (point markers don't drag the range out).
+ *  - Bleeding tasks: start contributes only to start-phase, end only to phaseEnd.
+ *  - Untagged tasks ignored.
+ *  - extendsPhase bars contribute their START to b.phase only (their end is exempted from the gate).
+ *    Implemented here by NOT skipping them — same as the original. The end-gate
+ *    exemption is enforced in enforcePhaseOrder.
+ */
+function computePhaseRanges(state) {
+  const ranges = {};
+  for (const lane of state.lanes || []) {
+    for (const b of lane.bars || []) {
+      if (!b.phase || !PHASE_ORDER.hasOwnProperty(b.phase)) continue;
+      if (b.type === "milestone") continue;
+      const start = b.startIdx;
+      const end = b.startIdx + effSpan(b) / WEEKS_PER_MONTH;
+      const gatePhase = isBleedingBar(b) ? b.phaseEnd : b.phase;
+      const rS = ranges[b.phase] || (ranges[b.phase] = {});
+      if (rS.start === undefined || start < rS.start) rS.start = start;
+      const rE = ranges[gatePhase] || (ranges[gatePhase] = {});
+      if (rE.end === undefined || end > rE.end) rE.end = end;
+    }
+  }
+  for (const code of Object.keys(ranges)) {
+    const r = ranges[code];
+    if (r.start === undefined) r.start = r.end;
+    if (r.end === undefined) r.end = r.start;
+  }
+  return ranges;
+}
+
+/* Phase-closure gate at the END of every phase. Returned objects have no
+   colour — callers (the HTML renderer) enrich them with sopPhase()-derived
+   accent/bg colours before drawing. The final phase gets a "Project close"
+   gate labelled "END". */
+function computePhaseGates(phaseRanges, presentPhases) {
+  const gates = [];
+  for (let i = 0; i < presentPhases.length; i++) {
+    const code = presentPhases[i];
+    const r = phaseRanges[code];
+    if (!r || r.end === undefined) continue;
+    const isLast = (i === presentPhases.length - 1);
+    gates.push({
+      id: `_gate_${code}`,
+      type: "gate",
+      startIdx: r.end,
+      span: 0,
+      label: isLast ? "Project close" : `${code} closure`,
+      _gateCode: isLast ? "END" : code,
+    });
+  }
+  return gates;
+}
+
+/* Strict cross-phase ordering. Two passes:
+ *   - START-SNAP: a bar starts no earlier than the previous phase's gate.
+ *     The bar's STARTING phase (b.phase) drives this — a bleeding DP→DO
+ *     task is held by PRS's gate, not DP's.
+ *   - END-GATE: the cumulativeMaxEnd that the NEXT phase respects.
+ *     - Plain task: contributes to b.phase.
+ *     - Bleed (phase=X, phaseEnd=Y): contributes to Y (so the bleed's tail
+ *       formally lives in Y, not X — Y is the gate that hangs on it).
+ *     - extendsPhase: never contributes (long-running tail exempt from gating).
+ * Mutates state.lanes[*].bars[*].startIdx.
+ */
+function enforcePhaseOrder(state) {
+  let cumulativeMaxEnd = 0;
+  for (const phase of PHASE_CODES_IN_ORDER) {
+    let phaseMaxEnd = cumulativeMaxEnd;
+    for (const lane of state.lanes || []) {
+      for (const b of lane.bars || []) {
+        if (b.phase === phase && b.startIdx < cumulativeMaxEnd) {
+          b.startIdx = Math.ceil(cumulativeMaxEnd * WEEKS_PER_MONTH) / WEEKS_PER_MONTH;
+        }
+        if (b.extendsPhase) continue;
+        const gatePhase = (b.phaseEnd
+                           && PHASE_ORDER.hasOwnProperty(b.phaseEnd)
+                           && PHASE_ORDER[b.phaseEnd] > PHASE_ORDER[b.phase])
+                          ? b.phaseEnd : b.phase;
+        if (gatePhase !== phase) continue;
+        const end = b.startIdx + (b.type === "milestone" ? 0 : effSpan(b) / WEEKS_PER_MONTH);
+        if (end > phaseMaxEnd) phaseMaxEnd = end;
+      }
+    }
+    cumulativeMaxEnd = phaseMaxEnd;
+  }
+}
+
+/* ====================== Dependency / sequence ====================== */
+
+/* Kahn's algorithm. Returns barIds in topological order or null on cycle. */
+function topoOrder(map) {
+  const ids = Object.keys(map);
+  const inDeg = {}; const succ = {};
+  for (const id of ids) { inDeg[id] = 0; succ[id] = []; }
+  for (const id of ids) {
+    for (const pred of (map[id].bar.dependsOn || [])) {
+      if (!(pred in inDeg)) continue;
+      inDeg[id]++; succ[pred].push(id);
+    }
+  }
+  const queue = ids.filter(i => inDeg[i] === 0);
+  const out = [];
+  while (queue.length) {
+    const cur = queue.shift(); out.push(cur);
+    for (const s of succ[cur]) { inDeg[s]--; if (inDeg[s] === 0) queue.push(s); }
+  }
+  if (out.length !== ids.length) return null;
+  return out;
+}
+
+/* Would adding predId → targetId create a cycle? Walks targetId's ancestor
+   chain via map[*].bar.dependsOn and checks for predId. */
+function createsCycle(targetId, predId, map) {
+  const visited = new Set(); const stack = [predId];
+  while (stack.length) {
+    const cur = stack.pop();
+    if (cur === targetId) return true;
+    if (visited.has(cur)) continue;
+    visited.add(cur);
+    const entry = map[cur]; if (!entry) continue;
+    for (const p of (entry.bar.dependsOn || [])) stack.push(p);
+  }
+  return false;
+}
+
+/* Auto-sequence: place every bar at its earliest legal position given its
+ * predecessors and phase-gate constraints.
+ *
+ * Algorithm: fixpoint loop of (topoPass + enforcePhaseOrder).
+ *   - First pass (ratchet=false): reset each bar to max(pred end) — gives
+ *     tightest layout from scratch.
+ *   - Subsequent passes (ratchet=true): bars can only move FORWARD. Needed
+ *     because enforcePhaseOrder pushes some predecessors forward to clear an
+ *     earlier phase's gate, and their successors must then re-place against
+ *     the new (later) end. Without ratchet, a non-ratchet pass would revert
+ *     the predecessor to its raw pred-end and successors would oscillate.
+ *
+ * Returns { ok, iterations, error? }. Mutates state on success.
+ *
+ * NOTE: deliberately does NOT call any renderer or alert(). Caller handles UI.
+ */
+function autoSequence(state) {
+  const map = buildBarMap(state);
+  const order = topoOrder(map);
+  if (!order) return { ok: false, iterations: 0, error: "Dependency cycle detected — cannot auto-sequence." };
+
+  const topoPass = (ratchet) => {
+    for (const barId of order) {
+      const entry = map[barId]; if (!entry) continue;
+      const bar = entry.bar;
+      let earliest = ratchet ? bar.startIdx : 0;
+      for (const predId of (bar.dependsOn || [])) {
+        const p = map[predId]; if (!p) continue;
+        const pe = p.bar.type === "milestone"
+          ? p.bar.startIdx
+          : p.bar.startIdx + effSpan(p.bar) / WEEKS_PER_MONTH;
+        if (pe > earliest) earliest = pe;
+      }
+      bar.startIdx = earliest;
+      if (bar.type !== "milestone" && (!bar.span || bar.span <= 0)) bar.span = 1;
+    }
+  };
+  const snapshot = () => order.map(id => map[id] && map[id].bar.startIdx).join(",");
+
+  topoPass(false);
+  enforcePhaseOrder(state);
+  let prev = snapshot();
+  let iter = 0;
+  for (; iter < 16; iter++) {
+    topoPass(true);
+    enforcePhaseOrder(state);
+    const cur = snapshot();
+    if (cur === prev) break;
+    prev = cur;
+  }
+  return { ok: true, iterations: iter + 1 };
+}
+
+/* ====================== Bar packing ====================== */
+
+/* Greedy first-fit row packing for stacking overlapping bars.
+ * - `colW` (px-per-month) lets the packer reserve horizontal room for the
+ *   external label of bars that are too narrow to contain their own label
+ *   text. Pass 0 to skip label-aware packing.
+ * - `opts.milestonesAtBottom`: when true, pack non-milestone bars into top
+ *   rows, then milestones below them.
+ * Returns { rowByBarId, totalRows }.
+ */
+function packLaneRows(bars, colW = 0, opts = {}) {
+  const charW = 6.5;
+  const milestonesAtBottom = !!opts.milestonesAtBottom;
+
+  const makeItem = (b) => {
+    const label = b.label || "";
+    const start = b.startIdx;
+    let dur, labelExtPx;
+    if (b.type === "milestone" || b.type === "gate") {
+      dur = 0;
+      const isGate = b.type === "gate";
+      labelExtPx = (isGate ? 11 : 10) + 6 + label.length * charW + 8;
+    } else {
+      dur = Math.max(0.25, effSpan(b) / WEEKS_PER_MONTH);
+      const barWidthPx = dur * colW;
+      const estLabelW = label.length * charW + 24;
+      labelExtPx = (colW > 0 && barWidthPx < estLabelW) ? (8 + label.length * charW + 8) : 0;
+    }
+    const labelExtMonths = colW > 0 ? labelExtPx / colW : 0;
+    return { id: b.id, type: b.type, start, end: start + dur + labelExtMonths };
+  };
+  const sortFn = (a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start);
+
+  const rowByBarId = {};
+  let totalRows = 0;
+
+  function packInto(items, startingRow) {
+    const rows = [];
+    for (const it of items) {
+      let r = 0;
+      while (r < rows.length && rows[r].some(s => s.start < it.end && it.start < s.end)) r++;
+      if (r === rows.length) rows.push([]);
+      rows[r].push({ start: it.start, end: it.end });
+      rowByBarId[it.id] = startingRow + r;
+    }
+    return rows.length;
+  }
+
+  if (milestonesAtBottom) {
+    const barItems = bars.filter(b => b.type !== "milestone").map(makeItem).sort(sortFn);
+    const msItems  = bars.filter(b => b.type === "milestone").map(makeItem).sort(sortFn);
+    const barRows = packInto(barItems, 0);
+    const msRows  = packInto(msItems, barRows);
+    totalRows = barRows + msRows;
+  } else {
+    const items = bars.map(makeItem).sort(sortFn);
+    totalRows = packInto(items, 0);
+  }
+  return { rowByBarId, totalRows: Math.max(1, totalRows) };
+}
+
+/* ====================== Proposal hours ====================== */
+
+/* Should this bar contribute hours to the Proposal Timeline rollup?
+ * - Milestones never contribute.
+ * - Leadtime contributes only when includeLeadtime is true.
+ * - Everything else contributes.
+ */
+function proposalBarCountsForHours(b, { includeLeadtime = true } = {}) {
+  if (!b || b.type === "milestone") return false;
+  if (b.type === "leadtime" && !includeLeadtime) return false;
+  return true;
+}
+
+/* Distribute a bar's hours across calendar months.
+ * Returns an Array(numMonths) of hour values.
+ *
+ * Inputs:
+ *   - b: the bar
+ *   - opts.numMonths: total month columns in the rollup
+ *   - opts.startMonthOffset: how many calendar months separate the project
+ *     start from the rollup's month-0 (default 0 — rollup starts at project
+ *     start). When the rollup pads with year-prefix months, pass the offset
+ *     in WHOLE months: e.g. project starts in May year1 but rollup column 0
+ *     is Jan year1 → startMonthOffset = 4.
+ *   - opts.hoursPerWeek (default 40)
+ *   - opts.includeLeadtime (default true)
+ *
+ * The bar's startIdx is in PROJECT months (1 month = 4 weeks in the data
+ * model). We add startMonthOffset to map it onto the rollup's column space.
+ * Time within each month is prorated by fractional overlap.
+ */
+function barHoursDist(b, {
+  numMonths,
+  startMonthOffset = 0,
+  hoursPerWeek = PROPOSAL_HOURS_PER_WEEK,
+  includeLeadtime = true,
+} = {}) {
+  const dist = new Array(numMonths).fill(0);
+  if (!proposalBarCountsForHours(b, { includeLeadtime })) return dist;
+  const effMonths = effSpan(b) / WEEKS_PER_MONTH;
+  const cs = b.startIdx + startMonthOffset;
+  const ce = cs + effMonths;
+  const firstM = Math.max(0, Math.floor(cs));
+  const lastM = Math.min(numMonths - 1, Math.ceil(ce) - 1);
+  for (let m = firstM; m <= lastM; m++) {
+    const len = Math.max(0, Math.min(m + 1, ce) - Math.max(m, cs));
+    const h = len * WEEKS_PER_MONTH * hoursPerWeek;
+    if (h > 0) dist[m] += h;
+  }
+  return dist;
+}
+const Core = { WEEKS_PER_MONTH, PHASE_ORDER, PHASE_CODES_IN_ORDER, MONTH_NAMES, PROPOSAL_HOURS_PER_WEEK, TYPES, lid, bid, parseYM, toDateInputValue, monthsBetween, effSpan, rnd1, fmtDur, laneEffWeeks, wpNameOnly, renumberWPs, normaliseState, spansToWeeks, buildBarMap, isBleedingBar, phaseSpanCodes, computePhaseRanges, computePhaseGates, enforcePhaseOrder, topoOrder, createsCycle, autoSequence, packLaneRows, proposalBarCountsForHours, barHoursDist };
+// === END INLINED proplan-core.mjs ===
+
 const {
   WEEKS_PER_MONTH, PHASE_ORDER, PHASE_CODES_IN_ORDER, MONTH_NAMES,
   PROPOSAL_HOURS_PER_WEEK, TYPES,
