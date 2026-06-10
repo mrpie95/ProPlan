@@ -35,10 +35,13 @@ const END = '// === END INLINED proplan-core.mjs ===';
 
 const EXPORT_NAMES = [
   'WEEKS_PER_MONTH', 'PHASE_ORDER', 'PHASE_CODES_IN_ORDER', 'MONTH_NAMES',
-  'PROPOSAL_HOURS_PER_WEEK', 'TYPES',
+  'PROPOSAL_HOURS_PER_WEEK', 'TYPES', 'LANE_TRACKS', 'TRACK_DEFAULTS',
+  'enabledTracks', 'isTrackEnabled', 'barTrack',
   'lid', 'bid',
   'parseYM', 'toDateInputValue', 'monthsBetween',
-  'effSpan', 'rnd1', 'fmtDur', 'laneEffWeeks',
+  'projectSpanWeeks', 'syncOngoingBars',
+  'effSpan', 'barAllocPct', 'effortWeeks',
+  'rnd1', 'fmtDur', 'laneEffWeeks',
   'wpNameOnly', 'renumberWPs',
   'normaliseState', 'spansToWeeks', 'buildBarMap',
   'isBleedingBar', 'phaseSpanCodes',

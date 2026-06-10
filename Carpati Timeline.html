@@ -235,18 +235,37 @@
   main { padding: 16px; }
 
   /* ======================== VIEW SWITCHING ======================== */
-  body[data-view="plan"] :is(#timelineView, #viewAView, #viewBView, #phaseView, #processView, #proposalView) { display: none; }
-  body[data-view="timeline"] :is(#planView, #viewAView, #viewBView, #phaseView, #processView, #proposalView) { display: none; }
-  body[data-view="viewA"] :is(#planView, #timelineView, #viewBView, #phaseView, #processView, #proposalView) { display: none; }
-  body[data-view="viewB"] :is(#planView, #timelineView, #viewAView, #phaseView, #processView, #proposalView) { display: none; }
-  body[data-view="phase"] :is(#planView, #timelineView, #viewAView, #viewBView, #processView, #proposalView) { display: none; }
-  body[data-view="process"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #proposalView) { display: none; }
-  body[data-view="proposal"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView) { display: none; }
+  body[data-view="plan"] :is(#timelineView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #proposalView) { display: none; }
+  body[data-view="timeline"] :is(#planView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #proposalView) { display: none; }
+  body[data-view="viewA"] :is(#planView, #timelineView, #viewBView, #phaseView, #processView, #structureView, #proposalView) { display: none; }
+  body[data-view="viewB"] :is(#planView, #timelineView, #viewAView, #phaseView, #processView, #structureView, #proposalView) { display: none; }
+  body[data-view="phase"] :is(#planView, #timelineView, #viewAView, #viewBView, #processView, #structureView, #proposalView) { display: none; }
+  body[data-view="process"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #structureView, #proposalView) { display: none; }
+  body[data-view="structure"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #proposalView) { display: none; }
+  body[data-view="proposal"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #structureView) { display: none; }
   body[data-view="process"] .timeline-only,
-  body[data-view="phase"] .timeline-only { display: none !important; }
+  body[data-view="phase"] .timeline-only,
+  body[data-view="structure"] .timeline-only { display: none !important; }
   body[data-view="viewA"] .hdr-tier2,
   body[data-view="viewB"] .hdr-tier2 { display: flex; }
 
+  /* ===== View-only mode =====
+     Collapses the toolbar surface by hiding chips that are about editing
+     rather than just displaying. Doesn't touch the rest of the UI, so the
+     Plan view stays fully editable — only the Timeline-relevant edit chips
+     disappear here. */
+  body[data-view-only="1"] .chip.edit-only { display: none !important; }
+  /* Disabled state for undo / redo chips when there's nothing to undo/redo. */
+  .chip[disabled], .chip[disabled]:hover {
+    opacity: 0.45; cursor: not-allowed; background: var(--panel); color: var(--muted);
+  }
+  /* Also dim the right-click hint on Timeline bars so the user knows
+     interaction is intentionally limited. Real context-menu suppression is
+     handled in JS by the openCtxMenu guard. */
+  body[data-view-only="1"] .bar,
+  body[data-view-only="1"] .ov-bar { cursor: default; }
+  body[data-view-only="1"] .bar .resize,
+  body[data-view-only="1"] .bar .connect-handle { display: none; }
   /* ===== Focus mode =====
      Hides the page chrome (header, hints) so the active view fills the
      viewport. Doesn't touch browser fullscreen — Esc / the floating exit
@@ -1151,6 +1170,70 @@
     color: var(--phase-text, var(--ink));
     display: flex; align-items: center; justify-content: center;
   }
+  /* Context lanes: WPs auto-included in a track-filtered view because they
+     share dependencies with the primary track. Rendered at full opacity (the
+     dep chain IS part of the PLE picture), but tagged with a small "↪" glyph
+     in the WP header so the user knows they were auto-included. */
+  .wp-header-cell.is-context::after {
+    content: "↪";
+    position: absolute; top: 4px; right: 4px;
+    font-size: 11px; font-weight: 800;
+    color: var(--muted);
+    opacity: 0.7;
+  }
+  /* Track filter — small segmented control: [All] [Product] [PLE]. */
+  .chip.chip-segmented {
+    display: inline-flex; align-items: center; gap: 0;
+    padding: 2px 4px 2px 12px;
+    cursor: default;
+  }
+  .chip.chip-segmented .chip-select-label { margin-right: 4px; }
+  .chip-seg-btn {
+    padding: 4px 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--ink-soft);
+    font: inherit; font-size: 12px; font-weight: 600;
+    cursor: pointer;
+    border-radius: 999px;
+  }
+  .chip-seg-btn:not(:first-of-type) { margin-left: 2px; }
+  .chip-seg-btn.is-active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .chip-seg-btn:hover:not(.is-active) {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+  .chip.chip-segmented.is-active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  /* Focus WP picker (chip with embedded select) — sits in the Timeline toolbar. */
+  .chip.chip-select {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 0 4px 0 12px;   /* select brings its own right padding */
+    cursor: pointer;
+  }
+  .chip.chip-select .chip-select-label {
+    font-size: 12px; color: var(--muted); font-weight: 600;
+    user-select: none;
+  }
+  .chip.chip-select select {
+    border: none; background: transparent;
+    font: inherit; font-weight: 600;
+    color: var(--ink); cursor: pointer;
+    padding: 6px 4px 6px 4px;
+    max-width: 220px;
+  }
+  .chip.chip-select select:focus { outline: none; }
+  .chip.chip-select.is-active {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  .chip.chip-select.is-active .chip-select-label { color: var(--accent); }
   .left-cell.wp-header-cell .wp-code-line {
     font-size: 13px; font-weight: 700; color: var(--phase-text, var(--ink)); line-height: 1.25;
   }
@@ -1240,6 +1323,87 @@
   /* ======================== PLAN VIEW ======================== */
   body[data-view="plan"] #timelineView { display: none; }
   body[data-view="timeline"] #planView { display: none; }
+
+  /* ========== Structure view ========== */
+  .struct-view {
+    max-width: 900px; margin: 0 auto;
+    padding: 8px 0 40px;
+    display: flex; flex-direction: column; gap: 20px;
+  }
+  .struct-header h1 { margin: 0 0 6px; font-size: 22px; color: var(--accent); font-weight: 700; }
+  .struct-header p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .struct-banner {
+    padding: 10px 16px;
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+    border-radius: var(--radius-lg);
+    color: var(--ink);
+    font-size: 13px;
+  }
+  .struct-grid { display: flex; flex-direction: column; gap: 14px; }
+  .struct-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--track-accent);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    box-shadow: var(--shadow-sm);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .struct-card-head { display: flex; align-items: flex-start; gap: 14px; }
+  .struct-swatch {
+    display: inline-block;
+    width: 28px; height: 28px; border-radius: 8px;
+    background: var(--track-bar);
+    border: 1.5px solid var(--track-accent);
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .struct-card-title { flex: 1; min-width: 0; }
+  .struct-card-title h2 { margin: 0; font-size: 17px; color: var(--ink); font-weight: 700; }
+  .struct-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .struct-toggle {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 12px; font-weight: 600; color: var(--ink);
+    background: var(--surface);
+    user-select: none;
+  }
+  .struct-toggle:has(input:checked) {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .struct-toggle input { accent-color: var(--accent); width: 14px; height: 14px; }
+  .struct-card-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+  .struct-chip, .struct-chip-count {
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+  }
+  .struct-chip-on { color: #1d4ed8; background: #e0f2fe; border-color: #93c5fd; }
+  .struct-chip-off { color: var(--muted); }
+  .struct-chip-count { color: var(--ink-soft); font-weight: 600; }
+  .struct-wp-list {
+    margin: 4px 0 0; padding: 0; list-style: none;
+    display: flex; flex-wrap: wrap; gap: 6px;
+  }
+  .struct-wp-list li {
+    padding: 3px 9px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11.5px; color: var(--ink);
+  }
+  .struct-empty {
+    font-size: 12px; color: var(--muted); font-style: italic;
+  }
 
   /* ========== Proposal Timeline view ========== */
   .proposal-wrap {
@@ -1339,12 +1503,15 @@
   }
 
   /* Two-column layout when the TOC sidebar is rendered: 240px TOC | 1fr main.
-     On narrow screens it collapses to a single column. */
+     On narrow screens it collapses to a single column. The outer cap is
+     generous (1840px) because every Plan row now packs in 7 grid columns
+     plus the actions cell — squeezing them at 1400px makes the dep chips
+     truncate. Past ~1840px we'd be wasting space on giant chips. */
   .plan-with-toc {
     display: grid;
     grid-template-columns: 240px minmax(0, 1fr);
     gap: 20px;
-    max-width: 1400px;
+    max-width: 1840px;
   }
   .plan-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
   .plan-toc {
@@ -1437,6 +1604,44 @@
      beside the editable name field. Replaces the older single-field that
      mixed prefix and name together. */
   .wp-code-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  /* Track pill on each WP card — clickable toggle between Product and PLE. */
+  .wp-track-pill {
+    flex-shrink: 0;
+    margin-left: auto;        /* push to the right end of the row */
+    padding: 3px 11px;
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em;
+    border-radius: 999px;
+    cursor: pointer;
+    border: 1px solid;
+    transition: background var(--transition), border-color var(--transition);
+  }
+  .wp-track-pill.wp-track-product {
+    color: #0369a1;
+    background: #e0f2fe;
+    border-color: #7dd3fc;
+  }
+  .wp-track-pill.wp-track-product:hover { background: #bae6fd; }
+  .wp-track-pill.wp-track-exploration {
+    color: #b45309;
+    background: #fef3c7;
+    border-color: #fbbf24;
+  }
+  .wp-track-pill.wp-track-exploration:hover { background: #fde68a; }
+  .wp-track-pill.wp-track-ple {
+    color: #6b21a8;
+    background: #f3e8ff;
+    border-color: #d8b4fe;
+  }
+  .wp-track-pill.wp-track-ple:hover { background: #e9d5ff; }
+  [data-theme="dark"] .wp-track-pill.wp-track-exploration {
+    color: #fde68a; background: rgba(180, 83, 9, 0.25); border-color: #b45309;
+  }
+  [data-theme="dark"] .wp-track-pill.wp-track-product {
+    color: #bae6fd; background: rgba(3, 105, 161, 0.25); border-color: #0369a1;
+  }
+  [data-theme="dark"] .wp-track-pill.wp-track-ple {
+    color: #e9d5ff; background: rgba(107, 33, 168, 0.25); border-color: #6b21a8;
+  }
   .wp-num-pill {
     flex-shrink: 0;
     display: inline-flex; align-items: center; justify-content: center;
@@ -1478,6 +1683,46 @@
   .wp-icon-btn:hover { background: var(--surface); border-color: var(--border-strong); color: var(--ink); }
   .wp-icon-btn.danger { color: var(--danger); border-color: #fecaca; }
   .wp-icon-btn.danger:hover { background: #fef2f2; border-color: #fca5a5; color: var(--danger); }
+  /* ↗ Timeline button: jumps to the Timeline view filtered to this WP only. */
+  .wp-icon-btn.wp-open-btn {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+    background: var(--accent-soft);
+    font-weight: 600;
+  }
+  .wp-icon-btn.wp-open-btn:hover {
+    background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  /* Filter banner above the Timeline view — only shown when a single-WP filter
+     is active. Sits OUTSIDE the wrap so it doesn't scroll with the grid. */
+  .viewa-filter-banner {
+    display: flex; align-items: center; gap: 14px;
+    margin: 0 0 10px;
+    padding: 8px 14px;
+    background: var(--accent-soft);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+    border-radius: var(--radius-lg);
+    font-size: 13px;
+    color: var(--ink);
+  }
+  /* The `display: flex` above wins over [hidden]'s default display:none —
+     re-add a higher-specificity rule so the banner actually disappears when
+     no filter is active. */
+  .viewa-filter-banner[hidden] { display: none; }
+  .viewa-filter-msg strong { color: var(--accent); }
+  .viewa-filter-clear {
+    margin-left: auto;
+    padding: 4px 12px;
+    border: 1px solid var(--accent);
+    background: var(--panel);
+    color: var(--accent);
+    border-radius: 999px;
+    font-size: 12px; font-weight: 600;
+    cursor: pointer;
+  }
+  .viewa-filter-clear:hover { background: var(--accent); color: white; }
   /* Compact ↑ / ↓ reorder buttons next to Delete. Square, icon-only,
      disabled when the WP is already at the top / bottom of the list. */
   .wp-icon-btn.wp-move-btn {
@@ -1502,16 +1747,53 @@
     border-radius: var(--radius);
     background: color-mix(in srgb, var(--accent) 8%, transparent);
   }
-  .task-row {
+  /* Shared grid template for the task list — the header row and every task
+     row use the same columns so their cells align cleanly. The Actions
+     column was 48 px (just a Delete button) but now holds 4 controls
+     (track / lock / move-popup / delete), so it gets 140 px. */
+  .task-row,
+  .task-list-header {
     display: grid;
-    grid-template-columns: 22px 100px 100px minmax(140px, 1fr) 220px minmax(180px, 1.05fr) 48px;
+    grid-template-columns: 22px 100px 100px minmax(140px, 1fr) 360px minmax(180px, 1.05fr) 140px;
     gap: 10px; align-items: center;
+  }
+  /* Actions cell: tighten the gap so 4 small buttons fit without wrapping. */
+  .task-row > .task-actions {
+    gap: 4px;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+  .task-row {
     padding: 8px 12px;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
     position: relative;
   }
+  .task-row > .task-span {
+    overflow: hidden;
+    display: flex; flex-wrap: nowrap; align-items: center; gap: 4px;
+  }
+  /* Column-header row: small uppercase captions above the first task. Only
+     appears when the WP has at least one task. */
+  .task-list-header {
+    padding: 4px 12px 2px;
+    font-size: 9.5px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .task-list-header .thdr-cell {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .task-list-header .thdr-spacer { /* matches the drag-handle / actions cells */ }
+  /* The Time / Buffer / Workload / Effort sub-headings live in the span column
+     and split it into four equal segments aligned over their respective inputs. */
+  .task-list-header .thdr-span {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 4px;
+  }
+  .task-list-header .thdr-sub { text-align: left; }
   .task-phase-cell {
     display: flex; align-items: center; gap: 6px;
     min-width: 0;
@@ -1668,12 +1950,38 @@
     font-size: 12px; color: var(--muted); font-weight: 500;
   }
   .task-buffer-input {
-    width: 42px; padding: 4px 4px;
+    /* 52px (was 42px) fits 3-digit values like "100" + the spinner arrows
+       without clipping in the centred text. */
+    width: 52px; padding: 4px 4px;
     border: 1px solid var(--border); border-radius: 6px;
     background: #fff; font: inherit; font-size: 12px; font-weight: 600;
     text-align: center; color: var(--ink); margin: 0 1px;
   }
   .task-buffer-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  /* Allocation %: same look as the buffer pill but tinted differently so the
+     two distinct concepts are visually separable. */
+  .task-alloc {
+    display: inline-flex; align-items: center; gap: 1px;
+    margin-left: 4px;
+    font-size: 12px; color: var(--muted); font-weight: 500;
+  }
+  .task-alloc-input {
+    /* 52px to fit "100" + spinner arrows; same as the buffer input. */
+    width: 52px; padding: 4px 4px;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: color-mix(in srgb, var(--accent) 6%, #fff);
+    font: inherit; font-size: 12px; font-weight: 600;
+    text-align: center; color: var(--ink); margin: 0 1px;
+  }
+  .task-alloc-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+  /* When a Time / Buffer input is locked (the bar is "Ongoing"), de-emphasise
+     it so the user notices and looks at the Workload field instead. */
+  .task-span-input.is-locked,
+  .task-buffer-input.is-locked {
+    background: var(--surface);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
   .task-eff {
     font-size: 12px; font-weight: 700; color: var(--accent);
     white-space: nowrap;
@@ -1893,6 +2201,59 @@
     background: #fff; cursor: pointer; color: var(--muted);
   }
   .task-actions button:hover { color: var(--danger); border-color: #fecaca; background: #fef2f2; }
+  /* Per-task track override — cycles inherit → PLE → Product. Compact pill;
+     muted dot when inheriting from the WP, coloured label when overridden.
+     Width is fixed so the column rhythm stays even as the label changes. */
+  .task-actions .task-track-btn {
+    width: 38px; min-width: 38px; padding: 4px 0;
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
+    text-align: center;
+  }
+  .task-actions .task-track-btn.task-track-inherit {
+    color: var(--muted);
+    border-color: var(--border);
+    background: var(--surface);
+    /* Lowercase + lighter so it reads as "inherited, not explicit" — at a
+       glance you can see the effective track without confusing it with an
+       explicit override. */
+    text-transform: lowercase;
+    font-weight: 600;
+    opacity: 0.7;
+  }
+  .task-actions .task-track-btn.task-track-inherit:hover {
+    color: var(--accent); border-color: var(--accent); background: var(--accent-soft);
+  }
+  .task-actions .task-track-btn.task-track-ple {
+    color: #6b21a8; background: #f3e8ff; border-color: #d8b4fe;
+  }
+  .task-actions .task-track-btn.task-track-ple:hover { background: #e9d5ff; }
+  .task-actions .task-track-btn.task-track-product {
+    color: #0369a1; background: #e0f2fe; border-color: #7dd3fc;
+  }
+  .task-actions .task-track-btn.task-track-product:hover { background: #bae6fd; }
+  .task-actions .task-track-btn.task-track-exploration {
+    color: #b45309; background: #fef3c7; border-color: #fbbf24;
+  }
+  .task-actions .task-track-btn.task-track-exploration:hover { background: #fde68a; }
+  /* Lock toggle — not a delete; override the destructive hover styling. */
+  .task-actions .task-lock-btn {
+    color: var(--muted);
+  }
+  .task-actions .task-lock-btn:hover {
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  .task-actions .task-lock-btn.is-locked {
+    color: #b45309;
+    background: #fef3c7;
+    border-color: #fbbf24;
+  }
+  .task-actions .task-lock-btn.is-locked:hover {
+    background: #fde68a;
+    color: #78350f;
+    border-color: #f59e0b;
+  }
   /* Move-task button + popup. <details>/<summary> handles open/close
      natively; we just style the summary as a button and absolutely-position
      the popup so it doesn't push other row content around. */
@@ -2047,6 +2408,12 @@
        the top of the timeline while the user scrolls through tasks. */
     max-height: calc(100vh - 200px);
   }
+  /* Hide the horizontal scrollbar at the bottom of the timeline. Scrolling
+     still works (shift-wheel, trackpad swipe, arrow keys, drag). Vertical
+     scrollbar is untouched. WebKit (Chrome/Safari/Edge) uses the per-axis
+     pseudo-element; Firefox has no per-axis equivalent so its horizontal
+     bar stays visible — acceptable since the project's target is WebKit. */
+  .wrap::-webkit-scrollbar:horizontal { display: none; }
   .timeline { display: grid; position: relative; }
 
   .header-corner {
@@ -2335,6 +2702,38 @@
     border-radius: 0 11px 11px 0;
   }
   .bar > .bar-buffer { border-radius: 0 12px 12px 0; }
+  /* Lock badge — small 🔒 in the top-right of a locked bar, on both the
+     expanded (.bar) and collapsed (.ov-bar) renderers. The bar itself also
+     gets a is-locked class so future styling (e.g. a subtle dashed border)
+     can hook off it without touching the badge. */
+  .bar-lock-badge {
+    position: absolute;
+    top: -4px; right: -4px;
+    font-size: 10px; line-height: 1;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #fef3c7;
+    border: 1.5px solid #f59e0b;
+    color: #78350f;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 3px rgba(180,83,9,0.35);
+    pointer-events: auto;
+    z-index: 4;
+    user-select: none;
+  }
+  /* Make the badge fit inside the smaller .ov-bar (collapsed view) too. */
+  .ov-bar .bar-lock-badge {
+    top: -5px; right: -5px;
+    width: 14px; height: 14px;
+    font-size: 9px;
+    border-width: 1.25px;
+  }
+  [data-theme="dark"] .bar-lock-badge {
+    background: rgba(180,83,9,0.6);
+    border-color: #fbbf24;
+    color: #fef3c7;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
   [data-theme="dark"] .bar-buffer {
     background-image: repeating-linear-gradient(
       -45deg,
@@ -2674,6 +3073,41 @@
   }
   .modal h3 { margin: 0 0 4px; font-size: 16px; color: var(--ink); }
   .modal .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+  /* Auto-sequence dialog — summary block + locked-task list + actions. */
+  .autoseq-summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    font-size: 13px; color: var(--ink);
+  }
+  .autoseq-summary > div + div { margin-top: 4px; }
+  .autoseq-summary strong { color: var(--accent); font-weight: 700; }
+  .autoseq-locked {
+    margin: 8px 0 0; padding: 0; list-style: none;
+    font-size: 12px; color: var(--ink-soft);
+    max-height: 140px; overflow-y: auto;
+  }
+  .autoseq-locked li { padding: 2px 0; }
+  .autoseq-locked li.muted { color: var(--muted); font-style: italic; }
+  .autoseq-actions {
+    display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px;
+  }
+  .modal-btn {
+    padding: 8px 18px;
+    border: 1px solid var(--border);
+    background: var(--surface); color: var(--ink);
+    border-radius: 8px; cursor: pointer;
+    font: inherit; font-weight: 600; font-size: 13px;
+  }
+  .modal-btn:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+  .modal-btn.primary {
+    background: var(--accent); color: white; border-color: var(--accent);
+  }
+  .modal-btn.primary:hover {
+    background: color-mix(in srgb, var(--accent) 85%, black);
+  }
   .modal .list {
     overflow-y: auto; flex: 1;
     border: 1px solid var(--border); border-radius: var(--radius);
@@ -2703,6 +3137,7 @@
       <button class="view-btn" data-view="viewA">Timeline</button>
       <button class="view-btn" data-view="phase" title="Phase-focused project status">Phase</button>
       <button class="view-btn" data-view="process" title="SOP-18 process reference">Process</button>
+      <button class="view-btn" data-view="structure" title="Project structure — which streams of work exist in this project">Structure</button>
       <button class="view-btn" data-view="proposal" title="Hours-per-month rollup table — printable for proposals">Proposal Timeline</button>
     </div>
 
@@ -2747,8 +3182,21 @@
     <button class="chip" id="weeksToggle" title="Show / hide ISO week numbers under each month">📅 Weeks</button>
     <button class="chip" id="arrowsToggle" title="Show / hide dependency arrows between bars">↳ Arrows</button>
     <button class="chip" id="milestonesToggle" title="Show / hide milestones">★ Milestones</button>
-    <button class="chip" id="colorByWpToggle" title="Toggle bar colour: by phase (default) ↔ by work package">🎨 By WP</button>
-    <button class="chip" id="autoSeq" title="Lay bars out in dependency order">✨ Auto-sequence</button>
+    <button class="chip" id="hideLockedToggle" title="Show / hide locked tasks on the Timeline. Locked tasks are still in the data, just not drawn.">🔒 Locked</button>
+    <button class="chip edit-only" id="colorByWpToggle" title="Toggle bar colour: by phase (default) ↔ by work package">🎨 By WP</button>
+    <button class="chip edit-only" id="autoSeq" title="Lay bars out in dependency order">✨ Auto-sequence</button>
+    <span class="chip chip-segmented" id="trackFilterControl" title="Filter the Timeline to one of the project's tracks">
+      <span class="chip-select-label">Track</span>
+      <!-- Buttons populated dynamically by applyTrackFilterControl() from
+           state.tracks (only enabled tracks get a button). -->
+    </span>
+    <label class="chip chip-select" title="Filter the Timeline to a single WP">
+      <span class="chip-select-label">Focus WP</span>
+      <select id="wpFocusSelect"></select>
+    </label>
+    <button class="chip edit-only" id="undoBtn" title="Undo last change (Cmd/Ctrl-Z)" disabled>↶ Undo</button>
+    <button class="chip edit-only" id="redoBtn" title="Redo (Cmd/Ctrl-Shift-Z)" disabled>↷ Redo</button>
+    <button class="chip" id="viewOnlyToggle" title="View-only mode: hide editing controls and prevent drag/move on bars. Click again to re-enable editing.">👁 View-only</button>
     <button class="chip" id="focusModeToggle" title="Hide header and toolbars so the timeline fills the viewport. Press Esc to exit.">⛶ Focus</button>
   </div>
 
@@ -2774,6 +3222,9 @@
     </div>
   </div>
   <div id="viewAView">
+    <!-- Filter banner: visible only when state has a single-WP filter active.
+         Populated by renderViewA; the [Show all] button clears the filter. -->
+    <div class="viewa-filter-banner" id="viewAFilterBanner" hidden></div>
     <div class="wrap" id="viewAWrap">
       <div class="timeline" id="viewATimeline"></div>
     </div>
@@ -2785,6 +3236,7 @@
   </div>
   <div id="phaseView"></div>
   <div id="processView"></div>
+  <div id="structureView"></div>
   <div id="proposalView"></div>
 </main>
 
@@ -2850,6 +3302,7 @@ const TYPES = {
   buffer:    { label: "Buffer",    bar: "#fde68a", border: "#b45309" },
   leadtime:  { label: "Lead Time", bar: "#ddd6fe", border: "#6d28d9" },
   review:    { label: "Review",    bar: "#bbf7d0", border: "#15803d" },
+  ongoing:   { label: "Ongoing",   bar: "#cffafe", border: "#0891b2" },
   milestone: { label: "Milestone", bar: "#fbbf24", border: "#b45309" },
 };
 
@@ -2874,6 +3327,30 @@ function toDateInputValue(s) {
   return `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
 }
 
+/* Total project duration in WEEKS, derived from state.start..state.end.
+   Used for "ongoing" bars (project lead, PM, etc.) that auto-span the whole
+   project. */
+function projectSpanWeeks(state) {
+  if (!state || !state.start || !state.end) return 0;
+  return monthsBetween(state.start, state.end).length * WEEKS_PER_MONTH;
+}
+
+/* Force every "ongoing" bar to span the full project (startIdx=0, span =
+   projectSpanWeeks). Called from saveState() so the data stays in sync as
+   the user edits dates / adds bars. Idempotent. */
+function syncOngoingBars(state) {
+  if (!state || !Array.isArray(state.lanes)) return;
+  const projWeeks = projectSpanWeeks(state);
+  for (const lane of state.lanes) {
+    for (const bar of lane.bars || []) {
+      if (bar.type === "ongoing") {
+        bar.startIdx = 0;
+        bar.span = projWeeks;
+      }
+    }
+  }
+}
+
 /* Inclusive list of {y, m} between startStr and endStr. Returns [] if endStr
    precedes startStr — callers can rely on .length to detect empty ranges. */
 function monthsBetween(startStr, endStr) {
@@ -2887,9 +3364,31 @@ function monthsBetween(startStr, endStr) {
   return out;
 }
 
-/* Effective duration in WEEKS = raw span × (1 + buffer/100). Milestones = 0. */
+/* Effective CALENDAR duration in weeks = raw span × (1 + buffer/100).
+   Milestones = 0. Ongoing bars use their stored span verbatim (it's already
+   the full project span; a buffer on top would push them past project end).
+   This is what the Timeline uses for layout — alloc% does NOT affect the
+   calendar window, only the hours rollup. */
 function effSpan(b) {
-  return b && b.type === "milestone" ? 0 : ((b && b.span) || 0) * (1 + ((b && b.buffer) || 0) / 100);
+  if (!b) return 0;
+  if (b.type === "milestone") return 0;
+  if (b.type === "ongoing") return b.span || 0;
+  return (b.span || 0) * (1 + (b.buffer || 0) / 100);
+}
+
+/* Read a bar's time-allocation percentage. Defaults to 100 (full-time on the
+   task during its calendar window). Clamped to [0, 100]. */
+function barAllocPct(b) {
+  const a = b && b.alloc;
+  if (typeof a !== "number" || a < 0) return 100;
+  if (a > 100) return 100;
+  return a;
+}
+
+/* Effective EFFORT in weeks = calendar weeks × alloc/100. This is what the
+   Proposal Timeline hours rollup multiplies by 40 h/week. */
+function effortWeeks(b) {
+  return effSpan(b) * barAllocPct(b) / 100;
 }
 
 function rnd1(n) { return Math.round(n * 10) / 10; }
@@ -2926,15 +3425,77 @@ function _core_renumberWPs(state) {
 
 /* ====================== State helpers ====================== */
 
+/* Recognised tracks for a WP.
+   - "product"     — the formal SOP-18 path. Phase-bound (PRS/DP/DO/FP).
+   - "exploration" — free-form research / feasibility, not phase-bound.
+   - "ple"         — Post-Launch Engineering, less formal, not phase-bound.
+   Existing WPs without a track default to "product" so old data renders
+   identically.
+
+   Whether each track is ENABLED for a given project lives in state.tracks,
+   not here — TRACK_DEFAULTS provides the metadata used to seed it. */
+const LANE_TRACKS = ["product", "exploration", "ple"];
+
+const TRACK_DEFAULTS = {
+  product:     { label: "Product",     description: "Formal SOP-18 product development.",      color: { bar: "#e0f2fe", border: "#0369a1" }, phaseBound: true,  enabledByDefault: true  },
+  exploration: { label: "Exploration", description: "Free-form research and feasibility work.", color: { bar: "#fef3c7", border: "#b45309" }, phaseBound: false, enabledByDefault: false },
+  ple:         { label: "PLE",         description: "Post-Launch Engineering — less formal.",   color: { bar: "#f3e8ff", border: "#6b21a8" }, phaseBound: false, enabledByDefault: false },
+};
+
+/* List of track ids that are currently enabled for `state`. Falls back to
+   ["product"] if state.tracks is missing/empty. */
+function enabledTracks(state) {
+  if (!state || !Array.isArray(state.tracks)) return ["product"];
+  const list = state.tracks.filter(t => t.enabled).map(t => t.id);
+  return list.length ? list : ["product"];
+}
+
+/* Is `trackId` enabled for `state`? Always true for "product" when state has
+   no track config (safe default for legacy data). */
+function isTrackEnabled(state, trackId) {
+  if (!state || !Array.isArray(state.tracks)) return trackId === "product";
+  const t = state.tracks.find(x => x.id === trackId);
+  return t ? !!t.enabled : false;
+}
+
 /* Fill in missing fields after load/import. Tolerates partial data. */
 function normaliseState(state) {
+  // state.tracks: array of { id, enabled }. Seed it on first encounter with
+  // each LANE_TRACK and respect any existing entries. Order preserved.
+  if (!Array.isArray(state.tracks)) state.tracks = [];
+  const seen = new Set();
+  state.tracks = state.tracks.filter(t => {
+    if (!t || !LANE_TRACKS.includes(t.id) || seen.has(t.id)) return false;
+    seen.add(t.id);
+    if (typeof t.enabled !== "boolean") t.enabled = !!TRACK_DEFAULTS[t.id].enabledByDefault;
+    return true;
+  });
+  for (const id of LANE_TRACKS) {
+    if (!seen.has(id)) {
+      state.tracks.push({ id, enabled: !!TRACK_DEFAULTS[id].enabledByDefault });
+    }
+  }
+
   for (const lane of state.lanes || []) {
+    // Default missing/invalid lane track to "product".
+    if (!LANE_TRACKS.includes(lane.track)) lane.track = "product";
     for (const bar of lane.bars || []) {
       if (!Array.isArray(bar.dependsOn)) bar.dependsOn = [];
       if (typeof bar.buffer !== "number" || bar.buffer < 0) bar.buffer = 10;
+      // alloc: time-allocation %, defaulting to 100 (full-time on the task).
+      if (typeof bar.alloc !== "number" || bar.alloc < 0 || bar.alloc > 100) bar.alloc = 100;
+      // bar.track: optional per-bar override of lane.track. undefined = inherit.
+      if (bar.track !== undefined && !LANE_TRACKS.includes(bar.track)) bar.track = undefined;
     }
   }
   if (state.activePhase === undefined) state.activePhase = null;
+}
+
+/* The effective track for a bar: its own override if set, else the lane's. */
+function barTrack(bar, lane) {
+  if (bar && LANE_TRACKS.includes(bar.track)) return bar.track;
+  if (lane && LANE_TRACKS.includes(lane.track)) return lane.track;
+  return "product";
 }
 
 /* v3 → v4 migration: spans were measured in months; v4 measures in weeks. */
@@ -3049,7 +3610,9 @@ function _core_enforcePhaseOrder(state) {
     let phaseMaxEnd = cumulativeMaxEnd;
     for (const lane of state.lanes || []) {
       for (const b of lane.bars || []) {
-        if (b.phase === phase && b.startIdx < cumulativeMaxEnd) {
+        // Locked bars don't move — even if they'd technically start before
+        // the previous phase's gate. (User asked to lock them; respect it.)
+        if (b.phase === phase && b.startIdx < cumulativeMaxEnd && !b.locked) {
           b.startIdx = Math.ceil(cumulativeMaxEnd * WEEKS_PER_MONTH) / WEEKS_PER_MONTH;
         }
         if (b.extendsPhase) continue;
@@ -3129,6 +3692,10 @@ function _core_autoSequence(state) {
     for (const barId of order) {
       const entry = map[barId]; if (!entry) continue;
       const bar = entry.bar;
+      // Locked bars keep their startIdx — auto-sequence never moves them. They
+      // still contribute their end position to downstream successors, so the
+      // rest of the chain re-flows around them.
+      if (bar.locked) continue;
       let earliest = ratchet ? bar.startIdx : 0;
       for (const predId of (bar.dependsOn || [])) {
         const p = map[predId]; if (!p) continue;
@@ -3258,18 +3825,21 @@ function barHoursDist(b, {
   const dist = new Array(numMonths).fill(0);
   if (!_core_proposalBarCountsForHours(b, { includeLeadtime })) return dist;
   const effMonths = effSpan(b) / WEEKS_PER_MONTH;
+  // Allocation %: how much of the calendar window's hours actually count as
+  // effort. 100 = full time. 33 = ~1/3 of the calendar slot's hours.
+  const allocFactor = barAllocPct(b) / 100;
   const cs = b.startIdx + startMonthOffset;
   const ce = cs + effMonths;
   const firstM = Math.max(0, Math.floor(cs));
   const lastM = Math.min(numMonths - 1, Math.ceil(ce) - 1);
   for (let m = firstM; m <= lastM; m++) {
     const len = Math.max(0, Math.min(m + 1, ce) - Math.max(m, cs));
-    const h = len * WEEKS_PER_MONTH * hoursPerWeek;
+    const h = len * WEEKS_PER_MONTH * hoursPerWeek * allocFactor;
     if (h > 0) dist[m] += h;
   }
   return dist;
 }
-const Core = { WEEKS_PER_MONTH, PHASE_ORDER, PHASE_CODES_IN_ORDER, MONTH_NAMES, PROPOSAL_HOURS_PER_WEEK, TYPES, lid, bid, parseYM, toDateInputValue, monthsBetween, effSpan, rnd1, fmtDur, laneEffWeeks, wpNameOnly, renumberWPs: _core_renumberWPs, normaliseState, spansToWeeks, buildBarMap: _core_buildBarMap, isBleedingBar, phaseSpanCodes, computePhaseRanges: _core_computePhaseRanges, computePhaseGates: _core_computePhaseGates, enforcePhaseOrder: _core_enforcePhaseOrder, topoOrder, createsCycle, autoSequence: _core_autoSequence, packLaneRows, proposalBarCountsForHours: _core_proposalBarCountsForHours, barHoursDist };
+const Core = { WEEKS_PER_MONTH, PHASE_ORDER, PHASE_CODES_IN_ORDER, MONTH_NAMES, PROPOSAL_HOURS_PER_WEEK, TYPES, LANE_TRACKS, TRACK_DEFAULTS, enabledTracks, isTrackEnabled, barTrack, lid, bid, parseYM, toDateInputValue, monthsBetween, projectSpanWeeks, syncOngoingBars, effSpan, barAllocPct, effortWeeks, rnd1, fmtDur, laneEffWeeks, wpNameOnly, renumberWPs: _core_renumberWPs, normaliseState, spansToWeeks, buildBarMap: _core_buildBarMap, isBleedingBar, phaseSpanCodes, computePhaseRanges: _core_computePhaseRanges, computePhaseGates: _core_computePhaseGates, enforcePhaseOrder: _core_enforcePhaseOrder, topoOrder, createsCycle, autoSequence: _core_autoSequence, packLaneRows, proposalBarCountsForHours: _core_proposalBarCountsForHours, barHoursDist };
 // === END INLINED proplan-core.mjs ===
 // Expose the Core namespace for debug. NOT Object.assign(window, Core) —
 // that would overwrite the hoisted wrapper functions (buildBarMap,
@@ -3382,6 +3952,9 @@ normaliseState(state);
 // One-shot renumber on boot so legacy data (where users typed manual WP
 // numbers that may now be out of order) immediately reflects display order.
 renumberWPs();
+// Ditto for ongoing bars — they need their span set against this session's
+// project dates, otherwise legacy data has stale spans.
+syncOngoingBars(state);
 
 // normaliseState, effSpan, rnd1, fmtDur, laneEffWeeks, PHASE_ORDER, and
 // PHASE_CODES_IN_ORDER come from Core.
@@ -3456,6 +4029,31 @@ function lanePaletteColor(lane, laneIdx) {
    over phase-level grouping. */
 const COLOR_BY_WP_KEY = "proplan.colorByWP";
 function isColorByWP() { return localStorage.getItem(COLOR_BY_WP_KEY) === "1"; }
+
+/* Timeline single-WP filter. When set to a laneId, the Timeline view shows
+   only that WP's bars (dependency arrows to/from hidden lanes are skipped).
+   A banner at the top of the view lets the user clear the filter. */
+const TIMELINE_FILTER_KEY = "proplan.timelineFilter";
+function getTimelineFilter() { return localStorage.getItem(TIMELINE_FILTER_KEY) || null; }
+function setTimelineFilter(laneId) {
+  if (laneId) localStorage.setItem(TIMELINE_FILTER_KEY, laneId);
+  else localStorage.removeItem(TIMELINE_FILTER_KEY);
+}
+/* Track filter: "all" | "product" | "ple". Composes with the WP filter
+   (both apply). Defaults to "product" so the formal SOP-18 process is what
+   you see when opening the Timeline. */
+const TRACK_FILTER_KEY = "proplan.trackFilter";
+function getTrackFilter() {
+  const v = localStorage.getItem(TRACK_FILTER_KEY);
+  return v === "ple" || v === "all" || v === "product" ? v : "product";
+}
+function setTrackFilter(track) {
+  if (track === "all" || track === "product" || track === "ple") {
+    localStorage.setItem(TRACK_FILTER_KEY, track);
+  } else {
+    localStorage.removeItem(TRACK_FILTER_KEY);
+  }
+}
 function _barOwnerLane(b) {
   for (let i = 0; i < state.lanes.length; i++) {
     if (state.lanes[i].bars.indexOf(b) >= 0) return { lane: state.lanes[i], laneIdx: i };
@@ -3580,7 +4178,67 @@ function loadState() {
 }
 // wpNameOnly comes from Core.
 function renumberWPs() { Core.renumberWPs(state); }
-function saveState() { renumberWPs(); localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+/* ============== Undo / redo ==============
+   Snapshots are JSON strings of the full state. On every saveState we push
+   the PREVIOUS state onto the undo stack and clear redo. Undo pops one,
+   pushes current onto redo. Redo pops one back. Cmd-Z / Cmd-Shift-Z are
+   wired below. Snapshots capped at MAX_HISTORY so memory stays bounded. */
+const UNDO_MAX = 80;
+const undoStack = [];
+const redoStack = [];
+let _suppressHistory = false;    // true while applying an undo/redo to avoid recursive push
+function _pushUndoSnapshot() {
+  if (_suppressHistory) return;
+  const prev = localStorage.getItem(STORAGE_KEY);
+  if (!prev) return;
+  // Coalesce identical consecutive snapshots — common when a control fires
+  // multiple change events for one user gesture.
+  if (undoStack.length && undoStack[undoStack.length - 1] === prev) return;
+  undoStack.push(prev);
+  if (undoStack.length > UNDO_MAX) undoStack.shift();
+  redoStack.length = 0;
+  updateUndoRedoButtons();
+}
+function undo() {
+  if (!undoStack.length) return;
+  const snapshot = undoStack.pop();
+  redoStack.push(JSON.stringify(state));
+  _applySnapshot(snapshot);
+  updateUndoRedoButtons();
+}
+function redo() {
+  if (!redoStack.length) return;
+  const snapshot = redoStack.pop();
+  undoStack.push(JSON.stringify(state));
+  _applySnapshot(snapshot);
+  updateUndoRedoButtons();
+}
+function _applySnapshot(snapshot) {
+  _suppressHistory = true;
+  try {
+    state = JSON.parse(snapshot);
+    normaliseState(state);
+    localStorage.setItem(STORAGE_KEY, snapshot);
+    renderCurrent();
+  } finally {
+    _suppressHistory = false;
+  }
+}
+function updateUndoRedoButtons() {
+  const u = document.getElementById("undoBtn");
+  const r = document.getElementById("redoBtn");
+  if (u) u.disabled = undoStack.length === 0;
+  if (r) r.disabled = redoStack.length === 0;
+}
+
+function saveState() {
+  _pushUndoSnapshot();   // capture pre-mutation state for undo
+  renumberWPs();
+  // Keep ongoing bars (project lead / PM / etc.) spanning the full project.
+  // Cheap, idempotent, runs on every mutation.
+  syncOngoingBars(state);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
 
 // parseYM, toDateInputValue, monthsBetween, MONTH_NAMES come from Core.
 function buildBarMap() { return Core.buildBarMap(state); }
@@ -3609,7 +4267,12 @@ function renderCurrent() {
   else if (currentView === "viewB") renderViewB();
   else if (currentView === "phase") renderPhase();
   else if (currentView === "process") renderProcess();
+  else if (currentView === "structure") renderStructure();
   else if (currentView === "proposal") renderProposal();
+  // Keep the toolbar's Focus WP dropdown in sync with state.lanes (additions,
+  // deletions, renames) and with the current filter on every render. Guarded
+  // because the function may not exist yet during very early boot.
+  if (typeof applyWpFocusSelect === "function") applyWpFocusSelect();
 }
 
 /* =================== PLAN VIEW =================== */
@@ -3700,18 +4363,33 @@ function renderPlan() {
           <div class="wp-code-row">
             <span class="wp-num-pill" title="Auto-numbered from position">WP ${laneIdx + 1}</span>
             <div class="wp-name" contenteditable="true" data-field="name" data-placeholder="Work package name">${escapeHtml(wpNameOnly(lane.code))}</div>
+            <button type="button" class="wp-track-pill wp-track-${lane.track || "product"}" data-laneact="toggle-track" title="Cycle this WP through the enabled tracks (set in the Structure tab).">
+              ${escapeHtml((TRACK_DEFAULTS[lane.track] || TRACK_DEFAULTS.product).label)}
+            </button>
           </div>
           <div class="wp-desc" contenteditable="true" data-field="desc" data-placeholder="Discipline / responsibility">${escapeHtml(lane.desc)}</div>
           ${(mixHtml || untaggedCount) ? `<div class="wp-phase-mix" title="Phase mix across this WP's tasks">${mixHtml}${untaggedCount ? `<span class="wp-mix-chip is-unassigned"><span class="wp-mix-code">—</span><span class="wp-mix-count">${untaggedCount}</span></span>` : ""}</div>` : ""}
         </div>
         <div class="wp-total" title="Sum of buffered estimates in this work package">${fmtDur(laneWk)}</div>
         <div class="wp-actions">
+          <button class="wp-icon-btn wp-open-btn" data-laneact="open-timeline" title="Open this WP's timeline in isolation">↗ Timeline</button>
           <button class="wp-icon-btn wp-move-btn" data-laneact="up" title="Move WP up" ${laneIdx === 0 ? "disabled" : ""}>↑</button>
           <button class="wp-icon-btn wp-move-btn" data-laneact="down" title="Move WP down" ${laneIdx === state.lanes.length - 1 ? "disabled" : ""}>↓</button>
           <button class="wp-icon-btn danger" data-laneact="del" title="Delete WP">Delete</button>
         </div>
       </div>
       <div class="task-list">
+        ${lane.bars.length ? `<div class="task-list-header" aria-hidden="true">
+          <span class="thdr-spacer"></span>
+          <span class="thdr-cell">Type</span>
+          <span class="thdr-cell">Phase</span>
+          <span class="thdr-cell">Task</span>
+          <span class="thdr-cell thdr-span">
+            <span class="thdr-sub">Time</span><span class="thdr-sub">Buffer</span><span class="thdr-sub">Workload</span><span class="thdr-sub">Effort · hrs</span>
+          </span>
+          <span class="thdr-cell">Depends on</span>
+          <span class="thdr-spacer"></span>
+        </div>` : ""}
         ${lane.bars.map(bar => renderTaskRow(bar, map)).join("")}
       </div>
       <div class="add-row">
@@ -3788,15 +4466,45 @@ function renderTaskRow(bar, map) {
     <span class="task-span">
       ${isMilestone
         ? `<span class="task-span-label">milestone</span>`
-        : `<input type="number" min="0.25" step="any" value="${bar.span}" class="task-span-input" data-action="set-span" title="Raw estimate (weeks) — decimals allowed" /><span class="task-span-label">wk</span>
-           <span class="task-buf">+<input type="number" min="0" max="500" step="any" value="${bar.buffer ?? 10}" class="task-buffer-input" data-action="set-buffer" title="Buffer %" />%</span>
-           <span class="task-eff" title="Estimate + buffer = planned time">= ${rnd1(effSpan(bar))} wk</span>`}
+        : (() => {
+            // Ongoing bars (project lead / PM / etc.) auto-span the full
+            // project: their Time + Buffer inputs are locked. Only Workload
+            // is editable — that's the actual control for how much effort.
+            const isOngoing = bar.type === "ongoing";
+            const lockedAttr = isOngoing ? " disabled" : "";
+            const ongoingTitle = isOngoing ? "Auto — spans the full project" : "Time — raw estimate in weeks";
+            return `<input type="number" min="0.25" step="any" value="${bar.span}" class="task-span-input${isOngoing ? " is-locked" : ""}" data-action="set-span" title="${ongoingTitle}"${lockedAttr} />
+           <span class="task-span-label">wk</span>
+           <input type="number" min="0" max="500" step="any" value="${bar.buffer ?? 10}" class="task-buffer-input${isOngoing ? " is-locked" : ""}" data-action="set-buffer" title="${isOngoing ? "Buffer doesn't apply to ongoing bars" : "Buffer % — extends the calendar window"}"${lockedAttr} />
+           <span class="task-span-label">%</span>
+           <input type="number" min="0" max="100" step="any" value="${barAllocPct(bar)}" class="task-alloc-input" data-action="set-alloc" title="Workload % — what fraction of the calendar window is actually spent on this task. Reflected in the Proposal Timeline hours." />
+           <span class="task-span-label">%</span>
+           <span class="task-eff" title="Calendar: ${rnd1(effSpan(bar))} wk · Effort: ${rnd1(effortWeeks(bar))} wk · ${Math.round(effortWeeks(bar) * PROPOSAL_HOURS_PER_WEEK)} h (matches Proposal Timeline)">= ${rnd1(effortWeeks(bar))} wk · ${Math.round(effortWeeks(bar) * PROPOSAL_HOURS_PER_WEEK)} h</span>`;
+          })()}
     </span>
     <span class="task-deps" data-action="edit-deps">
       ${deps || '<span class="dep-empty">(no dependencies)</span>'}
       <button class="dep-add-btn" data-action="edit-deps">+ dep</button>
     </span>
     <span class="task-actions">
+      ${(() => {
+        // Find the lane this bar belongs to so we can show what it's inheriting.
+        const wpLane = state.lanes.find(L => L.bars.some(x => x.id === bar.id));
+        const inheritedTrack = (wpLane && wpLane.track) || "product";
+        const shortLabel = (id) => {
+          const meta = TRACK_DEFAULTS[id]; if (!meta) return id;
+          // Compact 3-4 char form so the row stays narrow.
+          return id === "exploration" ? "Expl" : meta.label.slice(0, 4);
+        };
+        const cls = bar.track ? `task-track-${bar.track}` : "task-track-inherit";
+        const label = bar.track
+          ? shortLabel(bar.track)
+          : shortLabel(inheritedTrack).toLowerCase();
+        const title = bar.track
+          ? `Override: ${TRACK_DEFAULTS[bar.track].label}. Click to cycle.`
+          : `Inheriting ${TRACK_DEFAULTS[inheritedTrack].label} from the WP. Click to override.`;
+        return `<button class="task-track-btn ${cls}" data-action="cycle-track" title="${escapeHtml(title)}">${escapeHtml(label)}</button>`;
+      })()}
       <details class="task-move-menu">
         <summary class="task-move-btn" title="Move this task to another WP">⇄</summary>
         <div class="task-move-popup">
@@ -3875,6 +4583,19 @@ function attachPlanHandlers() {
         } else if (action === "add-deliverable") {
           openDeliverablePicker(state.lanes[idx]);
           return; // picker handles its own save + render
+        } else if (action === "open-timeline") {
+          // Jump to the Timeline view filtered to ONLY this WP.
+          setTimelineFilter(state.lanes[idx].id);
+          switchView("viewA");
+          return; // switchView triggers its own render
+        } else if (action === "toggle-track") {
+          // Cycle through the project's ENABLED tracks (set in the Structure tab).
+          // If the current track has been disabled, jump to the first enabled one.
+          const enabled = enabledTracks(state);
+          const cur = state.lanes[idx].track || "product";
+          const curIdx = enabled.indexOf(cur);
+          const nextIdx = curIdx === -1 ? 0 : (curIdx + 1) % enabled.length;
+          state.lanes[idx].track = enabled[nextIdx];
         }
         saveState();
         renderPlan();
@@ -3893,6 +4614,11 @@ function attachPlanHandlers() {
           const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
           bar.type = typeSel.value;
           if (bar.type === "milestone") bar.span = 0;
+          else if (bar.type === "ongoing") {
+            // Span + start get overwritten in syncOngoingBars(). Default the
+            // workload to a sensible PM-ish 20 % if the user hasn't set one.
+            if (typeof bar.alloc !== "number" || bar.alloc === 100) bar.alloc = 20;
+          }
           else if (bar.span === 0) bar.span = WEEKS_PER_MONTH;
           saveState();
           renderPlan();
@@ -3985,6 +4711,22 @@ function attachPlanHandlers() {
         });
       }
 
+      // Allocation % — does NOT affect calendar layout, only the effort weeks
+      // and Proposal Timeline hours. No enforcePhaseOrder needed.
+      const allocInp = row.querySelector(".task-alloc-input");
+      if (allocInp) {
+        allocInp.addEventListener("change", () => {
+          const lane = state.lanes.find(l => l.id === laneId);
+          const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
+          const v = parseFloat(allocInp.value);
+          if (Number.isFinite(v) && v >= 0 && v <= 100) {
+            bar.alloc = v; saveState(); renderPlan();
+          } else {
+            allocInp.value = barAllocPct(bar);
+          }
+        });
+      }
+
       // Deps area click
       const depsArea = row.querySelector(".task-deps");
       if (depsArea) {
@@ -4017,6 +4759,30 @@ function attachPlanHandlers() {
           });
         });
       }
+
+      // Per-bar track override — cycles inherit → PLE → Product → inherit.
+      // Lets users flag a sub-activity as PLE even when its WP is Product
+      // (or vice versa) without restructuring the WPs themselves.
+      const trackBtn = row.querySelector("[data-action='cycle-track']");
+      if (trackBtn) {
+        trackBtn.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          const lane = state.lanes.find(l => l.id === laneId);
+          const bar = lane?.bars.find(b => b.id === barId); if (!bar) return;
+          // Cycle through: inherit → each enabled track → back to inherit.
+          // States: [undefined, ...enabledTracks].
+          const enabled = enabledTracks(state);
+          const cycle = [undefined, ...enabled];
+          const curIdx = cycle.indexOf(bar.track || undefined);
+          const next = cycle[(curIdx + 1) % cycle.length];
+          if (next === undefined) delete bar.track;
+          else bar.track = next;
+          saveState();
+          renderPlan();
+        });
+      }
+
+      // Lock toggle moved to right-click context menu in the Timeline view.
 
       // Delete task
       const delBtn = row.querySelector("[data-action='del-task']");
@@ -4369,6 +5135,7 @@ function renderTimeline() {
 }
 
 function renderSingleBar(b, colW) {
+  if (b && b.locked && isHidingLocked()) return "";
   const t = TYPES[b.type] || TYPES.work;
   const depCount = (b.dependsOn || []).length;
   const depChip = depCount ? `<div class="dep-chip" data-action="edit-deps" title="${depCount} predecessor${depCount > 1 ? "s" : ""} — click to edit">${depCount} dep${depCount > 1 ? "s" : ""}</div>` : "";
@@ -4401,7 +5168,8 @@ function renderSingleBar(b, colW) {
   const bufPct = b.buffer > 0 ? (b.buffer / (100 + b.buffer)) * 100 : 0;
   const bufHtml = bufPct > 0 ? `<div class="bar-buffer" style="width:${bufPct.toFixed(2)}%;" title="${b.buffer}% buffer (${rnd1(b.span * b.buffer / 100)} wk)"></div>` : "";
   const extLabelHtml = labelExt ? `<span class="bar-ext-label">${escapeHtml(labelText)}</span>` : "";
-  return `<div class="bar${narrowCls}" data-bar="${b.id}" title="${tip}"
+  const lockHtml = b.locked ? `<span class="bar-lock-badge" title="Locked — Auto-sequence will skip this task. Right-click → Unlock to release.">🔒</span>` : "";
+  return `<div class="bar${narrowCls}${b.locked ? " is-locked" : ""}" data-bar="${b.id}" title="${tip}"
     style="left:${x}px; width:${w}px; top:calc(50% - 22px); background:${c.bar}; border-color:${c.border};">
     ${bufHtml}
     <div class="resize l"></div>
@@ -4410,6 +5178,7 @@ function renderSingleBar(b, colW) {
       <span class="bar-task-name">${escapeHtml(labelText)}</span>
     </div>
     <div class="connect-handle" data-action="start-connect" title="Drag onto another bar to set dependency"></div>
+    ${lockHtml}
     ${depChip}
     ${extLabelHtml}
   </div>`;
@@ -4580,6 +5349,7 @@ function overviewBarTopForRow(rowIdx) {
 }
 
 function renderOverviewBar(b, colW, rowIdx) {
+  if (b && b.locked && isHidingLocked()) return "";
   const t = TYPES[b.type] || TYPES.work;
   const labelText = b.label || "(untitled)";
   const tipParts = [labelText, t.label];
@@ -4613,8 +5383,9 @@ function renderOverviewBar(b, colW, rowIdx) {
   // close-enough estimate for the 10px-font label.
   const estLabelW = (labelText || "").length * 6.5 + 24;
   const extCls = w < estLabelW ? " has-ext-label" : "";
-  return `<div class="ov-bar${extCls}" data-bar="${b.id}" title="${tip}"
-    style="left:${x}px; width:${w}px; ${topStyle} background:${c.bar}; border-color:${c.border};">${bufHtml}<span class="ov-bar-label">${escapeHtml(labelText)}</span></div>`;
+  const lockHtml = b.locked ? `<span class="bar-lock-badge" title="Locked — Auto-sequence will skip this task.">🔒</span>` : "";
+  return `<div class="ov-bar${extCls}${b.locked ? " is-locked" : ""}" data-bar="${b.id}" title="${tip}"
+    style="left:${x}px; width:${w}px; ${topStyle} background:${c.bar}; border-color:${c.border};">${bufHtml}<span class="ov-bar-label">${escapeHtml(labelText)}</span>${lockHtml}</div>`;
 }
 
 function renderTodayLineIn(targetEl, colW, numMonths, leftOffset) {
@@ -4888,6 +5659,97 @@ function toggleProposalLeadtime() {
   else localStorage.removeItem(PROPOSAL_INCLUDE_LEADTIME_KEY);
   renderProposal();
 }
+/* =================== STRUCTURE VIEW =================== */
+/* Lets the user enable / disable the streams of work this project has
+   (Product / Exploration / PLE). Each row shows a colour swatch, a short
+   description, a count of WPs currently tagged with that track, and a
+   checkbox. Disabling a track does NOT delete the WPs assigned to it — it
+   just hides them from the toolbar track filter; flipping the toggle back
+   brings them right back. */
+function renderStructure() {
+  const root = document.getElementById("structureView");
+  if (!root) return;
+
+  const lanesByTrack = {};
+  for (const id of LANE_TRACKS) lanesByTrack[id] = [];
+  for (const lane of state.lanes || []) {
+    const t = LANE_TRACKS.includes(lane.track) ? lane.track : "product";
+    lanesByTrack[t].push(lane);
+  }
+
+  const enabledIds = new Set(enabledTracks(state));
+
+  const rows = state.tracks.map(t => {
+    const meta = TRACK_DEFAULTS[t.id];
+    const wps = lanesByTrack[t.id] || [];
+    const wpListHtml = wps.length
+      ? `<ul class="struct-wp-list">${wps.map(l => `<li>${escapeHtml(l.code)}</li>`).join("")}</ul>`
+      : `<div class="struct-empty">No WPs tagged with this track yet.</div>`;
+    return `<section class="struct-card" style="--track-bar:${meta.color.bar}; --track-accent:${meta.color.border};">
+      <header class="struct-card-head">
+        <span class="struct-swatch" aria-hidden="true"></span>
+        <div class="struct-card-title">
+          <h2>${escapeHtml(meta.label)}</h2>
+          <div class="struct-desc">${escapeHtml(meta.description)}</div>
+        </div>
+        <label class="struct-toggle">
+          <input type="checkbox" data-track-id="${t.id}" ${t.enabled ? "checked" : ""} />
+          <span>${t.enabled ? "Enabled" : "Disabled"}</span>
+        </label>
+      </header>
+      <div class="struct-card-meta">
+        <span class="struct-chip ${meta.phaseBound ? "struct-chip-on" : "struct-chip-off"}" title="${meta.phaseBound ? "Tasks in this track go through the SOP-18 phases (PRS → DP → DO → FP)." : "Free-form track — no phase gates."}">
+          ${meta.phaseBound ? "Phase-bound (SOP-18)" : "No phase gates"}
+        </span>
+        <span class="struct-chip-count" title="WPs currently tagged with this track. They stay even if you disable the track.">
+          ${wps.length} WP${wps.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      ${wpListHtml}
+    </section>`;
+  }).join("");
+
+  const enabledCount = enabledIds.size;
+  const banner = enabledCount === 1
+    ? `<div class="struct-banner">Only <strong>Product</strong> is on. Enable other streams to see them in the toolbar's Track filter.</div>`
+    : `<div class="struct-banner">${enabledCount} streams active. Switch the Timeline toolbar's <strong>Track</strong> filter to focus on one at a time.</div>`;
+
+  root.innerHTML = `<div class="struct-view">
+    <header class="struct-header">
+      <h1>Project Structure</h1>
+      <p>What streams of work this project has. Toggle a stream on to make it available in the Timeline's track filter and on WP cards.</p>
+    </header>
+    ${banner}
+    <div class="struct-grid">${rows}</div>
+  </div>`;
+
+  // Wire up the checkboxes.
+  root.querySelectorAll("input[data-track-id]").forEach(cb => {
+    cb.addEventListener("change", () => {
+      const id = cb.dataset.trackId;
+      const t = state.tracks.find(x => x.id === id);
+      if (!t) return;
+      // Guard: never let ALL tracks be disabled at once. enabledTracks falls
+      // back to ["product"] in that case, but the user could still tick this
+      // box accidentally — keep at least one ticked.
+      if (!cb.checked) {
+        const stillOn = state.tracks.filter(x => x.id !== id && x.enabled).length;
+        if (stillOn === 0) {
+          cb.checked = true;
+          alert("At least one track must stay enabled.");
+          return;
+        }
+      }
+      t.enabled = cb.checked;
+      saveState();
+      renderStructure();
+      // Toolbar filter buttons in viewA need to be regenerated, but only when
+      // user goes back there — applyTrackFilterControl() is idempotent.
+      if (typeof applyTrackFilterControl === "function") applyTrackFilterControl();
+    });
+  });
+}
+
 function renderProposal() {
   const root = document.getElementById("proposalView");
 
@@ -4911,24 +5773,14 @@ function renderProposal() {
     months.push({ y, m, label: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m - 1] });
   }
 
-  // Compute hours per WP per month. Skips milestones (no duration) and —
-  // when the "Include lead time" toggle is off — leadtime bars too.
+  // Compute hours per WP per month. Delegates to the module's barHoursDist
+  // (which respects WORKLOAD %) so the on-screen Proposal Timeline matches
+  // the Plan view's effort calculation and the Excel export.
   function barHoursDist(b) {
-    if (!proposalBarCountsForHours(b)) return new Array(numMonths).fill(0);
-    const effMonths = effSpan(b) / WEEKS_PER_MONTH;     // bar duration in "data months"
-    const sIdx = b.startIdx;
-    const eIdx = sIdx + effMonths;
-    const dist = new Array(numMonths).fill(0);
-    const firstM = Math.max(0, Math.floor(sIdx));
-    const lastM  = Math.min(numMonths - 1, Math.ceil(eIdx) - 1);
-    for (let m = firstM; m <= lastM; m++) {
-      const chunkStart = Math.max(m, sIdx);
-      const chunkEnd   = Math.min(m + 1, eIdx);
-      const chunkLen   = Math.max(0, chunkEnd - chunkStart);   // in data-months
-      const chunkHours = chunkLen * WEEKS_PER_MONTH * PROPOSAL_HOURS_PER_WEEK;
-      dist[m] += chunkHours;
-    }
-    return dist;
+    return Core.barHoursDist(b, {
+      numMonths,
+      includeLeadtime: isProposalIncludingLeadtime(),
+    });
   }
   const wpRows = state.lanes.map(lane => {
     const total = new Array(numMonths).fill(0);
@@ -5068,20 +5920,25 @@ function fillMasterScheduleSheet(ws) {
   const start = parseYM(state.start);
   const year1 = start.y, year2 = start.y + 1;
 
-  // Hours per calendar month (idx 0 = Jan year1, idx 23 = Dec year2)
+  // Hours per calendar month (idx 0 = Jan year1, idx 23 = Dec year2). Delegates
+  // to Core.barHoursDist so WORKLOAD % is respected the same way the on-screen
+  // Proposal Timeline + the Plan view's effort calc respect it.
   function barDist(b) {
     if (!proposalBarCountsForHours(b)) return {};
-    const effMonths = effSpan(b) / WEEKS_PER_MONTH;
-    const offset = (start.m - 1);   // bar startIdx is months-from-project-start
-    const cs = b.startIdx + offset;
-    const ce = cs + effMonths;
+    // The Excel template has 24 month columns starting at year1-Jan; the bar's
+    // startIdx is measured from project-start (start.m). So shift by (start.m - 1)
+    // to map "months from project start" → "rollup column index 0..23".
+    const offset = (start.m - 1);
+    const dist = Core.barHoursDist(b, {
+      numMonths: 24,
+      startMonthOffset: offset,
+      hoursPerWeek: PROPOSAL_HPW,
+      includeLeadtime: isProposalIncludingLeadtime(),
+    });
+    // Convert the dense array → sparse {month:hours} that the caller expects.
     const out = {};
-    const firstM = Math.max(0, Math.floor(cs));
-    const lastM  = Math.min(23, Math.ceil(ce) - 1);
-    for (let m = firstM; m <= lastM; m++) {
-      const len = Math.max(0, Math.min(m + 1, ce) - Math.max(m, cs));
-      const h = len * WEEKS_PER_MONTH * PROPOSAL_HPW;
-      if (h > 0) out[m] = (out[m] || 0) + h;
+    for (let i = 0; i < dist.length; i++) {
+      if (dist[i] > 0) out[i] = dist[i];
     }
     return out;
   }
@@ -5490,6 +6347,117 @@ function renderViewA() {
   const compactLabels = isCompactLabels();
   const LEFT_W = compactLabels ? 78 : (PHASE_W + TASK_W);
 
+  // Single-WP filter: when set, only render the WP whose id matches.
+  // Hidden lanes still EXIST in state — phase ranges, gates and the today
+  // line continue to reflect the full project for context.
+  const filterId = getTimelineFilter();
+  const filterLane = filterId ? state.lanes.find(l => l.id === filterId) : null;
+  // If the filter points at a deleted lane, clear it to avoid empty timelines.
+  if (filterId && !filterLane) { setTimelineFilter(null); }
+  // Track filter (Product / PLE / All) composes with the WP filter.
+  // When a track filter is active, we ALSO auto-include any other-track WP
+  // that has a cross-track dependency relationship with a directly-matched
+  // WP — these are "context" lanes, rendered dimmed so the user can see
+  // the interconnection without losing focus on the primary track.
+  const trackFilter = getTrackFilter();
+  const matchesPrimary = (lane) => {
+    if (filterLane && lane.id !== filterLane.id) return false;
+    if (trackFilter === "all") return true;
+    if (trackFilter === "product") {
+      // Strict: Product filter shows ONLY Product-tracked lanes. PLE-tagged
+      // bars within them get hidden at render time (see shouldRenderBar).
+      return (lane.track || "product") === "product";
+    }
+    // PLE filter: include if the lane is PLE OR has any PLE-marked bar
+    // override — a Product WP with one PLE-flagged sub-activity still
+    // surfaces here.
+    if (lane.track === "ple") return true;
+    for (const b of (lane.bars || [])) {
+      if (b.track === "ple") return true;
+    }
+    return false;
+  };
+  // Build barId → laneId map FIRST so shouldRenderBar can resolve a bar's
+  // effective track (bar.track override → lane.track → "product").
+  const directLaneIds = new Set(state.lanes.filter(matchesPrimary).map(l => l.id));
+  const barToLaneId = {};
+  const barById = {};
+  const laneById = {};
+  for (const lane of state.lanes) {
+    laneById[lane.id] = lane;
+    for (const b of (lane.bars || [])) {
+      barToLaneId[b.id] = lane.id;
+      barById[b.id] = b;
+    }
+  }
+  // Per-bar render filter. In Product mode, ANY bar whose EFFECTIVE track
+  // (bar.track override → lane.track → "product") isn't "product" is hidden.
+  // This is what catches PLE-lane bars that have no override — they were
+  // sneaking through the chain before. Other filters render everything.
+  const shouldRenderBar = (bar) => {
+    if (trackFilter !== "product") return true;
+    if (!bar) return false;
+    if (bar.track === "ple" || bar.track === "exploration") return false;
+    if (bar.track === "product") return true;
+    // No override: defer to the lane's track.
+    const owner = laneById[barToLaneId[bar.id]];
+    const laneTrack = (owner && owner.track) || "product";
+    return laneTrack === "product";
+  };
+  // TRANSITIVE closure of connected lanes. Start with every bar in a
+  // directly-shown lane and walk dep edges BOTH WAYS — upstream
+  // (predecessors of PLE bars) and downstream (successors). The whole chain
+  // gets auto-included so the user sees the full picture of how cross-track
+  // work feeds into / out of the filtered track.
+  const connectedLaneIds = new Set(directLaneIds);
+  if (directLaneIds.size > 0 && directLaneIds.size < state.lanes.length) {
+    const visited = new Set();
+    const queue = [];
+    for (const lane of state.lanes) {
+      if (!directLaneIds.has(lane.id)) continue;
+      for (const b of (lane.bars || [])) {
+        // Bars that won't render don't seed the BFS — keeps the chain pure
+        // (no PLE-tagged stepping stones when the user filtered to Product).
+        if (!shouldRenderBar(b)) continue;
+        if (!visited.has(b.id)) { visited.add(b.id); queue.push(b.id); }
+      }
+    }
+    while (queue.length) {
+      const id = queue.shift();
+      const b = barById[id];
+      if (!b) continue;
+      // Don't walk through bars that the filter is hiding — a PLE-tagged
+      // intermediate shouldn't drag its WP into a Product view.
+      if (!shouldRenderBar(b)) continue;
+      const ownerLane = barToLaneId[id];
+      if (ownerLane) connectedLaneIds.add(ownerLane);
+      // Upstream ONLY: predecessors that feed INTO this bar. Walking
+      // downstream successors as well used to pull in entire unrelated
+      // Product chains. "What does PLE depend on?" is what context means
+      // here — not "what depends on PLE".
+      for (const predId of (b.dependsOn || [])) {
+        if (!visited.has(predId)) { visited.add(predId); queue.push(predId); }
+      }
+    }
+  }
+  const isLaneShown = (lane) => connectedLaneIds.has(lane.id);
+  const isLaneContext = (lane) =>
+    connectedLaneIds.has(lane.id) && !directLaneIds.has(lane.id);
+  // Populate the banner above the wrap.
+  const banner = document.getElementById("viewAFilterBanner");
+  if (banner) {
+    if (filterLane) {
+      banner.hidden = false;
+      banner.innerHTML = `<span class="viewa-filter-msg">Showing <strong>${escapeHtml(filterLane.code)}</strong> only.</span>
+        <button type="button" class="viewa-filter-clear" id="viewAFilterClearBtn">Show all WPs</button>`;
+      const clear = document.getElementById("viewAFilterClearBtn");
+      if (clear) clear.onclick = () => { setTimelineFilter(null); renderCurrent(); };
+    } else {
+      banner.hidden = true;
+      banner.innerHTML = "";
+    }
+  }
+
   aEl.style.setProperty("--phase-w", LEFT_W + "px");
   aEl.style.setProperty("--col-w", colW + "px");
   aEl.style.gridTemplateColumns = `${LEFT_W}px repeat(${numMonths}, ${colW}px)`;
@@ -5513,13 +6481,20 @@ function renderViewA() {
   // (28px when it's rendered, 0 when there are no phases tagged).
   aEl.style.setProperty("--phase-band-h", anyPhases ? "28px" : "0px");
   // Phase block end-point logic:
-  //   The block ends exactly where the phase's actual work ends (= range.end,
-  //   which after the bleed-semantics fix is the last NON-bleed task's end).
-  //   No more "stretch to next phase's start" — that produced ugly oversized
-  //   PRS blocks whenever DP got pushed late by dependency ordering. Any small
-  //   white sliver between consecutive phases is honest: there ARE no phase
-  //   tasks scheduled in that gap.
-  const phaseBlockEnd = (i, range) => range.end;
+  //   Each phase block extends right up to the NEXT phase's start so the
+  //   coloured band is FLUSH — no white slivers between consecutive phases,
+  //   ever. The user's mental model: a project is ALWAYS in some phase, even
+  //   if no specific task occupies a particular week. So PRS visually owns
+  //   the calendar from PRS.start all the way to DP.start, even if PRS's last
+  //   task ended weeks earlier. The last phase ends at its own range.end.
+  const phaseBlockEnd = (i, range) => {
+    const next = presentPhases[i + 1];
+    const nextRange = next ? phaseRanges[next] : null;
+    if (nextRange && Number.isFinite(nextRange.start)) {
+      return Math.max(range.end, nextRange.start);
+    }
+    return range.end;
+  };
   const phaseColsHtml = presentPhases.map((code, i) => {
     const range = phaseRanges[code];
     const sp = sopPhase(code);
@@ -5565,14 +6540,18 @@ function renderViewA() {
   if (showWeeks) html += weekRowHtml(months, numMonths);
 
   state.lanes.forEach((lane, laneIdx) => {
+    if (!isLaneShown(lane)) return;   // skip hidden WPs when filter active
     const phase = lanePaletteColor(lane, laneIdx);
     const numTasks = lane.bars.length;
     const collapsed = isCollapsed(lane.id);
     const chev = collapsed ? "▸" : "▾";
+    const contextCls = isLaneContext(lane) ? " is-context" : "";
 
     const wpCompactCode = shortWpCode(lane.code);
-    html += `<div class="left-cell wp-header-cell${compactLabels ? ' is-compact' : ''}" data-lane="${lane.id}"
-      title="${compactLabels ? escapeHtml(lane.code + (lane.desc ? ' — ' + lane.desc : '')) : ''}"
+    // Per-WP focus button removed — Focus WP dropdown in the toolbar handles
+    // this now, avoiding accidental clicks on the WP header.
+    html += `<div class="left-cell wp-header-cell${compactLabels ? ' is-compact' : ''}${contextCls}" data-lane="${lane.id}"
+      title="${compactLabels ? escapeHtml(lane.code + (lane.desc ? ' — ' + lane.desc : '')) : ''}${isLaneContext(lane) ? ' (linked context only — outside the active track filter)' : ''}"
       style="--phase-bg:${phase.bg}; --phase-accent:${phase.accent}; --phase-text:${phase.text};">
       <button class="phase-chev" data-laneact="toggle-collapse">${chev}</button>
       ${compactLabels
@@ -5585,11 +6564,11 @@ function renderViewA() {
     // Milestones are pulled OUT of each WP's track and re-collected into a
     // dedicated "★ Milestones" row at the bottom of the timeline — same pattern
     // as Overview / Phase view.
-    const workBars = lane.bars.filter(b => b.type !== "milestone");
+    const workBars = lane.bars.filter(b => b.type !== "milestone" && shouldRenderBar(b));
     if (collapsed) {
       const { rowByBarId, totalRows } = packLaneRows(workBars, colW);
       const rolledTrackH = overviewTrackHeight(totalRows);
-      html += `<div class="task-track rolled-up" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg}; min-height:${rolledTrackH}px;">
+      html += `<div class="task-track rolled-up${contextCls}" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg}; min-height:${rolledTrackH}px;">
         ${phaseColsHtml}
         ${workBars.map(b => renderOverviewBar(b, colW, rowByBarId[b.id])).join("")}
       </div>`;
@@ -5604,15 +6583,15 @@ function renderViewA() {
         const sWidth = Math.max(8, (latest - earliest) * colW);
         summaryHtml = `<div class="wp-summary-span" style="left:${sLeft}px; width:${sWidth}px; background:${phase.accent};"></div>`;
       }
-      html += `<div class="task-track wp-header-track" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">${phaseColsHtml}${summaryHtml}</div>`;
+      html += `<div class="task-track wp-header-track${contextCls}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">${phaseColsHtml}${summaryHtml}</div>`;
       workBars.forEach((bar, taskIdx) => {
-        html += `<div class="left-cell task-row-cell${compactLabels ? ' is-compact' : ''}" data-bar="${bar.id}" data-lane="${lane.id}" style="--phase-bg:${phase.bg};" title="${compactLabels ? escapeHtml(bar.label || '') : ''}">
+        html += `<div class="left-cell task-row-cell${compactLabels ? ' is-compact' : ''}${contextCls}" data-bar="${bar.id}" data-lane="${lane.id}" style="--phase-bg:${phase.bg};" title="${compactLabels ? escapeHtml(bar.label || '') : ''}">
           ${compactLabels
             ? `<span class="task-index-dot" aria-hidden="true">·</span>`
             : `<span class="task-name" contenteditable="true">${escapeHtml(bar.label || "(untitled)")}</span>`
           }
         </div>`;
-        html += `<div class="task-track" data-bar="${bar.id}" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">
+        html += `<div class="task-track${contextCls}" data-bar="${bar.id}" data-lane="${lane.id}" style="grid-column: span ${numMonths}; --phase-bg:${phase.bg};">
           ${phaseColsHtml}
           ${renderSingleBar(bar, colW)}
         </div>`;
@@ -5623,7 +6602,11 @@ function renderViewA() {
   // Aggregate "★ Milestones" row at the very bottom — every milestone in the
   // project + the synthesized phase-closure GATES, on a single shared strip,
   // packed into rows if labels collide.
-  const allMs = state.lanes.flatMap(l => l.bars.filter(b => b.type === "milestone"));
+  // Only milestones from lanes that pass the filter, and that themselves
+  // aren't being hidden by the bar-level track rule.
+  const allMs = state.lanes
+    .filter(l => isLaneShown(l))
+    .flatMap(l => l.bars.filter(b => b.type === "milestone" && shouldRenderBar(b)));
   const allGates = (isPhasesEnabled() && anyPhases) ? computePhaseGates(phaseRanges, presentPhases) : [];
   const stripItems = [...allMs, ...allGates];
   if (stripItems.length) {
@@ -5905,6 +6888,7 @@ function attachBarEditHandlers(targetEl, colW) {
     if (!laneId) return;
     barEl.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
+      if (isViewOnly()) return;   // view-only: no drag, no resize, no connect
       if (e.target.classList.contains("connect-handle")) return;
       if (e.target.classList.contains("dep-chip")) return;
       const handle = e.target.classList.contains("resize")
@@ -5914,11 +6898,12 @@ function attachBarEditHandlers(targetEl, colW) {
     });
     barEl.addEventListener("contextmenu", (e) => {
       e.preventDefault(); selectedBarId = barId;
-      openCtxMenu(e.clientX, e.clientY, barId, laneId);
+      openCtxMenu(e.clientX, e.clientY, barId, laneId);   // openCtxMenu already early-returns when view-only
     });
     const handleEl = barEl.querySelector(".connect-handle");
     if (handleEl) {
       handleEl.addEventListener("mousedown", (e) => {
+        if (isViewOnly()) return;
         e.stopPropagation(); e.preventDefault();
         beginConnectDrag(barId, e);
       });
@@ -6017,10 +7002,57 @@ function attachWpHeaderEdits(targetEl) {
   });
 }
 
+/* Auto-sequence is destructive — it rewrites every (unlocked) bar's startIdx.
+   Show a confirmation dialog first so the user can't trigger it accidentally,
+   and surface the count of locked items that will be preserved. */
 function autoSequence() {
-  const result = Core.autoSequence(state);
-  if (!result.ok) { alert(result.error); return; }
-  renderCurrent();
+  openAutoSequenceDialog();
+}
+function openAutoSequenceDialog() {
+  // Count locked vs movable bars across the project, plus a short list of
+  // locked-bar labels for the user to eyeball.
+  let total = 0, locked = 0;
+  const lockedNames = [];
+  for (const lane of state.lanes || []) {
+    for (const bar of lane.bars || []) {
+      total++;
+      if (bar.locked) { locked++; if (lockedNames.length < 6) lockedNames.push(`${lane.code} · ${bar.label || "(untitled)"}`); }
+    }
+  }
+  const movable = total - locked;
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  const modal = document.createElement("div");
+  modal.className = "modal";
+  modal.innerHTML = `
+    <h3>Run Auto-sequence?</h3>
+    <div class="sub">This rewrites every <strong>unlocked</strong> task's start date to the earliest legal position given its predecessors and phase gates.</div>
+    <div class="autoseq-summary">
+      <div><strong>${movable}</strong> task${movable === 1 ? "" : "s"} will be re-flowed.</div>
+      <div><strong>${locked}</strong> locked task${locked === 1 ? "" : "s"} will stay put${locked > 0 ? ":" : "."}</div>
+      ${locked > 0 ? `<ul class="autoseq-locked">${lockedNames.map(n => `<li>🔒 ${escapeHtml(n)}</li>`).join("")}${locked > lockedNames.length ? `<li class="muted">… and ${locked - lockedNames.length} more</li>` : ""}</ul>` : ""}
+    </div>
+    <div class="autoseq-actions">
+      <button class="modal-btn" data-act="cancel">Cancel</button>
+      <button class="modal-btn primary" data-act="run">✨ Run Auto-sequence</button>
+    </div>
+  `;
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+  const close = () => { try { backdrop.remove(); } catch {} };
+  backdrop.addEventListener("click", (ev) => { if (ev.target === backdrop) close(); });
+  modal.querySelector("[data-act='cancel']").addEventListener("click", close);
+  modal.querySelector("[data-act='run']").addEventListener("click", () => {
+    close();
+    const result = Core.autoSequence(state);
+    if (!result.ok) { alert(result.error); return; }
+    saveState();
+    renderCurrent();
+  });
+  // Esc closes
+  const onKey = (ev) => { if (ev.key === "Escape") { close(); document.removeEventListener("keydown", onKey); } };
+  document.addEventListener("keydown", onKey);
 }
 // topoOrder comes from Core.
 
@@ -6090,6 +7122,7 @@ function attachTimelineHandlers(colW) {
     if (!laneId) return;
     barEl.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
+      if (isViewOnly()) return;
       if (e.target.classList.contains("connect-handle")) return;
       if (e.target.classList.contains("dep-chip")) return;
       const handle = e.target.classList.contains("resize")
@@ -6293,6 +7326,10 @@ function renameBar(barId, laneId) {
 }
 
 function openCtxMenu(x, y, barId, laneId) {
+  // In view-only mode the bar context menu is suppressed entirely — keeps
+  // the experience read-only without disabling the menu for the small
+  // chevron / lane-header right-clicks that may still be useful.
+  if (typeof isViewOnly === "function" && isViewOnly()) return;
   closeCtxMenu();
   const lane = state.lanes.find(l => l.id === laneId);
   const bar = lane?.bars.find(b => b.id === barId);
@@ -6306,6 +7343,7 @@ function openCtxMenu(x, y, barId, laneId) {
       `<button data-type="${k}"><span class="swatch" style="background:${t.bar};border-color:${t.border};"></span>${t.label}</button>`
     ).join("") +
     `<div class="sep"></div>` +
+    `<button data-action="toggle-lock">${bar.locked ? "🔓 Unlock — let Auto-sequence move this" : "🔒 Lock — Auto-sequence will skip this"}</button>` +
     `<button data-action="deps">Edit dependencies…</button>` +
     `<button data-action="rename">Rename…</button>` +
     `<button data-action="duplicate">Duplicate</button>` +
@@ -6317,6 +7355,8 @@ function openCtxMenu(x, y, barId, laneId) {
         bar.type = b.dataset.type;
         if (bar.type === "milestone") bar.span = 0;
         else if (bar.span === 0) bar.span = 1;
+      } else if (b.dataset.action === "toggle-lock") {
+        bar.locked = !bar.locked;
       } else if (b.dataset.action === "deps") {
         closeCtxMenu(); openDepEditor(barId, () => renderTimeline()); return;
       } else if (b.dataset.action === "rename") renameBar(barId, laneId);
@@ -6331,7 +7371,7 @@ function openCtxMenu(x, y, barId, laneId) {
           }
         }
       }
-      closeCtxMenu(); renderTimeline();
+      closeCtxMenu(); saveState(); renderCurrent();
     });
   });
   setTimeout(() => { document.addEventListener("mousedown", outsideClose, { once: true }); }, 0);
@@ -6612,6 +7652,126 @@ document.getElementById("colorByWpToggle").addEventListener("click", () => {
   renderCurrent();
 });
 applyColorByWpButton();
+
+/* Hide locked tasks on the Timeline (data is unchanged — just hidden from
+   the renderer). Useful when locked tasks are scaffolding you've stopped
+   thinking about. Read by renderSingleBar / renderOverviewBar. */
+const HIDE_LOCKED_KEY = "proplan.hideLocked";
+function isHidingLocked() { return localStorage.getItem(HIDE_LOCKED_KEY) === "1"; }
+function applyHideLockedButton() {
+  const btn = document.getElementById("hideLockedToggle"); if (!btn) return;
+  const on = isHidingLocked();
+  btn.classList.toggle("primary", on);
+  btn.textContent = on ? "🔒 Locked: hidden" : "🔒 Locked: shown";
+}
+document.getElementById("hideLockedToggle").addEventListener("click", () => {
+  if (isHidingLocked()) localStorage.removeItem(HIDE_LOCKED_KEY);
+  else localStorage.setItem(HIDE_LOCKED_KEY, "1");
+  applyHideLockedButton();
+  renderCurrent();
+});
+applyHideLockedButton();
+
+/* View-only mode: hides editing-focused toolbar buttons (Auto-sequence,
+   Color by WP) and disables right-click context menus on bars. Doesn't
+   prevent typing in inputs — we just collapse the toolbar surface so the
+   Timeline feels like a read-only display. */
+const VIEW_ONLY_KEY = "proplan.viewOnly";
+function isViewOnly() { return localStorage.getItem(VIEW_ONLY_KEY) === "1"; }
+function applyViewOnlyButton() {
+  const btn = document.getElementById("viewOnlyToggle"); if (!btn) return;
+  const on = isViewOnly();
+  btn.classList.toggle("primary", on);
+  btn.textContent = on ? "✎ Edit mode" : "👁 View-only";
+  document.body.dataset.viewOnly = on ? "1" : "0";
+}
+document.getElementById("viewOnlyToggle").addEventListener("click", () => {
+  if (isViewOnly()) localStorage.removeItem(VIEW_ONLY_KEY);
+  else localStorage.setItem(VIEW_ONLY_KEY, "1");
+  applyViewOnlyButton();
+});
+applyViewOnlyButton();
+
+/* Undo / redo buttons + Cmd/Ctrl-Z keyboard shortcuts. */
+document.getElementById("undoBtn").addEventListener("click", undo);
+document.getElementById("redoBtn").addEventListener("click", redo);
+document.addEventListener("keydown", (ev) => {
+  // Don't hijack while the user is actually typing in an input / textarea /
+  // contenteditable — letting Cmd-Z reach text fields keeps native undo
+  // working for label edits.
+  const t = ev.target;
+  const inEditable = t && (
+    t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" ||
+    (t.isContentEditable === true)
+  );
+  if (inEditable) return;
+  if ((ev.metaKey || ev.ctrlKey) && (ev.key === "z" || ev.key === "Z")) {
+    ev.preventDefault();
+    if (ev.shiftKey) redo();
+    else undo();
+  } else if ((ev.metaKey || ev.ctrlKey) && (ev.key === "y" || ev.key === "Y")) {
+    ev.preventDefault();
+    redo();
+  }
+});
+updateUndoRedoButtons();
+
+/* Focus WP dropdown: populated from state.lanes; value reflects the current
+   filter (or "" for "All WPs"). Repopulated on every renderCurrent so lane
+   adds / deletes / renames stay in sync. */
+function applyWpFocusSelect() {
+  const sel = document.getElementById("wpFocusSelect");
+  if (!sel) return;
+  const filterId = getTimelineFilter();
+  const options = [`<option value="">All WPs</option>`];
+  for (const lane of state.lanes || []) {
+    options.push(`<option value="${escapeHtml(lane.id)}" ${lane.id === filterId ? "selected" : ""}>${escapeHtml(lane.code || "(untitled)")}</option>`);
+  }
+  sel.innerHTML = options.join("");
+  const chip = sel.closest(".chip");
+  if (chip) chip.classList.toggle("is-active", !!filterId);
+}
+document.getElementById("wpFocusSelect").addEventListener("change", (ev) => {
+  setTimelineFilter(ev.target.value || null);
+  renderCurrent();
+});
+applyWpFocusSelect();
+
+/* Track filter segmented control: Product (default) / PLE / All. */
+function applyTrackFilterControl() {
+  const ctrl = document.getElementById("trackFilterControl");
+  if (!ctrl) return;
+  const enabled = enabledTracks(state);
+  const current = getTrackFilter();
+  // If the currently-filtered track was just disabled, fall back to the first
+  // enabled one (or "all" if only one is enabled — no point filtering).
+  if (current !== "all" && !enabled.includes(current)) {
+    setTrackFilter(enabled.length > 1 ? enabled[0] : "all");
+  }
+  const labelEl = ctrl.querySelector(".chip-select-label");
+  const labelHtml = labelEl ? labelEl.outerHTML : `<span class="chip-select-label">Track</span>`;
+  // Always include "All" + one button per enabled track. When only Product is
+  // enabled, the control collapses to just "All / Product" which is a no-op
+  // toggle — fine, it telegraphs that the project only has one stream.
+  const live = getTrackFilter();
+  const buttons = [
+    `<button type="button" data-track="all" class="chip-seg-btn${live === "all" ? " is-active" : ""}">All</button>`,
+    ...enabled.map(id => {
+      const meta = TRACK_DEFAULTS[id];
+      return `<button type="button" data-track="${id}" class="chip-seg-btn${live === id ? " is-active" : ""}">${escapeHtml(meta.label)}</button>`;
+    }),
+  ].join("");
+  ctrl.innerHTML = labelHtml + buttons;
+  ctrl.classList.toggle("is-active", live !== "product" && live !== "all");
+}
+document.getElementById("trackFilterControl").addEventListener("click", (ev) => {
+  const btn = ev.target.closest(".chip-seg-btn");
+  if (!btn) return;
+  setTrackFilter(btn.dataset.track);
+  applyTrackFilterControl();
+  renderCurrent();
+});
+applyTrackFilterControl();
 
 /* Focus mode — hides the header / toolbars so the timeline gets the full
    viewport. NOT browser fullscreen; just CSS-driven chrome collapse. */
@@ -7048,7 +8208,7 @@ let savedView = localStorage.getItem(VIEW_KEY);
 // Migrations: older view IDs map onto the current Timeline. Removed
 // "overview" + "present" tabs fall back to the Timeline view too.
 if (["timeline", "viewB", "overview"].includes(savedView)) savedView = "viewA";
-if (["plan", "viewA", "phase", "process", "proposal"].includes(savedView)) currentView = savedView;
+if (["plan", "viewA", "phase", "process", "structure", "proposal"].includes(savedView)) currentView = savedView;
 // If a user had "present" saved, fall back to plan since the tab no longer exists.
 if (currentView === "present") currentView = "plan";
 document.body.dataset.view = currentView;

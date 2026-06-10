@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 import {
   barHoursDist,
   proposalBarCountsForHours,
+  barAllocPct,
+  effortWeeks,
+  effSpan,
   PROPOSAL_HOURS_PER_WEEK,
   WEEKS_PER_MONTH,
 } from '../src/proplan-core.mjs';
@@ -98,5 +101,61 @@ describe('barHoursDist', () => {
 describe('PROPOSAL_HOURS_PER_WEEK', () => {
   it('is 40', () => {
     expect(PROPOSAL_HOURS_PER_WEEK).toBe(40);
+  });
+});
+
+describe('barAllocPct', () => {
+  it('defaults to 100 when alloc is missing / not a number', () => {
+    expect(barAllocPct({})).toBe(100);
+    expect(barAllocPct({ alloc: null })).toBe(100);
+    expect(barAllocPct({ alloc: 'foo' })).toBe(100);
+  });
+  it('returns the stored alloc when valid', () => {
+    expect(barAllocPct({ alloc: 33 })).toBe(33);
+    expect(barAllocPct({ alloc: 0 })).toBe(0);
+  });
+  it('clamps negative / >100 values', () => {
+    expect(barAllocPct({ alloc: -5 })).toBe(100);
+    expect(barAllocPct({ alloc: 150 })).toBe(100);
+  });
+});
+
+describe('effortWeeks', () => {
+  it('equals effSpan when alloc=100 (default)', () => {
+    const b = { type: 'work', span: 4, buffer: 0 };
+    expect(effortWeeks(b)).toBe(effSpan(b));
+  });
+  it('scales calendar weeks by alloc / 100', () => {
+    // 4 calendar weeks at 33% = 1.32 effort weeks
+    expect(effortWeeks({ type: 'work', span: 4, buffer: 0, alloc: 33 })).toBeCloseTo(1.32, 6);
+    // 4 weeks × 1.25 buffer × 50% alloc = 2.5 effort weeks
+    expect(effortWeeks({ type: 'work', span: 4, buffer: 25, alloc: 50 })).toBe(2.5);
+  });
+  it('is 0 for milestones', () => {
+    expect(effortWeeks({ type: 'milestone' })).toBe(0);
+  });
+});
+
+describe('barHoursDist with alloc', () => {
+  it("a 4-week task at 33% allocation distributes 33% of the hours", () => {
+    // Calendar: month 0..1 fully covered.
+    // Hours WITHOUT alloc = 4 × 40 = 160. WITH alloc 33 → 160 × 0.33 = 52.8.
+    const b = { type: 'work', startIdx: 0, span: 4, buffer: 0, alloc: 33 };
+    const dist = barHoursDist(b, { numMonths: 3 });
+    expect(dist.reduce((a, b) => a + b)).toBeCloseTo(52.8, 6);
+  });
+  it("the per-month split still follows the calendar, just scaled", () => {
+    // 4-week task starting at startIdx 0.5 → half in month 0, half in month 1.
+    // With alloc=50%, totals: month 0 = 40h, month 1 = 40h (each half is 80 × 0.5).
+    const b = { type: 'work', startIdx: 0.5, span: 4, buffer: 0, alloc: 50 };
+    const dist = barHoursDist(b, { numMonths: 3 });
+    expect(dist[0]).toBeCloseTo(40, 6);
+    expect(dist[1]).toBeCloseTo(40, 6);
+  });
+  it("alloc and buffer compose (both scale the per-month hours)", () => {
+    // 4 weeks × 1.5 buffer = 6 calendar weeks; × 50% alloc = 120 total hours.
+    const b = { type: 'work', startIdx: 0, span: 4, buffer: 50, alloc: 50 };
+    const dist = barHoursDist(b, { numMonths: 4 });
+    expect(dist.reduce((a, b) => a + b)).toBeCloseTo(120, 6);
   });
 });

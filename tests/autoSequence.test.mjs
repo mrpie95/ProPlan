@@ -177,6 +177,36 @@ describe('autoSequence — cycle handling', () => {
   });
 });
 
+describe('autoSequence — locked bars', () => {
+  it('does not move a locked bar, but other bars re-flow around it', () => {
+    const state = {
+      lanes: [{
+        bars: [
+          // a is locked at startIdx=10. Its successor b should still get
+          // re-placed to a.end (not all the way back to 0).
+          { id: 'a', type: 'work', startIdx: 10, span: 4, buffer: 0, locked: true, dependsOn: [] },
+          { id: 'b', type: 'work', startIdx: 99, span: 4, buffer: 0, dependsOn: ['a'] },
+        ],
+      }],
+    };
+    const result = autoSequence(state);
+    expect(result.ok).toBe(true);
+    const bars = Object.fromEntries(state.lanes[0].bars.map(x => [x.id, x]));
+    expect(bars.a.startIdx).toBe(10);           // unchanged
+    expect(bars.b.startIdx).toBe(11);           // a ends at 11 (10 + 4/4); b lands there
+  });
+
+  it('a locked bar with no predecessor stays where it is, even if other bars could pull it earlier', () => {
+    const state = {
+      lanes: [{ bars: [
+        { id: 'pin', type: 'work', startIdx: 5, span: 4, buffer: 0, locked: true, dependsOn: [] },
+      ]}],
+    };
+    autoSequence(state);
+    expect(state.lanes[0].bars[0].startIdx).toBe(5);
+  });
+});
+
 describe('autoSequence — idempotency', () => {
   it('running twice produces the same layout', () => {
     const state = load('multiPhase.json');

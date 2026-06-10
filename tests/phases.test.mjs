@@ -145,6 +145,21 @@ describe('enforcePhaseOrder', () => {
     expect(dp.startIdx).toBeLessThanOrEqual(1);
   });
 
+  it('does NOT push a locked bar, even if it sits before the gate', () => {
+    const state = {
+      lanes: [{
+        bars: [
+          { id: 'prs', type: 'work', startIdx: 0, span: 12, buffer: 0, phase: 'PRS', dependsOn: [] },
+          // DP-early starts WAY before PRS ends. Normally would be pushed to PRS.end (3),
+          // but it's locked — must remain at startIdx 1.
+          { id: 'dpLocked', type: 'work', startIdx: 1, span: 4, buffer: 0, phase: 'DP', locked: true, dependsOn: [] },
+        ],
+      }],
+    };
+    enforcePhaseOrder(state);
+    expect(state.lanes[0].bars[1].startIdx).toBe(1);
+  });
+
   it('bleed contributes end to phaseEnd, not phase — does not gate the start phase', () => {
     const state = {
       lanes: [{

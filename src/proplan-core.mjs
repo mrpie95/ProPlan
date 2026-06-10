@@ -26,6 +26,7 @@ export const TYPES = {
   buffer:    { label: "Buffer",    bar: "#fde68a", border: "#b45309" },
   leadtime:  { label: "Lead Time", bar: "#ddd6fe", border: "#6d28d9" },
   review:    { label: "Review",    bar: "#bbf7d0", border: "#15803d" },
+  ongoing:   { label: "Ongoing",   bar: "#cffafe", border: "#0891b2" },
   milestone: { label: "Milestone", bar: "#fbbf24", border: "#b45309" },
 };
 
@@ -50,6 +51,30 @@ export function toDateInputValue(s) {
   return `${p.y}-${String(p.m).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
 }
 
+/* Total project duration in WEEKS, derived from state.start..state.end.
+   Used for "ongoing" bars (project lead, PM, etc.) that auto-span the whole
+   project. */
+export function projectSpanWeeks(state) {
+  if (!state || !state.start || !state.end) return 0;
+  return monthsBetween(state.start, state.end).length * WEEKS_PER_MONTH;
+}
+
+/* Force every "ongoing" bar to span the full project (startIdx=0, span =
+   projectSpanWeeks). Called from saveState() so the data stays in sync as
+   the user edits dates / adds bars. Idempotent. */
+export function syncOngoingBars(state) {
+  if (!state || !Array.isArray(state.lanes)) return;
+  const projWeeks = projectSpanWeeks(state);
+  for (const lane of state.lanes) {
+    for (const bar of lane.bars || []) {
+      if (bar.type === "ongoing") {
+        bar.startIdx = 0;
+        bar.span = projWeeks;
+      }
+    }
+  }
+}
+
 /* Inclusive list of {y, m} between startStr and endStr. Returns [] if endStr
    precedes startStr — callers can rely on .length to detect empty ranges. */
 export function monthsBetween(startStr, endStr) {
@@ -63,9 +88,31 @@ export function monthsBetween(startStr, endStr) {
   return out;
 }
 
-/* Effective duration in WEEKS = raw span × (1 + buffer/100). Milestones = 0. */
+/* Effective CALENDAR duration in weeks = raw span × (1 + buffer/100).
+   Milestones = 0. Ongoing bars use their stored span verbatim (it's already
+   the full project span; a buffer on top would push them past project end).
+   This is what the Timeline uses for layout — alloc% does NOT affect the
+   calendar window, only the hours rollup. */
 export function effSpan(b) {
-  return b && b.type === "milestone" ? 0 : ((b && b.span) || 0) * (1 + ((b && b.buffer) || 0) / 100);
+  if (!b) return 0;
+  if (b.type === "milestone") return 0;
+  if (b.type === "ongoing") return b.span || 0;
+  return (b.span || 0) * (1 + (b.buffer || 0) / 100);
+}
+
+/* Read a bar's time-allocation percentage. Defaults to 100 (full-time on the
+   task during its calendar window). Clamped to [0, 100]. */
+export function barAllocPct(b) {
+  const a = b && b.alloc;
+  if (typeof a !== "number" || a < 0) return 100;
+  if (a > 100) return 100;
+  return a;
+}
+
+/* Effective EFFORT in weeks = calendar weeks × alloc/100. This is what the
+   Proposal Timeline hours rollup multiplies by 40 h/week. */
+export function effortWeeks(b) {
+  return effSpan(b) * barAllocPct(b) / 100;
 }
 
 export function rnd1(n) { return Math.round(n * 10) / 10; }
@@ -102,15 +149,77 @@ export function renumberWPs(state) {
 
 /* ====================== State helpers ====================== */
 
+/* Recognised tracks for a WP.
+   - "product"     — the formal SOP-18 path. Phase-bound (PRS/DP/DO/FP).
+   - "exploration" — free-form research / feasibility, not phase-bound.
+   - "ple"         — Post-Launch Engineering, less formal, not phase-bound.
+   Existing WPs without a track default to "product" so old data renders
+   identically.
+
+   Whether each track is ENABLED for a given project lives in state.tracks,
+   not here — TRACK_DEFAULTS provides the metadata used to seed it. */
+export const LANE_TRACKS = ["product", "exploration", "ple"];
+
+export const TRACK_DEFAULTS = {
+  product:     { label: "Product",     description: "Formal SOP-18 product development.",      color: { bar: "#e0f2fe", border: "#0369a1" }, phaseBound: true,  enabledByDefault: true  },
+  exploration: { label: "Exploration", description: "Free-form research and feasibility work.", color: { bar: "#fef3c7", border: "#b45309" }, phaseBound: false, enabledByDefault: false },
+  ple:         { label: "PLE",         description: "Post-Launch Engineering — less formal.",   color: { bar: "#f3e8ff", border: "#6b21a8" }, phaseBound: false, enabledByDefault: false },
+};
+
+/* List of track ids that are currently enabled for `state`. Falls back to
+   ["product"] if state.tracks is missing/empty. */
+export function enabledTracks(state) {
+  if (!state || !Array.isArray(state.tracks)) return ["product"];
+  const list = state.tracks.filter(t => t.enabled).map(t => t.id);
+  return list.length ? list : ["product"];
+}
+
+/* Is `trackId` enabled for `state`? Always true for "product" when state has
+   no track config (safe default for legacy data). */
+export function isTrackEnabled(state, trackId) {
+  if (!state || !Array.isArray(state.tracks)) return trackId === "product";
+  const t = state.tracks.find(x => x.id === trackId);
+  return t ? !!t.enabled : false;
+}
+
 /* Fill in missing fields after load/import. Tolerates partial data. */
 export function normaliseState(state) {
+  // state.tracks: array of { id, enabled }. Seed it on first encounter with
+  // each LANE_TRACK and respect any existing entries. Order preserved.
+  if (!Array.isArray(state.tracks)) state.tracks = [];
+  const seen = new Set();
+  state.tracks = state.tracks.filter(t => {
+    if (!t || !LANE_TRACKS.includes(t.id) || seen.has(t.id)) return false;
+    seen.add(t.id);
+    if (typeof t.enabled !== "boolean") t.enabled = !!TRACK_DEFAULTS[t.id].enabledByDefault;
+    return true;
+  });
+  for (const id of LANE_TRACKS) {
+    if (!seen.has(id)) {
+      state.tracks.push({ id, enabled: !!TRACK_DEFAULTS[id].enabledByDefault });
+    }
+  }
+
   for (const lane of state.lanes || []) {
+    // Default missing/invalid lane track to "product".
+    if (!LANE_TRACKS.includes(lane.track)) lane.track = "product";
     for (const bar of lane.bars || []) {
       if (!Array.isArray(bar.dependsOn)) bar.dependsOn = [];
       if (typeof bar.buffer !== "number" || bar.buffer < 0) bar.buffer = 10;
+      // alloc: time-allocation %, defaulting to 100 (full-time on the task).
+      if (typeof bar.alloc !== "number" || bar.alloc < 0 || bar.alloc > 100) bar.alloc = 100;
+      // bar.track: optional per-bar override of lane.track. undefined = inherit.
+      if (bar.track !== undefined && !LANE_TRACKS.includes(bar.track)) bar.track = undefined;
     }
   }
   if (state.activePhase === undefined) state.activePhase = null;
+}
+
+/* The effective track for a bar: its own override if set, else the lane's. */
+export function barTrack(bar, lane) {
+  if (bar && LANE_TRACKS.includes(bar.track)) return bar.track;
+  if (lane && LANE_TRACKS.includes(lane.track)) return lane.track;
+  return "product";
 }
 
 /* v3 → v4 migration: spans were measured in months; v4 measures in weeks. */
@@ -225,7 +334,9 @@ export function enforcePhaseOrder(state) {
     let phaseMaxEnd = cumulativeMaxEnd;
     for (const lane of state.lanes || []) {
       for (const b of lane.bars || []) {
-        if (b.phase === phase && b.startIdx < cumulativeMaxEnd) {
+        // Locked bars don't move — even if they'd technically start before
+        // the previous phase's gate. (User asked to lock them; respect it.)
+        if (b.phase === phase && b.startIdx < cumulativeMaxEnd && !b.locked) {
           b.startIdx = Math.ceil(cumulativeMaxEnd * WEEKS_PER_MONTH) / WEEKS_PER_MONTH;
         }
         if (b.extendsPhase) continue;
@@ -305,6 +416,10 @@ export function autoSequence(state) {
     for (const barId of order) {
       const entry = map[barId]; if (!entry) continue;
       const bar = entry.bar;
+      // Locked bars keep their startIdx — auto-sequence never moves them. They
+      // still contribute their end position to downstream successors, so the
+      // rest of the chain re-flows around them.
+      if (bar.locked) continue;
       let earliest = ratchet ? bar.startIdx : 0;
       for (const predId of (bar.dependsOn || [])) {
         const p = map[predId]; if (!p) continue;
@@ -434,13 +549,16 @@ export function barHoursDist(b, {
   const dist = new Array(numMonths).fill(0);
   if (!proposalBarCountsForHours(b, { includeLeadtime })) return dist;
   const effMonths = effSpan(b) / WEEKS_PER_MONTH;
+  // Allocation %: how much of the calendar window's hours actually count as
+  // effort. 100 = full time. 33 = ~1/3 of the calendar slot's hours.
+  const allocFactor = barAllocPct(b) / 100;
   const cs = b.startIdx + startMonthOffset;
   const ce = cs + effMonths;
   const firstM = Math.max(0, Math.floor(cs));
   const lastM = Math.min(numMonths - 1, Math.ceil(ce) - 1);
   for (let m = firstM; m <= lastM; m++) {
     const len = Math.max(0, Math.min(m + 1, ce) - Math.max(m, cs));
-    const h = len * WEEKS_PER_MONTH * hoursPerWeek;
+    const h = len * WEEKS_PER_MONTH * hoursPerWeek * allocFactor;
     if (h > 0) dist[m] += h;
   }
   return dist;
