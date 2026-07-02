@@ -13,6 +13,16 @@ import {
   isTrackEnabled,
   LANE_TRACKS,
   TRACK_DEFAULTS,
+  SYSTEM_TRACK_SEEDS,
+  getProductTracks,
+  getContinuousTracks,
+  getTrackById,
+  getTrackActivePhase,
+  setTrackActivePhase,
+  defaultColorForNewTrack,
+  addProduct,
+  removeTrack,
+  renameTrack,
   WEEKS_PER_MONTH,
 } from '../src/proplan-core.mjs';
 
@@ -77,8 +87,33 @@ describe('normaliseState', () => {
       expect(barTrack({}, {})).toBe('product');
       expect(barTrack(null, null)).toBe('product');
     });
-    it('ignores an invalid bar override', () => {
-      expect(barTrack({ track: 'foo' }, { track: 'ple' })).toBe('ple');
+    // v5: track ids are user-extensible (custom product names), so barTrack
+    // no longer validates against a hardcoded allowlist — it just trusts
+    // bar.track if it's a non-empty string. Dangling refs are scrubbed
+    // upstream by normaliseState, so by the time barTrack runs, bar.track
+    // is either valid or undefined.
+    it('returns whatever bar.track is set to (no allowlist enforcement)', () => {
+      expect(barTrack({ track: 'foo' }, { track: 'ple' })).toBe('foo');
+    });
+
+    // v5 multi-product: bar.tracks is a string[] for activities that belong
+    // to multiple products. barTracks() returns the full list; barTrack()
+    // returns the first element for legacy callers.
+    it('barTracks: bar.tracks array takes precedence', async () => {
+      const { barTracks } = await import('../src/proplan-core.mjs');
+      expect(barTracks({ tracks: ['a', 'b'] }, { track: 'c' })).toEqual(['a', 'b']);
+      expect(barTrack ({ tracks: ['a', 'b'] }, { track: 'c' })).toBe('a');
+    });
+    it('barTracks: falls back to bar.track then lane.track', async () => {
+      const { barTracks } = await import('../src/proplan-core.mjs');
+      expect(barTracks({ track: 'x' }, { track: 'y' })).toEqual(['x']);
+      expect(barTracks({}, { track: 'y' })).toEqual(['y']);
+      expect(barTracks({}, {})).toEqual(['product']);
+    });
+    it('barTracks: empty/invalid bar.tracks falls through to bar.track', async () => {
+      const { barTracks } = await import('../src/proplan-core.mjs');
+      expect(barTracks({ tracks: [], track: 'x' }, {})).toEqual(['x']);
+      expect(barTracks({ tracks: ['', null], track: 'x' }, {})).toEqual(['x']);
     });
   });
 
@@ -105,18 +140,25 @@ describe('normaliseState', () => {
       expect(byId.exploration.enabled).toBe(false);
     });
 
-    it('drops invalid / duplicate entries', () => {
+    it('drops duplicate entries but PRESERVES user-named tracks', () => {
+      // v5: ids are user-extensible — a "foo" track is a perfectly valid
+      // user-named product. Only literal duplicate ids are dropped.
       const state = { lanes: [], tracks: [
         { id: 'product', enabled: true },
         { id: 'foo', enabled: true },
-        { id: 'product', enabled: false },   // duplicate
+        { id: 'product', enabled: false },   // duplicate of product
       ]};
       normaliseState(state);
       // Only one product, kept with its initial enabled value
       expect(state.tracks.filter(t => t.id === 'product')).toHaveLength(1);
       expect(state.tracks.find(t => t.id === 'product').enabled).toBe(true);
-      // No "foo" snuck in
-      expect(state.tracks.find(t => t.id === 'foo')).toBeUndefined();
+      // "foo" survives — it's just a user-named track. Its missing fields
+      // (kind, label, color) get filled in by normaliseState's enrichment.
+      const foo = state.tracks.find(t => t.id === 'foo');
+      expect(foo).toBeDefined();
+      expect(foo.enabled).toBe(true);
+      expect(foo.kind).toBe('product'); // default for non-system ids
+      expect(foo.label).toBe('foo');
     });
   });
 
@@ -157,6 +199,334 @@ describe('normaliseState', () => {
         expect(TRACK_DEFAULTS[id]).toBeDefined();
         expect(typeof TRACK_DEFAULTS[id].label).toBe('string');
       }
+    });
+  });
+
+  // ─── v5: multi-product track model + v4 migration ───────────────────────
+  describe('v5 track model — kind + enrichment', () => {
+    it('enriches a v4-style track entry with kind/label/color/activePhase', () => {
+      const state = { lanes: [], tracks: [
+        { id: 'product', enabled: true },
+        { id: 'ple', enabled: false },
+      ]};
+      normaliseState(state);
+      const product = state.tracks.find(t => t.id === 'product');
+      const ple = state.tracks.find(t => t.id === 'ple');
+      // product enriched from SYSTEM_TRACK_SEEDS:
+      expect(product.kind).toBe('product');
+      expect(product.label).toBe('Product');
+      expect(product.color).toEqual({ bar: '#e0f2fe', border: '#0369a1' });
+      expect(product.activePhase).toBe(null);
+      // ple enriched as continuous:
+      expect(ple.kind).toBe('continuous');
+      expect(ple.label).toBe('PLE');
+      // continuous tracks don't get an activePhase field at all
+      expect(ple.activePhase).toBeUndefined();
+    });
+
+    it('treats non-system ids as user-named products with kind=product', () => {
+      const state = { lanes: [], tracks: [
+        { id: 'hearing-aid-v2', enabled: true, label: 'Hearing aid v2' },
+      ]};
+      normaliseState(state);
+      const t = state.tracks.find(x => x.id === 'hearing-aid-v2');
+      expect(t.kind).toBe('product');
+      expect(t.label).toBe('Hearing aid v2'); // preserved when provided
+      expect(t.activePhase).toBe(null);       // default for products
+      expect(t.color).toBeDefined();          // colour picked from palette
+    });
+
+    it('preserves an existing per-track activePhase across re-normalisation', () => {
+      const state = { lanes: [], tracks: [
+        { id: 'product', kind: 'product', label: 'P', color: { bar: '#fff', border: '#000' }, enabled: true, activePhase: 'DP' },
+      ]};
+      normaliseState(state);
+      expect(getTrackActivePhase(state, 'product')).toBe('DP');
+    });
+  });
+
+  describe('v4 → v5 migration of state.activePhase', () => {
+    it('moves a global activePhase into the "product" track', () => {
+      // v4 shape: state.activePhase is a top-level field, state.tracks is
+      // present but tracks don't have a per-track activePhase.
+      const state = {
+        lanes: [],
+        activePhase: 'DO',
+        tracks: [
+          { id: 'product', enabled: true },
+          { id: 'ple', enabled: false },
+          { id: 'exploration', enabled: false },
+        ],
+      };
+      normaliseState(state);
+      expect(getTrackActivePhase(state, 'product')).toBe('DO');
+      // Continuous tracks stay phase-less.
+      expect(getTrackActivePhase(state, 'ple')).toBe(null);
+    });
+
+    it('does not clobber an existing per-track phase when re-loading', () => {
+      const state = {
+        lanes: [],
+        activePhase: 'PRS',       // legacy global value
+        tracks: [
+          // Product already has activePhase set (post-migration), DP > PRS
+          { id: 'product', kind: 'product', label: 'P', color: { bar: '#fff', border: '#000' }, enabled: true, activePhase: 'DP' },
+        ],
+      };
+      normaliseState(state);
+      expect(getTrackActivePhase(state, 'product')).toBe('DP');
+    });
+
+    it('preserves PLE and Exploration as continuous after migration', () => {
+      const state = { lanes: [], activePhase: 'DP', tracks: [
+        { id: 'product', enabled: true },
+        { id: 'ple', enabled: true },
+        { id: 'exploration', enabled: true },
+      ]};
+      normaliseState(state);
+      const ple = getTrackById(state, 'ple');
+      const exp = getTrackById(state, 'exploration');
+      expect(ple.kind).toBe('continuous');
+      expect(exp.kind).toBe('continuous');
+      expect(ple.activePhase).toBeUndefined();
+      expect(exp.activePhase).toBeUndefined();
+    });
+  });
+
+  describe('Product CRUD', () => {
+    it('addProduct appends a well-formed track with a unique id', () => {
+      const state = { lanes: [] };
+      normaliseState(state);
+      const t1 = addProduct(state, { label: 'New product' });
+      expect(t1.kind).toBe('product');
+      expect(t1.enabled).toBe(true);
+      expect(t1.activePhase).toBe(null);
+      expect(t1.color).toBeDefined();
+      // ID is slugified from label
+      expect(t1.id).toBe('new-product');
+      // Adding another with the same label gets a numeric suffix
+      const t2 = addProduct(state, { label: 'New product' });
+      expect(t2.id).toBe('new-product-2');
+    });
+
+    it('defaultColorForNewTrack avoids colours already in use', () => {
+      const state = { lanes: [] };
+      normaliseState(state);
+      // product seeded with the first palette colour (#0369a1 border)
+      const c = defaultColorForNewTrack(state);
+      expect(c.border).not.toBe('#0369a1'); // shouldn't pick the same as product
+    });
+
+    it('removeTrack reassigns orphaned lanes to a fallback product', () => {
+      const state = { lanes: [
+        { id: 'l1', track: 'product', bars: [] },
+        { id: 'l2', track: 'extra',   bars: [{ id: 'b1', type: 'work', span: 4, track: 'extra' }] },
+      ]};
+      normaliseState(state);
+      addProduct(state, { label: 'Extra' });
+      // Force lane.track to point at the new product (normaliseState had
+      // already remapped l2 to "product" because "extra" didn't exist yet).
+      state.lanes[1].track = 'extra';
+      state.lanes[1].bars[0].track = 'extra';
+      // Now remove "extra": l2 should rebind to the first remaining product,
+      // and b1's per-bar override should be cleared.
+      expect(removeTrack(state, 'extra')).toBe(true);
+      expect(state.lanes[1].track).toBe('product');
+      expect(state.lanes[1].bars[0].track).toBeUndefined();
+    });
+
+    it('renameTrack updates the label but keeps the id stable', () => {
+      const state = { lanes: [] };
+      normaliseState(state);
+      expect(renameTrack(state, 'product', 'Hearing aid v2')).toBe(true);
+      const p = getTrackById(state, 'product');
+      expect(p.label).toBe('Hearing aid v2');
+      expect(p.id).toBe('product');
+    });
+  });
+
+  describe('getProductTracks / getContinuousTracks split', () => {
+    it('separates by kind, only returning enabled tracks', () => {
+      const state = { lanes: [], tracks: [
+        { id: 'product', enabled: true },
+        { id: 'extra-prod', kind: 'product', enabled: true, label: 'X', color: { bar: '#fff', border: '#000' } },
+        { id: 'ple', enabled: true },
+        { id: 'exploration', enabled: false },
+      ]};
+      normaliseState(state);
+      const prods = getProductTracks(state).map(t => t.id);
+      const conts = getContinuousTracks(state).map(t => t.id);
+      expect(prods).toEqual(['product', 'extra-prod']);
+      expect(conts).toEqual(['ple']);   // exploration disabled, excluded
+    });
+  });
+
+  describe('Milestone follows-end-of', () => {
+    it('syncFollowsEndOf snaps a milestone to its target\'s end', async () => {
+      const { syncFollowsEndOf } = await import('../src/proplan-core.mjs');
+      const state = {
+        lanes: [{ id: 'l1', track: 'product', bars: [
+          // Activity: 4 weeks, 10% buffer → effSpan = 4.4 weeks = 1.1 months.
+          // Starts at month 2 → ends at 3.1.
+          { id: 'a1', type: 'work', startIdx: 2, span: 4, buffer: 10, alloc: 100, dependsOn: [] },
+          // Milestone with stale startIdx — should be overwritten to 3.1.
+          { id: 'm1', type: 'milestone', startIdx: 0, span: 0, dependsOn: [], followsEndOf: 'a1' },
+        ]}],
+      };
+      syncFollowsEndOf(state);
+      expect(state.lanes[0].bars[1].startIdx).toBeCloseTo(3.1, 5);
+    });
+
+    it('clears followsEndOf when target no longer exists', async () => {
+      const { syncFollowsEndOf } = await import('../src/proplan-core.mjs');
+      const state = {
+        lanes: [{ id: 'l1', track: 'product', bars: [
+          { id: 'm1', type: 'milestone', startIdx: 5, span: 0, dependsOn: [], followsEndOf: 'a-deleted' },
+        ]}],
+      };
+      syncFollowsEndOf(state);
+      expect(state.lanes[0].bars[0].followsEndOf).toBeUndefined();
+      // startIdx untouched (no target to follow).
+      expect(state.lanes[0].bars[0].startIdx).toBe(5);
+    });
+
+    it('normaliseState scrubs dangling followsEndOf refs and syncs', async () => {
+      const state = {
+        lanes: [{ id: 'l1', track: 'product', bars: [
+          { id: 'a1', type: 'work', startIdx: 1, span: 4, buffer: 0, alloc: 100, dependsOn: [] },
+          { id: 'm-valid', type: 'milestone', startIdx: 99, span: 0, dependsOn: [], followsEndOf: 'a1' },
+          { id: 'm-dangling', type: 'milestone', startIdx: 99, span: 0, dependsOn: [], followsEndOf: 'a-deleted' },
+        ]}],
+      };
+      normaliseState(state);
+      const valid = state.lanes[0].bars.find(b => b.id === 'm-valid');
+      const dangling = state.lanes[0].bars.find(b => b.id === 'm-dangling');
+      // Valid milestone snapped to a1's end (1 + 4/4 = 2).
+      expect(valid.startIdx).toBeCloseTo(2, 5);
+      // Dangling ref cleared.
+      expect(dangling.followsEndOf).toBeUndefined();
+    });
+  });
+
+  describe('setTrackActivePhase / getTrackActivePhase', () => {
+    it('round-trips a phase per product track', () => {
+      const state = { lanes: [] };
+      normaliseState(state);
+      addProduct(state, { label: 'Earmold' });
+      setTrackActivePhase(state, 'product', 'DP');
+      setTrackActivePhase(state, 'earmold', 'PRS');
+      expect(getTrackActivePhase(state, 'product')).toBe('DP');
+      expect(getTrackActivePhase(state, 'earmold')).toBe('PRS');
+      // Setting on a continuous track is a no-op
+      setTrackActivePhase(state, 'ple', 'DP');
+      expect(getTrackActivePhase(state, 'ple')).toBe(null);
+    });
+  });
+
+  // ─── Disciplines (axis orthogonal to tracks) ─────────────────────────
+  describe('Disciplines', () => {
+    it('seeds an empty list when missing', async () => {
+      const { getDisciplines } = await import('../src/proplan-core.mjs');
+      const state = { lanes: [] };
+      normaliseState(state);
+      expect(Array.isArray(state.disciplines)).toBe(true);
+      expect(getDisciplines(state)).toEqual([]);
+    });
+
+    it('addDiscipline creates entries with slugified id + palette color', async () => {
+      const { addDiscipline, getDisciplines } = await import('../src/proplan-core.mjs');
+      const state = { lanes: [] };
+      normaliseState(state);
+      const a = addDiscipline(state, { label: 'Acoustics' });
+      const m = addDiscipline(state, { label: 'Mechanical' });
+      expect(a.id).toBe('acoustics');
+      expect(m.id).toBe('mechanical');
+      expect(a.color).not.toBe(m.color);
+      expect(getDisciplines(state)).toHaveLength(2);
+    });
+
+    it('duplicate label gets a numeric suffix', async () => {
+      const { addDiscipline } = await import('../src/proplan-core.mjs');
+      const state = { lanes: [] };
+      normaliseState(state);
+      const a = addDiscipline(state, { label: 'Quality' });
+      const b = addDiscipline(state, { label: 'Quality' });
+      expect(a.id).toBe('quality');
+      expect(b.id).toBe('quality-2');
+    });
+
+    it('removeDiscipline clears dangling refs on bars + lanes', async () => {
+      const { addDiscipline, removeDiscipline, barDiscipline } = await import('../src/proplan-core.mjs');
+      const state = {
+        lanes: [
+          { id: 'l1', track: 'product', discipline: 'acoustics', bars: [
+            { id: 'b1', type: 'work', span: 1, discipline: 'acoustics' },
+            { id: 'b2', type: 'work', span: 1 },
+          ]},
+        ],
+      };
+      normaliseState(state);
+      addDiscipline(state, { label: 'Acoustics' });
+      // Re-tag now that the discipline exists
+      state.lanes[0].discipline = 'acoustics';
+      state.lanes[0].bars[0].discipline = 'acoustics';
+      expect(removeDiscipline(state, 'acoustics')).toBe(true);
+      expect(state.lanes[0].discipline).toBeUndefined();
+      expect(state.lanes[0].bars[0].discipline).toBeUndefined();
+      // barDiscipline returns null when neither bar nor lane is set
+      expect(barDiscipline(state.lanes[0].bars[0], state.lanes[0])).toBe(null);
+    });
+
+    it('barDiscipline: bar override beats lane default; lane default applies otherwise', async () => {
+      const { barDiscipline } = await import('../src/proplan-core.mjs');
+      expect(barDiscipline({ discipline: 'mechanical' }, { discipline: 'acoustics' })).toBe('mechanical');
+      expect(barDiscipline({}, { discipline: 'acoustics' })).toBe('acoustics');
+      expect(barDiscipline({}, {})).toBe(null);
+      expect(barDiscipline(null, null)).toBe(null);
+    });
+
+    it('barDiscipline: "_none" sentinel is explicit-no, overrides WP default to null', async () => {
+      const { barDiscipline } = await import('../src/proplan-core.mjs');
+      // Bar explicitly opts out of the WP's acoustics default.
+      expect(barDiscipline({ discipline: '_none' }, { discipline: 'acoustics' })).toBe(null);
+      // No lane default either — same result.
+      expect(barDiscipline({ discipline: '_none' }, {})).toBe(null);
+    });
+
+    it('normaliseState preserves the "_none" sentinel on bars', async () => {
+      const state = {
+        lanes: [
+          { id: 'l1', track: 'product', discipline: 'acoustics', bars: [
+            { id: 'b1', type: 'work', span: 1, discipline: '_none' },
+          ]},
+        ],
+        disciplines: [{ id: 'acoustics', label: 'Acoustics', color: '#7c3aed' }],
+      };
+      normaliseState(state);
+      expect(state.lanes[0].bars[0].discipline).toBe('_none');
+    });
+
+    it('normaliseState scrubs dangling discipline refs', async () => {
+      const state = {
+        lanes: [
+          { id: 'l1', track: 'product', discipline: 'no-such', bars: [
+            { id: 'b1', type: 'work', span: 1, discipline: 'also-gone' },
+          ]},
+        ],
+        disciplines: [{ id: 'acoustics', label: 'Acoustics', color: '#7c3aed' }],
+      };
+      normaliseState(state);
+      expect(state.lanes[0].discipline).toBeUndefined();
+      expect(state.lanes[0].bars[0].discipline).toBeUndefined();
+    });
+
+    it('renameDiscipline updates label, id stays', async () => {
+      const { addDiscipline, renameDiscipline, getDisciplineById } = await import('../src/proplan-core.mjs');
+      const state = { lanes: [] };
+      normaliseState(state);
+      addDiscipline(state, { label: 'Acoustics' });
+      expect(renameDiscipline(state, 'acoustics', 'Acoustic engineering')).toBe(true);
+      expect(getDisciplineById(state, 'acoustics').label).toBe('Acoustic engineering');
     });
   });
 
@@ -233,27 +603,61 @@ describe('projectSpanWeeks', () => {
 });
 
 describe('syncOngoingBars', () => {
-  it('forces every ongoing bar to startIdx=0, span=projectSpanWeeks', () => {
+  it('spans from project start to the END of the last non-ongoing bar (not state.end)', () => {
     const state = {
-      start: '2026-01', end: '2026-06',          // 24 weeks
+      start: '2026-01', end: '2026-12',          // declared end is December
+      lanes: [{ bars: [
+        { id: 'pm',   type: 'ongoing', startIdx: 99, span: 4, alloc: 20 },
+        // The real work only runs up to month 5 + 4 weeks = month 6 → 24 weeks.
+        { id: 'work', type: 'work',    startIdx: 5, span: 4, buffer: 0, alloc: 100 },
+      ]}],
+    };
+    syncOngoingBars(state);
+    const pm = state.lanes[0].bars[0];
+    expect(pm.startIdx).toBe(0);
+    // 5 months + 1 month of work = 6 months = 24 weeks
+    expect(pm.span).toBe(24);
+  });
+  it('falls back to projectSpanWeeks when there are no other bars', () => {
+    const state = {
+      start: '2026-01', end: '2026-06',          // 6 months = 24 weeks
+      lanes: [{ bars: [{ id: 'pm', type: 'ongoing', startIdx: 99, span: 4, alloc: 20 }] }],
+    };
+    syncOngoingBars(state);
+    expect(state.lanes[0].bars[0].span).toBe(24);
+  });
+  it('leaves non-ongoing bars unchanged', () => {
+    const state = {
+      start: '2026-01', end: '2026-06',
       lanes: [{ bars: [
         { id: 'pm',   type: 'ongoing', startIdx: 5, span: 4, alloc: 20 },
         { id: 'work', type: 'work',    startIdx: 5, span: 4, alloc: 100 },
       ]}],
     };
     syncOngoingBars(state);
-    const pm = state.lanes[0].bars[0];
-    const work = state.lanes[0].bars[1];
-    expect(pm.startIdx).toBe(0);
-    expect(pm.span).toBe(24);
-    // Work bars unaffected
-    expect(work.startIdx).toBe(5);
-    expect(work.span).toBe(4);
+    expect(state.lanes[0].bars[1].startIdx).toBe(5);
+    expect(state.lanes[0].bars[1].span).toBe(4);
+  });
+  it('milestones count toward the project end (point in time, no duration)', () => {
+    const state = {
+      start: '2026-01', end: '2026-12',
+      lanes: [{ bars: [
+        { id: 'pm', type: 'ongoing', startIdx: 0, span: 0, alloc: 20 },
+        // Milestone at month 8 → ongoing should still extend to month 8 = 32 weeks
+        { id: 'ms', type: 'milestone', startIdx: 8, span: 0 },
+        { id: 'w',  type: 'work', startIdx: 3, span: 4, buffer: 0 },   // ends at month 4
+      ]}],
+    };
+    syncOngoingBars(state);
+    expect(state.lanes[0].bars[0].span).toBe(32);
   });
   it('is idempotent', () => {
     const state = {
-      start: '2026-01', end: '2026-06',
-      lanes: [{ bars: [{ id: 'pm', type: 'ongoing', startIdx: 0, span: 24, alloc: 20 }] }],
+      start: '2026-01', end: '2026-12',
+      lanes: [{ bars: [
+        { id: 'pm', type: 'ongoing', startIdx: 0, span: 24, alloc: 20 },
+        { id: 'w',  type: 'work', startIdx: 5, span: 4, buffer: 0 },
+      ]}],
     };
     syncOngoingBars(state);
     const snap = JSON.stringify(state);

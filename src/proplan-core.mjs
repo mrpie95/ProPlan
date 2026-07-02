@@ -59,17 +59,35 @@ export function projectSpanWeeks(state) {
   return monthsBetween(state.start, state.end).length * WEEKS_PER_MONTH;
 }
 
-/* Force every "ongoing" bar to span the full project (startIdx=0, span =
-   projectSpanWeeks). Called from saveState() so the data stays in sync as
-   the user edits dates / adds bars. Idempotent. */
+/* Force every "ongoing" bar to span from project start (startIdx=0) to the
+   end of the LAST non-ongoing bar in the project. This matches the intent —
+   the project lead / PM / continuous role runs until the actual work
+   finishes, not until the manually-set state.end (which may be a calendar
+   marker further out than where the real schedule lands).
+   Falls back to projectSpanWeeks(state) when there are no real bars yet.
+   Called from saveState() so the data stays in sync as the user edits.
+   Idempotent. */
 export function syncOngoingBars(state) {
   if (!state || !Array.isArray(state.lanes)) return;
-  const projWeeks = projectSpanWeeks(state);
+  // Find the last bar end across all non-ongoing bars (months from start).
+  let lastEndMonths = 0;
+  for (const lane of state.lanes) {
+    for (const bar of lane.bars || []) {
+      if (bar.type === "ongoing") continue;
+      const end = (bar.startIdx || 0) + (bar.type === "milestone"
+        ? 0
+        : effSpan(bar) / WEEKS_PER_MONTH);
+      if (end > lastEndMonths) lastEndMonths = end;
+    }
+  }
+  const spanWeeks = lastEndMonths > 0
+    ? lastEndMonths * WEEKS_PER_MONTH
+    : projectSpanWeeks(state);
   for (const lane of state.lanes) {
     for (const bar of lane.bars || []) {
       if (bar.type === "ongoing") {
         bar.startIdx = 0;
-        bar.span = projWeeks;
+        bar.span = spanWeeks;
       }
     }
   }
@@ -149,28 +167,74 @@ export function renumberWPs(state) {
 
 /* ====================== State helpers ====================== */
 
-/* Recognised tracks for a WP.
-   - "product"     — the formal SOP-18 path. Phase-bound (PRS/DP/DO/FP).
-   - "exploration" — free-form research / feasibility, not phase-bound.
-   - "ple"         — Post-Launch Engineering, less formal, not phase-bound.
-   Existing WPs without a track default to "product" so old data renders
-   identically.
+/* Track model (v5).
+   Each track is a user-managed entry in state.tracks:
+     {
+       id,         // stable string id (system or user-generated)
+       label,      // display name
+       kind,       // "product" — phase-bound (PRS/DP/DO/FP),
+                   // "continuous" — free-form, not phase-bound (PLE, Exploration)
+       color: { bar, border },
+       enabled,    // bool — whether the track is currently in use for this project
+       activePhase // only for kind === "product": null | "PRS" | "DP" | "DO" | "FP" | "_closed"
+     }
 
-   Whether each track is ENABLED for a given project lives in state.tracks,
-   not here — TRACK_DEFAULTS provides the metadata used to seed it. */
-export const LANE_TRACKS = ["product", "exploration", "ple"];
+   System seeds (always present after migration, may be renamed/removed by user):
+     - id "product"     → kind "product",     label "Product"
+     - id "ple"         → kind "continuous",  label "PLE"
+     - id "exploration" → kind "continuous",  label "Exploration"
 
-export const TRACK_DEFAULTS = {
-  product:     { label: "Product",     description: "Formal SOP-18 product development.",      color: { bar: "#e0f2fe", border: "#0369a1" }, phaseBound: true,  enabledByDefault: true  },
-  exploration: { label: "Exploration", description: "Free-form research and feasibility work.", color: { bar: "#fef3c7", border: "#b45309" }, phaseBound: false, enabledByDefault: false },
-  ple:         { label: "PLE",         description: "Post-Launch Engineering — less formal.",   color: { bar: "#f3e8ff", border: "#6b21a8" }, phaseBound: false, enabledByDefault: false },
-};
+   v4 had a fixed 3-track model and a single global state.activePhase. The v5
+   migration enriches each existing track with kind/label/color and moves
+   state.activePhase into the "product" track's activePhase. */
+
+/* Built-in system track seeds. Used for fresh state + as fallback metadata
+   when a track's fields are partially missing. The legacy "product",
+   "exploration", "ple" ids are preserved so old data renders identically. */
+export const SYSTEM_TRACK_SEEDS = [
+  { id: "product",     label: "Product",     kind: "product",    color: { bar: "#e0f2fe", border: "#0369a1" }, enabled: true,  activePhase: null },
+  { id: "exploration", label: "Exploration", kind: "continuous", color: { bar: "#fef3c7", border: "#b45309" }, enabled: false },
+  { id: "ple",         label: "PLE",         kind: "continuous", color: { bar: "#f3e8ff", border: "#6b21a8" }, enabled: false },
+];
+
+/* Colour palette for new user-added product tracks. picked in order, then
+   cycles. The first six are visually distinct on white. */
+export const NEW_PRODUCT_COLOR_PALETTE = [
+  { bar: "#e0f2fe", border: "#0369a1" },  // sky blue
+  { bar: "#dcfce7", border: "#15803d" },  // green
+  { bar: "#fee2e2", border: "#b91c1c" },  // red
+  { bar: "#fef3c7", border: "#b45309" },  // amber
+  { bar: "#ede9fe", border: "#6d28d9" },  // violet
+  { bar: "#cffafe", border: "#0e7490" },  // teal
+  { bar: "#fce7f3", border: "#be185d" },  // pink
+  { bar: "#fee4d3", border: "#c2410c" },  // orange
+];
+
+/* ── Legacy compatibility shims ─────────────────────────────────────────
+   The old TRACK_DEFAULTS / LANE_TRACKS constants are still imported by
+   some call sites in the inlined HTML. Synthesize compatible views from
+   the new model so existing code keeps working until those sites are
+   migrated. */
+export const LANE_TRACKS = SYSTEM_TRACK_SEEDS.map(t => t.id);
+export const TRACK_DEFAULTS = Object.fromEntries(
+  SYSTEM_TRACK_SEEDS.map(t => [t.id, {
+    label: t.label,
+    description: t.kind === "product"
+      ? "Phase-bound product development (PRS → DP → DO → FP)."
+      : "Continuous work — not phase-bound.",
+    color: t.color,
+    phaseBound: t.kind === "product",
+    enabledByDefault: t.enabled,
+  }])
+);
+
+/* ── Track lookups / queries ────────────────────────────────────────── */
 
 /* List of track ids that are currently enabled for `state`. Falls back to
    ["product"] if state.tracks is missing/empty. */
 export function enabledTracks(state) {
   if (!state || !Array.isArray(state.tracks)) return ["product"];
-  const list = state.tracks.filter(t => t.enabled).map(t => t.id);
+  const list = state.tracks.filter(t => t && t.enabled).map(t => t.id);
   return list.length ? list : ["product"];
 }
 
@@ -178,48 +242,435 @@ export function enabledTracks(state) {
    no track config (safe default for legacy data). */
 export function isTrackEnabled(state, trackId) {
   if (!state || !Array.isArray(state.tracks)) return trackId === "product";
-  const t = state.tracks.find(x => x.id === trackId);
+  const t = state.tracks.find(x => x && x.id === trackId);
   return t ? !!t.enabled : false;
 }
 
-/* Fill in missing fields after load/import. Tolerates partial data. */
-export function normaliseState(state) {
-  // state.tracks: array of { id, enabled }. Seed it on first encounter with
-  // each LANE_TRACK and respect any existing entries. Order preserved.
+/* All enabled product-kind tracks. Each has its own phase axis and own
+   activePhase. */
+export function getProductTracks(state) {
+  if (!state || !Array.isArray(state.tracks)) return [];
+  return state.tracks.filter(t => t && t.enabled && t.kind === "product");
+}
+
+/* All enabled continuous-kind tracks (PLE, Exploration, etc.). Not phase-bound. */
+export function getContinuousTracks(state) {
+  if (!state || !Array.isArray(state.tracks)) return [];
+  return state.tracks.filter(t => t && t.enabled && t.kind === "continuous");
+}
+
+/* Full track record by id (whether enabled or not). null if not found. */
+export function getTrackById(state, id) {
+  if (!state || !Array.isArray(state.tracks) || !id) return null;
+  return state.tracks.find(t => t && t.id === id) || null;
+}
+
+/* Read a product track's current activePhase. Returns null if the track
+   doesn't exist or isn't a product. */
+export function getTrackActivePhase(state, trackId) {
+  const t = getTrackById(state, trackId);
+  if (!t || t.kind !== "product") return null;
+  return t.activePhase === undefined ? null : t.activePhase;
+}
+
+/* Set a product track's activePhase in place. No-op for non-product tracks. */
+export function setTrackActivePhase(state, trackId, phase) {
+  const t = getTrackById(state, trackId);
+  if (!t || t.kind !== "product") return;
+  t.activePhase = phase;
+}
+
+/* Pick a colour for a new user-added product. Walks NEW_PRODUCT_COLOR_PALETTE
+   and returns the first entry whose border isn't already in use by an
+   existing track. Falls back to a deterministic palette cycle. */
+export function defaultColorForNewTrack(state) {
+  const used = new Set(
+    (state && Array.isArray(state.tracks) ? state.tracks : [])
+      .map(t => t && t.color && t.color.border).filter(Boolean)
+  );
+  for (const c of NEW_PRODUCT_COLOR_PALETTE) {
+    if (!used.has(c.border)) return { ...c };
+  }
+  const i = ((state && state.tracks ? state.tracks.length : 0)) % NEW_PRODUCT_COLOR_PALETTE.length;
+  return { ...NEW_PRODUCT_COLOR_PALETTE[i] };
+}
+
+/* ── Track CRUD ─────────────────────────────────────────────────────── */
+
+/* Generate a stable-ish id for a user-added track from its label, with a
+   suffix to avoid collisions. */
+function genTrackId(state, label) {
+  const slug = String(label || "product").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "product";
+  const existing = new Set((state.tracks || []).map(t => t && t.id));
+  if (!existing.has(slug)) return slug;
+  let n = 2;
+  while (existing.has(`${slug}-${n}`)) n++;
+  return `${slug}-${n}`;
+}
+
+/* Add a new product track. Returns the created track record. */
+export function addProduct(state, { label = "New product", color } = {}) {
   if (!Array.isArray(state.tracks)) state.tracks = [];
+  const track = {
+    id: genTrackId(state, label),
+    label,
+    kind: "product",
+    color: color || defaultColorForNewTrack(state),
+    enabled: true,
+    activePhase: null,
+  };
+  state.tracks.push(track);
+  return track;
+}
+
+/* Remove a track. Any lanes/bars pointing at it have their .track field
+   cleared (they fall back to inheritance). If the id matches a system seed,
+   also record it in state.dismissedTrackSeeds so normaliseState doesn't
+   re-add it on next load. Returns true if removed. */
+export function removeTrack(state, id) {
+  if (!Array.isArray(state.tracks)) return false;
+  const idx = state.tracks.findIndex(t => t && t.id === id);
+  if (idx === -1) return false;
+  state.tracks.splice(idx, 1);
+  // Suppress future re-seeding for system ids.
+  if (SYSTEM_TRACK_SEEDS.some(s => s.id === id)) {
+    if (!Array.isArray(state.dismissedTrackSeeds)) state.dismissedTrackSeeds = [];
+    if (!state.dismissedTrackSeeds.includes(id)) state.dismissedTrackSeeds.push(id);
+  }
+  for (const lane of state.lanes || []) {
+    if (lane.track === id) {
+      // Reassign to the first remaining enabled product, or undefined.
+      const fallback = (getProductTracks(state)[0] || {}).id;
+      lane.track = fallback || undefined;
+    }
+    for (const bar of lane.bars || []) {
+      if (bar.track === id) delete bar.track;
+      if (Array.isArray(bar.tracks)) {
+        const filtered = bar.tracks.filter(t => t !== id);
+        if (filtered.length) bar.tracks = filtered;
+        else delete bar.tracks;
+      }
+    }
+  }
+  return true;
+}
+
+/* Rename a track's label (id stays stable for data integrity). */
+export function renameTrack(state, id, newLabel) {
+  const t = getTrackById(state, id);
+  if (!t) return false;
+  t.label = String(newLabel || "").trim() || t.label;
+  return true;
+}
+
+/* ── Disciplines ──────────────────────────────────────────────────────
+   Disciplines tag the KIND of work (Acoustics, Mechanical, Electronics,
+   Quality, Marketing, etc.) — an axis orthogonal to tracks (which tag
+   the PROGRAMME the work belongs to). The same bar can be in product
+   "Hearing aid v2", phase "DP", discipline "Acoustics".
+
+   Schema:
+     state.disciplines = [{ id, label, color }]
+     bar.discipline    = "<discipline-id>" | undefined
+     lane.discipline   = "<discipline-id>" | undefined  // default for the WP
+
+   Effective discipline for a bar: bar.discipline ?? lane.discipline ?? null.
+   Unlike tracks, there's no default — bars can be "uncategorised". */
+
+export const NEW_DISCIPLINE_COLOR_PALETTE = [
+  "#7c3aed",  // violet — Acoustics
+  "#0369a1",  // sky    — Mechanical
+  "#15803d",  // green  — Electronics
+  "#b45309",  // amber  — Quality / Regulatory
+  "#be185d",  // pink   — Marketing
+  "#0e7490",  // teal   — Software
+  "#c2410c",  // orange — Manufacturing
+  "#4f46e5",  // indigo — Project Management
+  "#65a30d",  // lime
+  "#9333ea",  // purple
+];
+
+export function getDisciplines(state) {
+  if (!state || !Array.isArray(state.disciplines)) return [];
+  return state.disciplines.filter(d => d && typeof d.id === "string");
+}
+
+export function getDisciplineById(state, id) {
+  if (!state || !Array.isArray(state.disciplines) || !id) return null;
+  return state.disciplines.find(d => d && d.id === id) || null;
+}
+
+/* Pick a colour for a new discipline. Walks the palette, returns the first
+   unused; cycles when all are taken. */
+export function defaultColorForNewDiscipline(state) {
+  const used = new Set(getDisciplines(state).map(d => d.color).filter(Boolean));
+  for (const c of NEW_DISCIPLINE_COLOR_PALETTE) {
+    if (!used.has(c)) return c;
+  }
+  const n = getDisciplines(state).length;
+  return NEW_DISCIPLINE_COLOR_PALETTE[n % NEW_DISCIPLINE_COLOR_PALETTE.length];
+}
+
+function genDisciplineId(state, label) {
+  const slug = String(label || "discipline").toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24) || "discipline";
+  const existing = new Set(getDisciplines(state).map(d => d.id));
+  if (!existing.has(slug)) return slug;
+  let n = 2;
+  while (existing.has(`${slug}-${n}`)) n++;
+  return `${slug}-${n}`;
+}
+
+export function addDiscipline(state, { label = "New discipline", color } = {}) {
+  if (!Array.isArray(state.disciplines)) state.disciplines = [];
+  const d = {
+    id: genDisciplineId(state, label),
+    label,
+    color: color || defaultColorForNewDiscipline(state),
+  };
+  state.disciplines.push(d);
+  return d;
+}
+
+/* Remove a discipline. Any bar or lane pointing at it has its .discipline
+   cleared (falls back to inheritance from the WP, then to null). */
+export function removeDiscipline(state, id) {
+  if (!Array.isArray(state.disciplines)) return false;
+  const idx = state.disciplines.findIndex(d => d && d.id === id);
+  if (idx === -1) return false;
+  state.disciplines.splice(idx, 1);
+  for (const lane of state.lanes || []) {
+    if (lane.discipline === id) delete lane.discipline;
+    for (const bar of lane.bars || []) {
+      if (bar.discipline === id) delete bar.discipline;
+    }
+  }
+  return true;
+}
+
+export function renameDiscipline(state, id, newLabel) {
+  const d = getDisciplineById(state, id);
+  if (!d) return false;
+  d.label = String(newLabel || "").trim() || d.label;
+  return true;
+}
+
+/* Effective discipline for a bar: per-bar override beats per-WP default.
+   Returns null if neither set — bars are allowed to be uncategorised.
+
+   Sentinel "_none" on bar.discipline means "explicitly no discipline" — the
+   bar opts OUT of the WP's default. Picker UI sets this when the user
+   chooses "No discipline" in the dropdown. */
+export function barDiscipline(bar, lane) {
+  if (bar && typeof bar.discipline === "string") {
+    if (bar.discipline === "_none") return null;
+    if (bar.discipline) return bar.discipline;
+  }
+  if (lane && typeof lane.discipline === "string" && lane.discipline) return lane.discipline;
+  return null;
+}
+
+/* ── State normalisation + migration ───────────────────────────────── */
+
+/* Fill in missing fields after load/import. Tolerates partial data.
+   Migrates v4 schemas (3 fixed tracks + global activePhase) up to v5
+   (extensible tracks each with kind/colour/activePhase). */
+export function normaliseState(state) {
+  if (!Array.isArray(state.tracks)) state.tracks = [];
+
+  // Step 1: enrich each existing track entry with v5 fields (kind, label,
+  // color, activePhase for products). Tracks missing those fields are
+  // either pre-v5 or hand-edited imports — seed from SYSTEM_TRACK_SEEDS
+  // when the id matches a known system seed.
+  const seedById = Object.fromEntries(SYSTEM_TRACK_SEEDS.map(s => [s.id, s]));
   const seen = new Set();
   state.tracks = state.tracks.filter(t => {
-    if (!t || !LANE_TRACKS.includes(t.id) || seen.has(t.id)) return false;
+    if (!t || typeof t.id !== "string" || seen.has(t.id)) return false;
     seen.add(t.id);
-    if (typeof t.enabled !== "boolean") t.enabled = !!TRACK_DEFAULTS[t.id].enabledByDefault;
+    const seed = seedById[t.id];
+    // Default missing fields from the seed (if it's a system id) or sensible defaults.
+    if (typeof t.kind !== "string") t.kind = seed ? seed.kind : "product";
+    if (typeof t.label !== "string" || !t.label) t.label = seed ? seed.label : t.id;
+    if (!t.color || typeof t.color !== "object") t.color = seed ? { ...seed.color } : defaultColorForNewTrack(state);
+    if (typeof t.enabled !== "boolean") t.enabled = seed ? seed.enabled : true;
+    if (t.kind === "product") {
+      if (t.activePhase === undefined) t.activePhase = null;
+    } else {
+      // Clear activePhase on continuous tracks (it's meaningless there).
+      if (t.activePhase !== undefined) delete t.activePhase;
+    }
     return true;
   });
-  for (const id of LANE_TRACKS) {
-    if (!seen.has(id)) {
-      state.tracks.push({ id, enabled: !!TRACK_DEFAULTS[id].enabledByDefault });
+  // Ensure the three system seeds exist UNLESS the user has explicitly
+  // dismissed them (via removeTrack). state.dismissedTrackSeeds is a list
+  // of seed ids the user has deleted; we honour it so deleted seeds don't
+  // reappear on next load. Continuous seeds (PLE, Exploration) are normally
+  // not deletable from the UI, only disable-able, but that's a UI policy —
+  // the data layer allows full deletion if a hand-edited state opts in.
+  if (!Array.isArray(state.dismissedTrackSeeds)) state.dismissedTrackSeeds = [];
+  const dismissed = new Set(state.dismissedTrackSeeds);
+  for (const seed of SYSTEM_TRACK_SEEDS) {
+    if (!seen.has(seed.id) && !dismissed.has(seed.id)) {
+      state.tracks.push({ ...seed, color: { ...seed.color } });
     }
   }
 
+  // Step 2: migrate legacy global state.activePhase into the first product
+  // track. We use the "product" system seed if it exists; otherwise the
+  // first product-kind track. Only runs when the legacy field is set AND
+  // the target product hasn't been advanced past null yet (so re-loading
+  // a v5 state with an active product phase doesn't get clobbered).
+  if (state.activePhase !== undefined && state.activePhase !== null) {
+    const target = getTrackById(state, "product") || getProductTracks(state)[0];
+    if (target && target.kind === "product" && (target.activePhase == null)) {
+      target.activePhase = state.activePhase;
+    }
+  }
+  // Keep state.activePhase around as a legacy mirror of the first product's
+  // phase. Older code paths that haven't been migrated to per-product still
+  // read it; the renderer + tests sync it back. Set to null if no product.
+  if (state.activePhase === undefined) state.activePhase = null;
+
+  // Step 3: disciplines list. Optional axis orthogonal to tracks — empty
+  // by default, user adds them from the Structure tab. Filter out malformed
+  // entries; ensure each has a colour (palette-picked if missing).
+  if (!Array.isArray(state.disciplines)) state.disciplines = [];
+  const dSeen = new Set();
+  state.disciplines = state.disciplines.filter(d => {
+    if (!d || typeof d.id !== "string" || dSeen.has(d.id)) return false;
+    dSeen.add(d.id);
+    if (typeof d.label !== "string" || !d.label) d.label = d.id;
+    if (typeof d.color !== "string" || !d.color) d.color = defaultColorForNewDiscipline(state);
+    return true;
+  });
+  const validDisciplineIds = new Set(state.disciplines.map(d => d.id));
+
+  // Step 4: lane + bar sanity.
+  const validTrackIds = new Set(state.tracks.map(t => t.id));
+  const fallbackProduct = (getProductTracks(state)[0] || { id: "product" }).id;
   for (const lane of state.lanes || []) {
-    // Default missing/invalid lane track to "product".
-    if (!LANE_TRACKS.includes(lane.track)) lane.track = "product";
+    // Default missing/invalid lane track to the first enabled product
+    // (was: hardcoded "product"). Preserves the single-product-flow
+    // assumption for legacy data while letting renamed products carry it.
+    if (typeof lane.track !== "string" || !validTrackIds.has(lane.track)) {
+      lane.track = fallbackProduct;
+    }
+    // Lane-level discipline default. Drop if it points to nothing.
+    if (lane.discipline !== undefined && !validDisciplineIds.has(lane.discipline)) {
+      delete lane.discipline;
+    }
     for (const bar of lane.bars || []) {
       if (!Array.isArray(bar.dependsOn)) bar.dependsOn = [];
       if (typeof bar.buffer !== "number" || bar.buffer < 0) bar.buffer = 10;
       // alloc: time-allocation %, defaulting to 100 (full-time on the task).
       if (typeof bar.alloc !== "number" || bar.alloc < 0 || bar.alloc > 100) bar.alloc = 100;
-      // bar.track: optional per-bar override of lane.track. undefined = inherit.
-      if (bar.track !== undefined && !LANE_TRACKS.includes(bar.track)) bar.track = undefined;
+      // bar.track: legacy single-tag override of lane.track. undefined =
+      // inherit. Drop if it points to a non-existent track id.
+      if (bar.track !== undefined && !validTrackIds.has(bar.track)) bar.track = undefined;
+      // bar.tracks: optional multi-tag override (array of track ids). When
+      // set, takes precedence over bar.track. Drops dangling ids; if the
+      // array ends up empty, clears the field so inheritance kicks in.
+      if (bar.tracks !== undefined) {
+        if (Array.isArray(bar.tracks)) {
+          const dedup = [];
+          const seenT = new Set();
+          for (const id of bar.tracks) {
+            if (typeof id === "string" && validTrackIds.has(id) && !seenT.has(id)) {
+              dedup.push(id); seenT.add(id);
+            }
+          }
+          if (dedup.length) bar.tracks = dedup;
+          else delete bar.tracks;
+        } else {
+          delete bar.tracks;
+        }
+      }
+      // bar.discipline: optional per-bar override of lane.discipline. The
+      // "_none" sentinel is a valid value (= explicit "no discipline"
+      // override of the WP default). Anything else that isn't a known id
+      // gets dropped.
+      if (bar.discipline !== undefined
+          && bar.discipline !== "_none"
+          && !validDisciplineIds.has(bar.discipline)) {
+        delete bar.discipline;
+      }
+      // bar.followsEndOf: a companion (typically milestone) pointed at
+      // another bar by id. The target's existence is verified in a second
+      // pass below (after all bars are visible). Drop here if obviously
+      // not a string.
+      if (bar.followsEndOf !== undefined && typeof bar.followsEndOf !== "string") {
+        delete bar.followsEndOf;
+      }
     }
   }
-  if (state.activePhase === undefined) state.activePhase = null;
+  // Second pass: drop followsEndOf refs that point at non-existent bars,
+  // then sync starts so companions begin at their target's end.
+  const allBarIds = new Set();
+  for (const lane of state.lanes || []) for (const b of lane.bars || []) allBarIds.add(b.id);
+  for (const lane of state.lanes || []) {
+    for (const b of lane.bars || []) {
+      if (b.followsEndOf && !allBarIds.has(b.followsEndOf)) delete b.followsEndOf;
+    }
+  }
+  syncFollowsEndOf(state);
 }
 
-/* The effective track for a bar: its own override if set, else the lane's. */
+/* Live "follow-end-of" sync. A bar with bar.followsEndOf = <targetId> is a
+   companion (typically a milestone) that should always sit at the END of
+   its target's calendar window. Each render / save call this once and the
+   companion's startIdx is updated to match — so dragging or resizing the
+   target automatically slides the companion.
+   - Companion type is preserved (we never change it).
+   - Cycles (a follows b, b follows a) are guarded against: each bar's
+     startIdx is computed once per call from its target's CURRENT end,
+     not iteratively, so the second bar's recompute uses the first's
+     already-synced value (deterministic, no oscillation).
+   - Dangling refs (target removed) clear the field; companion stops being
+     tied. */
+export function syncFollowsEndOf(state) {
+  // Build a quick id → {bar, lane} index.
+  const byId = {};
+  for (const lane of state.lanes || []) {
+    for (const bar of lane.bars || []) byId[bar.id] = { bar, lane };
+  }
+  for (const lane of state.lanes || []) {
+    for (const bar of lane.bars || []) {
+      if (!bar.followsEndOf) continue;
+      const target = byId[bar.followsEndOf];
+      if (!target) { delete bar.followsEndOf; continue; }
+      // Compute target's end in months-from-project-start.
+      const t = target.bar;
+      const end = (t.type === "milestone")
+        ? (t.startIdx || 0)
+        : (t.startIdx || 0) + effSpan(t) / WEEKS_PER_MONTH;
+      bar.startIdx = end;
+    }
+  }
+}
+
+/* The effective track LIST for a bar (multi-product tagging).
+   - If bar.tracks is a non-empty array, use it (per-bar multi-tag override).
+   - Else if bar.track is a non-empty string, treat as a single-element list
+     (legacy single-tag override; still supported for v5-pre-multi data).
+   - Else fall back to the lane's track as a single-element list.
+   - Final fallback: ["product"] for legacy normalised data.
+   No allowlist validation — normaliseState already scrubbed dangling ids. */
+export function barTracks(bar, lane) {
+  if (bar && Array.isArray(bar.tracks)) {
+    const list = bar.tracks.filter(t => typeof t === "string" && t);
+    if (list.length) return list;
+  }
+  if (bar && typeof bar.track === "string" && bar.track) return [bar.track];
+  if (lane && typeof lane.track === "string" && lane.track) return [lane.track];
+  return ["product"];
+}
+
+/* Backward-compatible single-track lookup: returns the FIRST effective track.
+   Kept so legacy call sites that need exactly one id keep working. New
+   call sites should use barTracks() and check membership. */
 export function barTrack(bar, lane) {
-  if (bar && LANE_TRACKS.includes(bar.track)) return bar.track;
-  if (lane && LANE_TRACKS.includes(lane.track)) return lane.track;
-  return "product";
+  return barTracks(bar, lane)[0] || "product";
 }
 
 /* v3 → v4 migration: spans were measured in months; v4 measures in weeks. */
@@ -271,12 +722,18 @@ export function phaseSpanCodes(bar) {
  *    Implemented here by NOT skipping them — same as the original. The end-gate
  *    exemption is enforced in enforcePhaseOrder.
  */
-export function computePhaseRanges(state) {
+export function computePhaseRanges(state, productId) {
   const ranges = {};
   for (const lane of state.lanes || []) {
     for (const b of lane.bars || []) {
       if (!b.phase || !PHASE_ORDER.hasOwnProperty(b.phase)) continue;
       if (b.type === "milestone") continue;
+      // When productId is passed, count bars whose effective track LIST
+      // includes that product (multi-product tagging: a single bar may
+      // belong to several products and contribute to each of their phases).
+      // Omitting productId = legacy behaviour (count every phase-tagged
+      // bar, regardless of track — single-product view).
+      if (productId && !barTracks(b, lane).includes(productId)) continue;
       const start = b.startIdx;
       const end = b.startIdx + effSpan(b) / WEEKS_PER_MONTH;
       const gatePhase = isBleedingBar(b) ? b.phaseEnd : b.phase;
@@ -292,6 +749,38 @@ export function computePhaseRanges(state) {
     if (r.end === undefined) r.end = r.start;
   }
   return ranges;
+}
+
+/* All enabled product tracks → their individual phase range maps. Each
+   product's ranges come ONLY from bars tagged with that product (via
+   lane.track or per-bar override). Used by the multi-product stacked
+   renderer in viewA. Returns an object keyed by productId, in the order
+   products appear in state.tracks. */
+export function computeAllProductPhaseRanges(state) {
+  const out = {};
+  const products = getProductTracks(state);
+  for (const t of products) {
+    out[t.id] = computePhaseRanges(state, t.id);
+  }
+  return out;
+}
+
+/* Phase-closure gates per product. Each returned gate carries _productId
+   so the renderer can call isGateOpen with the right activePhase. Returns
+   a flat array of gates across all products (callers can group by
+   _productId for stacked rendering). */
+export function computeAllProductPhaseGates(state) {
+  const products = getProductTracks(state);
+  const out = [];
+  for (const t of products) {
+    const ranges = computePhaseRanges(state, t.id);
+    const present = ["PRS", "DP", "DO", "FP"].filter(c => ranges[c]);
+    for (const g of computePhaseGates(ranges, present)) {
+      g._productId = t.id;
+      out.push(g);
+    }
+  }
+  return out;
 }
 
 /* Phase-closure gate at the END of every phase. Returned objects have no
@@ -329,16 +818,42 @@ export function computePhaseGates(phaseRanges, presentPhases) {
  * Mutates state.lanes[*].bars[*].startIdx.
  */
 export function enforcePhaseOrder(state) {
-  let cumulativeMaxEnd = 0;
+  // Per-track phase axis. Each track (Product, Product 2, etc.) maintains
+  // its own cumulativeMaxEnd — a Product 2 DO bar is gated only by
+  // Product 2's own DP end, not by Product's. Multi-tagged bars
+  // (bar.tracks = ["a", "b"]) are snapped by the MAX of their tracks'
+  // gates (the more restrictive one) and contribute to EACH track's gate.
+  //
+  // v4 used a single global cumulativeMaxEnd, which incorrectly held
+  // Product 2 bars behind Product's longer phases (the "Launch 1 stuck
+  // behind WP3 Tooling Validation" bug).
+  const cumByTrack = new Map();           // trackId -> cumulativeMaxEnd
+  const trackEnd = (tid) => cumByTrack.get(tid) || 0;
   for (const phase of PHASE_CODES_IN_ORDER) {
-    let phaseMaxEnd = cumulativeMaxEnd;
+    // Pass 1: snap bars in this phase to the max(prev gates) across their tracks.
     for (const lane of state.lanes || []) {
       for (const b of lane.bars || []) {
-        // Locked bars don't move — even if they'd technically start before
-        // the previous phase's gate. (User asked to lock them; respect it.)
-        if (b.phase === phase && b.startIdx < cumulativeMaxEnd && !b.locked) {
-          b.startIdx = Math.ceil(cumulativeMaxEnd * WEEKS_PER_MONTH) / WEEKS_PER_MONTH;
+        if (b.phase !== phase || b.locked) continue;
+        // Compute the latest gate this bar must clear (its phase-start gate).
+        // = max of its tracks' cumulativeMaxEnd accumulated through the
+        // PREVIOUS phase. For a multi-product bar, every track's gate
+        // applies; we use the latest.
+        const tags = barTracks(b, lane);
+        let maxPrev = 0;
+        for (const tid of tags) {
+          const prev = trackEnd(tid);
+          if (prev > maxPrev) maxPrev = prev;
         }
+        if (b.startIdx < maxPrev) {
+          b.startIdx = Math.ceil(maxPrev * WEEKS_PER_MONTH) / WEEKS_PER_MONTH;
+        }
+      }
+    }
+    // Pass 2: contribute each gate-eligible bar's end to ALL its tracks'
+    // phaseMaxEnd for this phase. extendsPhase bars are exempt.
+    const phaseMaxByTrack = new Map();
+    for (const lane of state.lanes || []) {
+      for (const b of lane.bars || []) {
         if (b.extendsPhase) continue;
         const gatePhase = (b.phaseEnd
                            && PHASE_ORDER.hasOwnProperty(b.phaseEnd)
@@ -346,10 +861,19 @@ export function enforcePhaseOrder(state) {
                           ? b.phaseEnd : b.phase;
         if (gatePhase !== phase) continue;
         const end = b.startIdx + (b.type === "milestone" ? 0 : effSpan(b) / WEEKS_PER_MONTH);
-        if (end > phaseMaxEnd) phaseMaxEnd = end;
+        for (const tid of barTracks(b, lane)) {
+          const cur = phaseMaxByTrack.get(tid);
+          if (cur === undefined || end > cur) phaseMaxByTrack.set(tid, end);
+        }
       }
     }
-    cumulativeMaxEnd = phaseMaxEnd;
+    // Pass 3: roll forward each track's cumulativeMaxEnd. A track with no
+    // bars in this phase keeps its previous cumulative (it just doesn't
+    // gain a new gate this round).
+    for (const [tid, end] of phaseMaxByTrack) {
+      const cur = trackEnd(tid);
+      if (end > cur) cumByTrack.set(tid, end);
+    }
   }
 }
 
