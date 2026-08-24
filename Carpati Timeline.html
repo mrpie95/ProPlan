@@ -238,30 +238,33 @@
   main { padding: 28px 16px 16px; }
 
   /* ======================== VIEW SWITCHING ======================== */
-  body[data-view="plan"] :is(#timelineView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView) { display: none; }
-  body[data-view="timeline"] :is(#planView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView) { display: none; }
-  body[data-view="viewA"] :is(#planView, #timelineView, #viewBView, #phaseView, #processView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView) { display: none; }
-  body[data-view="viewB"] :is(#planView, #timelineView, #viewAView, #phaseView, #processView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView) { display: none; }
-  body[data-view="phase"] :is(#planView, #timelineView, #viewAView, #viewBView, #processView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView) { display: none; }
-  body[data-view="process"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView) { display: none; }
-  body[data-view="structure"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView) { display: none; }
-  body[data-view="proposal"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #roadmapView, #phaseTimelineView, #milestonesView) { display: none; }
-  body[data-view="roadmap"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #proposalView, #phaseTimelineView, #milestonesView) { display: none; }
-  body[data-view="phaseTimeline"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #proposalView, #roadmapView, #milestonesView) { display: none; }
-  body[data-view="milestones"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #proposalView, #roadmapView, #phaseTimelineView) { display: none; }
+  body[data-view="plan"] :is(#timelineView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView, #snapshotsView) { display: none; }
+  body[data-view="timeline"] :is(#planView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView, #snapshotsView) { display: none; }
+  body[data-view="viewA"] :is(#planView, #timelineView, #viewBView, #phaseView, #processView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView, #snapshotsView) { display: none; }
+  body[data-view="viewB"] :is(#planView, #timelineView, #viewAView, #phaseView, #processView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView, #snapshotsView) { display: none; }
+  body[data-view="phase"] :is(#planView, #timelineView, #viewAView, #viewBView, #processView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView, #snapshotsView) { display: none; }
+  body[data-view="process"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView, #snapshotsView) { display: none; }
+  body[data-view="structure"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView, #snapshotsView) { display: none; }
+  body[data-view="proposal"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #roadmapView, #phaseTimelineView, #milestonesView, #snapshotsView) { display: none; }
+  body[data-view="roadmap"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #proposalView, #phaseTimelineView, #milestonesView, #snapshotsView) { display: none; }
+  body[data-view="phaseTimeline"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #proposalView, #roadmapView, #milestonesView, #snapshotsView) { display: none; }
+  body[data-view="milestones"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #snapshotsView) { display: none; }
+  body[data-view="snapshots"] :is(#planView, #timelineView, #viewAView, #viewBView, #phaseView, #processView, #structureView, #proposalView, #roadmapView, #phaseTimelineView, #milestonesView) { display: none; }
   body[data-view="process"] .timeline-only,
   body[data-view="phase"] .timeline-only,
   body[data-view="structure"] .timeline-only,
   body[data-view="roadmap"] .timeline-only,
   body[data-view="proposal"] .timeline-only,
   body[data-view="phaseTimeline"] .timeline-only,
-  body[data-view="milestones"] .timeline-only { display: none !important; }
+  body[data-view="milestones"] .timeline-only,
+  body[data-view="snapshots"] .timeline-only { display: none !important; }
   /* Hide the entire tier-2 header row on non-timeline tabs — the
      Start/End/Zoom/Track filter/Focus/Undo/Done chrome is timeline-
      specific and adds noise to summary tabs. */
   body[data-view="roadmap"] .hdr-tier2,
   body[data-view="phaseTimeline"] .hdr-tier2,
   body[data-view="milestones"] .hdr-tier2,
+  body[data-view="snapshots"] .hdr-tier2,
   body[data-view="phase"] .hdr-tier2,
   body[data-view="process"] .hdr-tier2,
   body[data-view="structure"] .hdr-tier2,
@@ -2389,6 +2392,80 @@
     font-size: 13px;
     padding: 32px 14px;
   }
+
+  /* ===== Snapshots view ===== */
+  .snapshots-view {
+    padding: 24px 32px 48px;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  .snapshots-header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 20px;
+  }
+  .snapshots-header-title h1 {
+    margin: 0 0 4px; font-size: 22px; font-weight: 800; color: var(--accent);
+  }
+  .snapshots-header-title p {
+    margin: 0; font-size: 13px; color: var(--muted); max-width: 620px;
+  }
+  .snapshots-list {
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .snapshot-card {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: 14px 18px;
+  }
+  .snapshot-card.is-backup {
+    background: var(--surface);
+    border-style: dashed;
+  }
+  .snapshot-card-main { min-width: 0; }
+  .snapshot-card-name {
+    font-size: 14.5px; font-weight: 700; color: var(--ink);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .snapshot-card.is-backup .snapshot-card-name {
+    font-style: italic; color: var(--ink-soft); font-weight: 600;
+  }
+  .snapshot-card-meta {
+    font-size: 12px; color: var(--muted);
+    margin-top: 2px;
+  }
+  .snapshot-card-stats {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin-top: 8px;
+  }
+  .snap-stat {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.02em;
+    color: var(--ink-soft);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 10px;
+    white-space: nowrap;
+  }
+  .snap-stat-done {
+    color: #15803d; background: #dcfce7; border-color: #86efac;
+  }
+  .snapshot-card-actions {
+    display: flex; gap: 8px; flex-shrink: 0;
+  }
+  .snapshots-empty {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 48px 14px;
+    background: var(--panel);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-lg);
+  }
   /* "📷 Export image" + "↗ Open in new tab" buttons on each card.
      Right-aligned so they sit opposite the title + status pill. Uses
      the same .chip base look. `position: relative; z-index: 7` puts
@@ -4287,6 +4364,29 @@
      out via the Display dropdown. The bars stay drawn at their locked
      positions — only the corner-pinned 🔒 disappears. */
   body[data-hide-lock-badges="1"] .bar-lock-badge { display: none; }
+  /* Completion — a task is marked done via the small checkbox pinned to
+     the bar's bottom-left corner. Done bars get a solid green border so
+     progress reads at a glance without opening anything. Double-click a
+     bar to toggle it — works in both edit and view-only mode (view-only
+     just can't drag/resize/connect). Collapsed WP rows (.ov-bar) mirror
+     the border only — no toggle there, since summary bars aren't
+     individually addressable. The badge is a pure status indicator
+     (pointer-events: none) so it never steals the double-click, or
+     clashes with the dep-count chip pinned to the opposite corner. */
+  .bar.is-done, .ov-bar.is-done { border-color: #22c55e !important; border-width: 2px; }
+  .bar-done-toggle {
+    position: absolute;
+    bottom: -4px; left: -4px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #22c55e; border: 1.5px solid #16a34a; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; line-height: 1; font-weight: 700;
+    box-shadow: 0 1px 3px rgba(15,23,42,0.3);
+    pointer-events: none;
+    z-index: 4;
+  }
+  [data-theme="dark"] .bar-done-toggle { border-color: #4ade80; color: #052e12; }
   [data-theme="dark"] .bar-buffer {
     background-image: repeating-linear-gradient(
       -45deg,
@@ -4695,6 +4795,7 @@
       <button class="view-btn" data-view="roadmap" title="Compressed timeline for management — phases + headline activities, no per-WP detail">Simple timeline</button>
       <button class="view-btn" data-view="phaseTimeline" title="Just the per-product phase strips + launches — no WP rows, no milestones. Cleanest view for executive summaries.">Phase timeline</button>
       <button class="view-btn" data-view="milestones" title="All key milestones in one sortable table with expected finish dates.">Milestones</button>
+      <button class="view-btn" data-view="snapshots" title="Save named versions of the whole timeline and switch between them.">📸 Snapshots</button>
       <button class="view-btn" data-view="phase" title="Phase-focused project status">Phase</button>
       <button class="view-btn" data-view="process" title="SOP-18 process reference">Process</button>
       <button class="view-btn" data-view="structure" title="Project structure — which streams of work exist in this project">Structure</button>
@@ -4747,6 +4848,7 @@
         <label class="display-row"><input type="checkbox" id="todayToggleCb"><span>📍 Today line</span></label>
         <label class="display-row"><input type="checkbox" id="compactToggleCb"><span>📐 Compact WP labels</span></label>
         <label class="display-row"><input type="checkbox" id="weeksToggleCb"><span>📅 Week numbers</span></label>
+        <label class="display-row" title="Replace calendar dates + ISO weeks with PROJECT week numbers (Week 1, Week 2 …). Useful for sharing templates without leaking absolute dates."><input type="checkbox" id="projectWeeksToggleCb"><span>🎯 Project weeks (hide dates)</span></label>
         <label class="display-row"><input type="checkbox" id="arrowsToggleCb"><span>↳ Dependency arrows</span></label>
         <label class="display-row"><input type="checkbox" id="milestonesToggleCb"><span>★ Milestones</span></label>
         <label class="display-row"><input type="checkbox" id="hideLockedToggleCb"><span>🔒 Hide lock badges</span></label>
@@ -4762,6 +4864,7 @@
     <button class="legacy-chip" id="milestonesToggle" hidden></button>
     <button class="legacy-chip" id="hideLockedToggle" hidden></button>
     <button class="legacy-chip" id="colorByWpToggle" hidden></button>
+    <button class="legacy-chip" id="projectWeeksToggle" hidden></button>
     <button class="chip edit-only" id="autoSeq" title="Lay bars out in dependency order">✨ Auto-sequence</button>
     <span class="chip chip-segmented" id="trackFilterControl" title="Filter the Timeline to one of the project's tracks">
       <span class="chip-select-label">Track</span>
@@ -4840,6 +4943,7 @@
   <div id="roadmapView"></div>
   <div id="phaseTimelineView"></div>
   <div id="milestonesView"></div>
+  <div id="snapshotsView"></div>
 </main>
 
 <script id="sheetjs-inlined">
@@ -6315,6 +6419,19 @@ function isCompactLabels() { return localStorage.getItem(COMPACT_LABELS_KEY) ===
 const SHOW_WEEKS_KEY = "proplan.showWeeks";
 function isShowWeeks() { return localStorage.getItem(SHOW_WEEKS_KEY) === "1"; }
 
+/* Project weeks mode — when ON, calendar dates and ISO week labels are
+   replaced with PROJECT-relative week numbers (Week 1 = the week
+   containing state.start, Week 2 = next 7 days, …). Makes the plan
+   date-independent, which is useful for sharing templates or reusing
+   a schedule for a new project without leaking absolute dates. */
+const PROJECT_WEEKS_KEY = "proplan.projectWeeks";
+function isProjectWeeks() { return localStorage.getItem(PROJECT_WEEKS_KEY) === "1"; }
+/* Convert a months-from-start offset into a project week number.
+   Uses WEEKS_PER_MONTH = 4 so month 1.5 → week 7 (6+1). */
+function projectWeekOf(monthsFromStart) {
+  return Math.max(1, Math.floor((monthsFromStart || 0) * WEEKS_PER_MONTH) + 1);
+}
+
 /* Dependency-arrows visibility toggle for the timeline-style views. Default ON. */
 const SHOW_ARROWS_KEY = "proplan.showArrows";
 function isShowArrows() { return localStorage.getItem(SHOW_ARROWS_KEY) !== "0"; }
@@ -6485,6 +6602,74 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+/* ============== Named snapshots ==============
+   Separate from the in-memory undo/redo stack above — these are named,
+   user-created versions of the WHOLE project state, persisted to their
+   own localStorage key so they survive reloads and don't get capped or
+   evicted the way UNDO_MAX does. Browsed and restored from the
+   Snapshots tab (renderSnapshots). */
+const SNAPSHOTS_KEY = "proplan.snapshots";
+function getSnapshots() {
+  try {
+    const list = JSON.parse(localStorage.getItem(SNAPSHOTS_KEY) || "[]");
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+}
+function setSnapshots(list) {
+  localStorage.setItem(SNAPSHOTS_KEY, JSON.stringify(list));
+}
+function snapId() { return "snap_" + Math.random().toString(36).slice(2, 10); }
+function defaultSnapshotName() {
+  const d = new Date();
+  const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return `${date} at ${time}`;
+}
+function createSnapshot(name) {
+  const list = getSnapshots();
+  const snap = {
+    id: snapId(),
+    name: (name || "").trim() || defaultSnapshotName(),
+    createdAt: Date.now(),
+    state: JSON.parse(JSON.stringify(state)),
+  };
+  list.unshift(snap);
+  setSnapshots(list);
+  return snap;
+}
+function deleteSnapshotById(id) {
+  setSnapshots(getSnapshots().filter(s => s.id !== id));
+}
+function renameSnapshotById(id, name) {
+  if (!name || !name.trim()) return;
+  const list = getSnapshots();
+  const s = list.find(x => x.id === id);
+  if (s) s.name = name.trim();
+  setSnapshots(list);
+}
+/* Restore replaces the live project with a saved snapshot's state. Since
+   that's a one-way door for whatever was live a moment ago, we auto-save
+   the CURRENT state as a backup snapshot first — restoring is never
+   destructive, it's just another entry to restore back from if needed. */
+function restoreSnapshotById(id) {
+  const list = getSnapshots();
+  const snap = list.find(x => x.id === id);
+  if (!snap) return;
+  const backup = {
+    id: snapId(),
+    name: `Auto-backup before restoring "${snap.name}"`,
+    createdAt: Date.now(),
+    state: JSON.parse(JSON.stringify(state)),
+  };
+  list.unshift(backup);
+  setSnapshots(list);
+  state = JSON.parse(JSON.stringify(snap.state));
+  normaliseState(state);
+  saveState();
+  initUI();
+  switchView("viewA");
+}
+
 // parseYM, toDateInputValue, monthsBetween, MONTH_NAMES come from Core.
 function buildBarMap() { return Core.buildBarMap(state); }
 
@@ -6552,6 +6737,7 @@ function renderCurrent() {
   else if (currentView === "roadmap") renderRoadmap();
   else if (currentView === "phaseTimeline") renderPhaseTimeline();
   else if (currentView === "milestones") renderMilestones();
+  else if (currentView === "snapshots") renderSnapshots();
   // Keep the toolbar's Focus WP dropdown in sync with state.lanes (additions,
   // deletions, renames) and with the current filter on every render. Guarded
   // because the function may not exist yet during very early boot.
@@ -7604,7 +7790,8 @@ function renderSingleBar(b, colW) {
   const bufHtml = bufPct > 0 ? `<div class="bar-buffer" style="width:${bufPct.toFixed(2)}%;" title="${b.buffer}% buffer (${rnd1(b.span * b.buffer / 100)} wk)"></div>` : "";
   const extLabelHtml = labelExt ? `<span class="bar-ext-label">${escapeHtml(labelText)}</span>` : "";
   const lockHtml = b.locked ? `<span class="bar-lock-badge" title="Locked — Auto-sequence will skip this task. Right-click → Unlock to release.">🔒</span>` : "";
-  return `<div class="bar${narrowCls}${b.locked ? " is-locked" : ""}" data-bar="${b.id}" title="${tip}"
+  const doneHtml = b.done ? `<span class="bar-done-toggle">✓</span>` : "";
+  return `<div class="bar${narrowCls}${b.locked ? " is-locked" : ""}${b.done ? " is-done" : ""}" data-bar="${b.id}" title="${tip}"
     style="left:${x}px; width:${w}px; top:calc(50% - 22px); background:${c.bar}; border-color:${c.border};">
     ${bufHtml}
     <div class="resize l"></div>
@@ -7613,6 +7800,7 @@ function renderSingleBar(b, colW) {
       <span class="bar-task-name">${escapeHtml(labelText)}</span>
     </div>
     <div class="connect-handle" data-action="start-connect" title="Drag onto another bar to set dependency"></div>
+    ${doneHtml}
     ${lockHtml}
     ${depChip}
     ${extLabelHtml}
@@ -7834,7 +8022,7 @@ function renderOverviewBar(b, colW, rowIdx) {
   const estLabelW = (labelText || "").length * 6.5 + 24;
   const extCls = w < estLabelW ? " has-ext-label" : "";
   const lockHtml = b.locked ? `<span class="bar-lock-badge" title="Locked — Auto-sequence will skip this task.">🔒</span>` : "";
-  return `<div class="ov-bar${extCls}${b.locked ? " is-locked" : ""}" data-bar="${b.id}" title="${tip}"
+  return `<div class="ov-bar${extCls}${b.locked ? " is-locked" : ""}${b.done ? " is-done" : ""}" data-bar="${b.id}" title="${b.done ? tip + " · Complete" : tip}"
     style="left:${x}px; width:${w}px; ${topStyle} background:${c.bar}; border-color:${c.border};">${bufHtml}<span class="ov-bar-label">${escapeHtml(labelText)}</span>${lockHtml}</div>`;
 }
 
@@ -8505,6 +8693,10 @@ function renderPhaseTimeline() {
   const stateEndParts = parseYM(state.end);
   const stateEndDate = new Date(stateEndParts.y, stateEndParts.m - 1, stateEndParts.d || 1);
   const fmtWeekYear = (monthsFromStart) => {
+    // Project-weeks mode overrides the ISO-week/year label with a
+    // project-relative "P-W N" (Week N from state.start) so shared
+    // timelines don't leak absolute dates.
+    if (isProjectWeeks()) return `P-W${projectWeekOf(monthsFromStart)}`;
     let d = dateFor(monthsFromStart);
     if (d > stateEndDate) d = stateEndDate;
     const { week, year } = isoWeekInfo(d);
@@ -8754,6 +8946,14 @@ function renderMilestones() {
     return { week, year: thuYear };
   };
   const fmtDate = (d) => `${MONTH_NAMES[d.getMonth()].slice(0,3)} ${d.getDate()} ${d.getFullYear()}`;
+  // When the "Project weeks" display toggle is on, the Date + Week
+  // columns show a project-relative week number (Week 1, Week 2 …)
+  // instead of calendar dates and ISO weeks. Same schema, different
+  // formatter — swap the two strings per row.
+  const usePW = isProjectWeeks();
+  const makeDateStrings = (monthsFromStart, d, week, year) => usePW
+    ? { dateStr: `Week ${projectWeekOf(monthsFromStart)}`, weekStr: `P-W${projectWeekOf(monthsFromStart)}` }
+    : { dateStr: fmtDate(d), weekStr: `W${String(week).padStart(2, "0")} ${year}` };
 
   // Collect milestones across all lanes.
   // Product filter — reuses the same trackFilter localStorage key that
@@ -8779,14 +8979,15 @@ function renderMilestones() {
         .map(id => Core.getTrackById(state, id))
         .filter(t => t && t.kind === "product")
         .map(t => t.label || t.id);
+      const { dateStr, weekStr } = makeDateStrings(b.startIdx || 0, d, week, year);
       rows.push({
         bar: b,
         lane,
         label: b.label || "(untitled)",
         date: d,
-        dateStr: fmtDate(d),
+        dateStr,
         week, year,
-        weekStr: `W${String(week).padStart(2, "0")} ${year}`,
+        weekStr,
         phase: b.phase || "—",
         wp: lane.code || "(no WP)",
         products: products.join(", ") || "—",
@@ -8820,14 +9021,15 @@ function renderMilestones() {
     let d = dateFor(launchAt);
     if (d > stateEndDate) d = stateEndDate;
     const { week, year } = isoWeekInfo(d);
+    const { dateStr, weekStr } = makeDateStrings(launchAt, d, week, year);
     rows.push({
       bar: { id: `__launch_${p.id}`, __synthetic: "launch" },
       lane: null,
       label: `${p.label} Launch`,
       date: d,
-      dateStr: fmtDate(d),
+      dateStr,
       week, year,
-      weekStr: `W${String(week).padStart(2, "0")} ${year}`,
+      weekStr,
       phase: "—",
       wp: "(auto)",
       products: p.label || p.id,
@@ -8926,6 +9128,114 @@ function renderMilestones() {
   });
 }
 
+/* =================== SNAPSHOTS VIEW =================== */
+function timeAgo(ts) {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} minute${m === 1 ? "" : "s"} ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} hour${h === 1 ? "" : "s"} ago`;
+  const d = Math.round(h / 24);
+  if (d < 30) return `${d} day${d === 1 ? "" : "s"} ago`;
+  const mo = Math.round(d / 30);
+  if (mo < 12) return `${mo} month${mo === 1 ? "" : "s"} ago`;
+  const y = Math.round(mo / 12);
+  return `${y} year${y === 1 ? "" : "s"} ago`;
+}
+function snapshotStats(snapState) {
+  let taskCount = 0, doneCount = 0;
+  const wpCount = (snapState.lanes || []).length;
+  for (const lane of snapState.lanes || []) {
+    for (const b of lane.bars || []) {
+      if (b.type === "milestone") continue;
+      taskCount++;
+      if (b.done) doneCount++;
+    }
+  }
+  const rangeStr = (() => {
+    try {
+      const s = parseYM(snapState.start), e = parseYM(snapState.end);
+      return `${MONTH_NAMES[s.m - 1]} ${s.y} – ${MONTH_NAMES[e.m - 1]} ${e.y}`;
+    } catch { return ""; }
+  })();
+  return { wpCount, taskCount, doneCount, rangeStr };
+}
+function renderSnapshots() {
+  const root = document.getElementById("snapshotsView");
+  if (!root) return;
+  const list = getSnapshots();
+
+  const cardHtml = (snap) => {
+    const { wpCount, taskCount, doneCount, rangeStr } = snapshotStats(snap.state || {});
+    const isBackup = /^Auto-backup before restoring/.test(snap.name || "");
+    const created = new Date(snap.createdAt || 0);
+    const createdAbs = isNaN(created) ? "" : created.toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+    return `<div class="snapshot-card${isBackup ? " is-backup" : ""}" data-snap="${snap.id}">
+      <div class="snapshot-card-main">
+        <div class="snapshot-card-name">${isBackup ? "🛟 " : "📸 "}${escapeHtml(snap.name)}</div>
+        <div class="snapshot-card-meta">${timeAgo(snap.createdAt || 0)} · ${escapeHtml(createdAbs)}</div>
+        <div class="snapshot-card-stats">
+          <span class="snap-stat">${wpCount} WP${wpCount === 1 ? "" : "s"}</span>
+          <span class="snap-stat">${taskCount} task${taskCount === 1 ? "" : "s"}</span>
+          <span class="snap-stat snap-stat-done">${doneCount}/${taskCount} done</span>
+          ${rangeStr ? `<span class="snap-stat">${escapeHtml(rangeStr)}</span>` : ""}
+        </div>
+      </div>
+      <div class="snapshot-card-actions">
+        <button class="chip primary" data-snap-act="restore" data-id="${snap.id}">↩ Restore</button>
+        <button class="chip" data-snap-act="rename" data-id="${snap.id}">✎ Rename</button>
+        <button class="chip danger" data-snap-act="delete" data-id="${snap.id}">🗑 Delete</button>
+      </div>
+    </div>`;
+  };
+
+  root.innerHTML = `<div class="snapshots-view">
+    <header class="snapshots-header">
+      <div class="snapshots-header-title">
+        <h1>Snapshots</h1>
+        <p>Save a named version of the whole timeline any time, and jump back to it later. Restoring one automatically backs up your current state first, so restoring is never a one-way door.</p>
+      </div>
+      <button class="chip primary" id="saveSnapshotBtn">📸 Save snapshot</button>
+    </header>
+    <div class="snapshots-list">
+      ${list.length
+        ? list.map(cardHtml).join("")
+        : `<div class="snapshots-empty">No snapshots yet — click "📸 Save snapshot" to save the current timeline as a version you can always come back to.</div>`
+      }
+    </div>
+  </div>`;
+
+  document.getElementById("saveSnapshotBtn")?.addEventListener("click", () => {
+    const name = prompt("Name this snapshot:", defaultSnapshotName());
+    if (name === null) return;   // cancelled
+    createSnapshot(name);
+    renderSnapshots();
+  });
+  root.querySelectorAll("[data-snap-act]").forEach(btn => {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const id = btn.dataset.id;
+      const act = btn.dataset.snapAct;
+      const snap = getSnapshots().find(s => s.id === id);
+      if (!snap) return;
+      if (act === "restore") {
+        if (!confirm(`Restore "${snap.name}"? Your current timeline will be saved as an auto-backup first, then replaced with this snapshot.`)) return;
+        restoreSnapshotById(id);
+      } else if (act === "rename") {
+        const name = prompt("Rename snapshot:", snap.name);
+        if (name === null) return;
+        renameSnapshotById(id, name);
+        renderSnapshots();
+      } else if (act === "delete") {
+        if (!confirm(`Delete "${snap.name}"? This can't be undone.`)) return;
+        deleteSnapshotById(id);
+        renderSnapshots();
+      }
+    });
+  });
+}
+
 function renderRoadmap() {
   const root = document.getElementById("roadmapView");
   if (!root) return;
@@ -8997,6 +9307,10 @@ function renderRoadmap() {
   const stateEndParts = parseYM(state.end);
   const stateEndDate = new Date(stateEndParts.y, stateEndParts.m - 1, stateEndParts.d || 1);
   const fmtWeekYear = (monthsFromStart) => {
+    // Project-weeks mode overrides the ISO-week/year label with a
+    // project-relative "P-W N" (Week N from state.start) so shared
+    // timelines don't leak absolute dates.
+    if (isProjectWeeks()) return `P-W${projectWeekOf(monthsFromStart)}`;
     let d = dateFor(monthsFromStart);
     if (d > stateEndDate) d = stateEndDate;
     const { week, year } = isoWeekInfo(d);
@@ -11550,6 +11864,20 @@ function attachHoverFocus(targetEl) {
         document.body.dataset.focus = "1";
       }
     });
+    // Double-click a task bar to toggle it complete. Works regardless of
+    // edit mode (view-only just can't drag/resize/connect) — mark-complete
+    // is a status update, not a structural edit. Milestones keep dblclick
+    // for rename (wired separately), so scope this to plain task bars only.
+    if (barEl.classList.contains("bar")) {
+      barEl.addEventListener("dblclick", (e) => {
+        e.stopPropagation();
+        const bar = buildBarMap()[barId]?.bar;
+        if (!bar) return;
+        bar.done = !bar.done;
+        saveState();
+        renderCurrent();
+      });
+    }
   });
   if (!targetEl.dataset.bgClickWired) {
     targetEl.dataset.bgClickWired = "1";
@@ -13005,6 +13333,14 @@ document.getElementById("weeksToggle").addEventListener("click", () => {
 });
 applyWeeksToggleButton();
 
+/* Project-weeks toggle — replaces calendar dates + ISO weeks with
+   PROJECT-relative week numbers across the milestone-facing views. */
+document.getElementById("projectWeeksToggle").addEventListener("click", () => {
+  const on = isProjectWeeks();
+  localStorage.setItem(PROJECT_WEEKS_KEY, on ? "0" : "1");
+  renderCurrent();
+});
+
 function applyColorByWpButton() {
   const btn = document.getElementById("colorByWpToggle"); if (!btn) return;
   const on = isColorByWP();
@@ -13088,6 +13424,7 @@ const DISPLAY_TOGGLES = [
   ["milestonesToggleCb",     "milestonesToggle",() => isShowMilestones(),           true],
   ["hideLockedToggleCb",     "hideLockedToggle",() => isHidingLocked(),             false],
   ["colorByWpToggleCb",      "colorByWpToggle", () => isColorByWP(),                false],
+  ["projectWeeksToggleCb",   "projectWeeksToggle", () => isProjectWeeks(),          false],
 ];
 function syncDisplayCheckboxes() {
   let nonDefault = 0;
@@ -13744,7 +14081,7 @@ let savedView = localStorage.getItem(VIEW_KEY);
 // Migrations: older view IDs map onto the current Timeline. Removed
 // "overview" + "present" tabs fall back to the Timeline view too.
 if (["timeline", "viewB", "overview"].includes(savedView)) savedView = "viewA";
-if (["plan", "viewA", "phase", "process", "structure", "proposal", "roadmap"].includes(savedView)) currentView = savedView;
+if (["plan", "viewA", "phase", "process", "structure", "proposal", "roadmap", "phaseTimeline", "milestones", "snapshots"].includes(savedView)) currentView = savedView;
 // If a user had "present" saved, fall back to plan since the tab no longer exists.
 if (currentView === "present") currentView = "plan";
 document.body.dataset.view = currentView;

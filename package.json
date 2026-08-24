@@ -8,10 +8,17 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs",
+    "tauri": "tauri",
+    "app:dev": "tauri dev",
+    "app:build": "tauri build"
   },
   "devDependencies": {
-    "vitest": "^1.6.0",
-    "@vitest/coverage-v8": "^1.6.0"
+    "@tauri-apps/cli": "^2.11.4",
+    "@vitest/coverage-v8": "^1.6.0",
+    "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1"
   }
 }

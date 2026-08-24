@@ -11,6 +11,14 @@ coverage/
 # Build output (single-file release HTML produced by scripts/build.mjs)
 dist/
 
+# Tauri desktop app
+dist-tauri/
+src-tauri/target/
+src-tauri/gen/
+
+# Local preview-server seed data (real project export, not for git)
+.preview-state.json
+
 # Editor / OS
 *.swp
 *.swo
