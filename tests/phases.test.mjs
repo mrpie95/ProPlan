@@ -323,6 +323,18 @@ describe('phase ranges per product — no overlapping stripes', () => {
     it(`${name}: PRS → DP → DO → FP do not overlap on any product`, () => {
       const state = load(name);
       normaliseState(state);            // mutates in place; doesn't return
+      // Locked bars are explicitly exempt from Auto-sequence (that's the
+      // whole point of locking one — see enforcePhaseOrder's Pass 1,
+      // `if (b.locked) continue`). A locked bar the user pinned before its
+      // phase's gate will legitimately overlap the previous phase, and
+      // that's a user choice, not a renderer bug. userMultiProduct.json
+      // (a real exported project) has exactly this: two locked bars sitting
+      // ahead of their phase's gate. Strip locked bars before checking so
+      // this test asserts what it actually means to guarantee — bars
+      // enforcePhaseOrder DOES control never end up overlapping.
+      for (const lane of state.lanes || []) {
+        lane.bars = (lane.bars || []).filter(b => !b.locked);
+      }
       // Match what the renderer sees in production: every save runs
       // enforcePhaseOrder, so the on-screen phase strip is computed
       // AFTER ordering. Call it here so we don't flag "raw" fixtures
