@@ -1,0 +1,18 @@
+{
+  "_comment": "Three bars in a linear chain A -> B -> C. No phases. Used to verify the basic autoSequence pipeline lays bars out tight.",
+  "start": "2026-01",
+  "end": "2026-12",
+  "colWidth": 60,
+  "lanes": [
+    {
+      "id": "l1",
+      "code": "WP 1 — Foo",
+      "desc": "Engineering",
+      "bars": [
+        { "id": "a", "type": "work", "startIdx": 5, "span": 4, "buffer": 0, "label": "A", "dependsOn": [] },
+        { "id": "b", "type": "work", "startIdx": 9, "span": 4, "buffer": 0, "label": "B", "dependsOn": ["a"] },
+        { "id": "c", "type": "work", "startIdx": 0, "span": 4, "buffer": 0, "label": "C", "dependsOn": ["b"] }
+      ]
+    }
+  ]
+}

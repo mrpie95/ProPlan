@@ -1,0 +1,20 @@
+{
+  "_comment": "Tasks across PRS, DP, DO, FP. PRS has a long bar that ends late; DP's earliest task has no dependency. Used to verify enforcePhaseOrder pushes DP tasks past PRS.end, and that autoSequence ratchet propagates that push to successors.",
+  "start": "2026-01",
+  "end": "2027-12",
+  "colWidth": 60,
+  "lanes": [
+    {
+      "id": "l1",
+      "code": "WP 1 — Multi-phase",
+      "desc": "Engineering",
+      "bars": [
+        { "id": "prs_long", "type": "work", "startIdx": 0, "span": 12, "buffer": 0, "label": "PRS-long", "dependsOn": [], "phase": "PRS" },
+        { "id": "dp_first", "type": "work", "startIdx": 0, "span": 4, "buffer": 0, "label": "DP-first", "dependsOn": [], "phase": "DP" },
+        { "id": "dp_dep_on_first", "type": "work", "startIdx": 0, "span": 4, "buffer": 0, "label": "DP-second", "dependsOn": ["dp_first"], "phase": "DP" },
+        { "id": "do_one", "type": "work", "startIdx": 0, "span": 4, "buffer": 0, "label": "DO-one", "dependsOn": ["dp_dep_on_first"], "phase": "DO" },
+        { "id": "fp_one", "type": "work", "startIdx": 0, "span": 4, "buffer": 0, "label": "FP-one", "dependsOn": ["do_one"], "phase": "FP" }
+      ]
+    }
+  ]
+}
