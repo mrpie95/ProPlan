@@ -35,6 +35,11 @@ const END = '// === END INLINED proplan-core.mjs ===';
 
 const EXPORT_NAMES = [
   'WEEKS_PER_MONTH', 'PHASE_ORDER', 'PHASE_CODES_IN_ORDER', 'MONTH_NAMES',
+  'DEFAULT_PROCESS_ID', 'SOP18_PROCESS', 'STAGE_GATE_PROCESS', 'NO_PROCESS',
+  'validateProcessDef', 'registerProcess', 'unregisterProcess', 'getProcessById',
+  'listProcesses', 'exportProcessDef', 'serializeCustomProcesses', 'loadCustomProcesses',
+  'getProcess', 'isProcessResolved', 'processPhase', 'processPhaseIndex', 'gateLabel',
+  'mapPhaseCode', 'planProcessSwitch', 'applyProcessSwitch',
   'PROPOSAL_HOURS_PER_WEEK', 'TYPES', 'LANE_TRACKS', 'TRACK_DEFAULTS',
   'SYSTEM_TRACK_SEEDS', 'NEW_PRODUCT_COLOR_PALETTE',
   'enabledTracks', 'isTrackEnabled', 'barTrack', 'barTracks',
@@ -61,6 +66,20 @@ const EXPORT_NAMES = [
   'topoOrder', 'createsCycle', 'autoSequence',
   'packLaneRows',
   'proposalBarCountsForHours', 'barHoursDist',
+  'ACTIVITY_LOG_CAP', 'isDay', 'localDay', 'laneProgress', 'projectProgress',
+  'setBarDone', 'setLaneDone', 'setLaneNote',
+  'recentActivity', 'groupActivityByDay', 'completionSummary', 'completionSeries',
+  // Alt timeline (tool-rail editor)
+  'ALT_ROW_H', 'ALT_LANE_H', 'ALT_BAR_H', 'ALT_EDGE_PX', 'ALT_MIN_EFF_WEEKS', 'ALT_GRIDS',
+  'ALT_TOOLS', 'ALT_TYPE_DIGITS', 'ALT_CURSORS', 'ALT_BULK_FIELDS', 'ALT_ZOOM_MIN', 'ALT_ZOOM_MAX',
+  'altToolById', 'altToolForKey', 'altToolAllowed', 'altResolveTool', 'altSwitchTool',
+  'altBarRect', 'altLayout', 'altRowAt', 'altWeekAt', 'altHitTest', 'altNormBox',
+  'altMarqueeSelect', 'altSelectClick',
+  'altSnapGrid', 'altEdgeWeeks', 'altSnapPoint', 'altSnapMove', 'altZoomColW', 'altZoomToRange',
+  'altBeginGesture', 'altFrozenReason', 'altSnapshot', 'altMoveBars', 'altResizeBar',
+  'altCreateBar', 'altAddEndMilestone', 'altSplitBar', 'altLinkBars', 'altUnlinkBars',
+  'altDeleteBars', 'altDuplicateBars', 'altBulkEdit', 'altAlignBars', 'altSelectionSummary',
+  'altBarDates', 'altStartIdxFromDate',
 ];
 
 /* Names that the HTML defines its own thin wrapper for (passing the global
@@ -79,6 +98,8 @@ const CONFLICTS = [
   'computePhaseRanges',
   'computePhaseGates',
   'proposalBarCountsForHours',
+  'phaseSpanCodes',
+  'isBleedingBar',
 ];
 
 let html = readFileSync(HTML_PATH, 'utf8');

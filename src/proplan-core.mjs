@@ -21,6 +21,364 @@ export const PHASE_CODES_IN_ORDER = ["PRS", "DP", "DO", "FP"];
 export const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 export const PROPOSAL_HOURS_PER_WEEK = 40;
 
+/* ====================== Processes ======================
+   A Process describes the phase model a project runs: ordered phases (code,
+   name, colour, optional reference content), gate semantics, and the
+   reference doc the Process tab renders. Each project picks one via
+   state.processId; every phase function reads it through getProcess(state).
+
+   Built-ins: "sop18" (PRS → DP → DO → FP), "stagegate" (SCP → DEV → LCH) and
+   "none" (zero phases — phase tags are ignored, not deleted). User-defined
+   processes go through registerProcess() and persist via
+   serializeCustomProcesses() / loadCustomProcesses() (the HTML stores them
+   under localStorage "proplan.processes"; there is no editor UI yet).
+
+   A bar/lane/track phase code the active process doesn't know is DORMANT:
+   every phase function treats it like an untagged bar, but the tag stays in
+   state so switching back restores it. */
+
+export const DEFAULT_PROCESS_ID = "sop18";
+
+const PHASE_CODE_RE = /^[A-Za-z0-9_-]{1,8}$/;
+const PROCESS_ID_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+const RESERVED_PHASE_CODES = new Set(["END", "_closed", "_none"]);
+const DEFAULT_GATES = Object.freeze({ enforce: true, label: "{code} closure", finalLabel: "Project close", finalCode: "END" });
+/* Fallback colours (cycled by index) for custom phases that omit `color`. */
+const DEFAULT_PHASE_COLORS = [
+  { bg: "#fee2e2", accent: "#ef4444", text: "#7f1d1d" },
+  { bg: "#dcfce7", accent: "#22c55e", text: "#14532d" },
+  { bg: "#dbeafe", accent: "#3b82f6", text: "#1e3a8a" },
+  { bg: "#f3e8ff", accent: "#a855f7", text: "#581c87" },
+  { bg: "#fef3c7", accent: "#d97706", text: "#78350f" },
+  { bg: "#cffafe", accent: "#0891b2", text: "#164e63" },
+];
+
+function hasOwn(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+function isStr(v) { return typeof v === "string"; }
+function deepFreeze(o) {
+  if (o && typeof o === "object" && !Object.isFrozen(o)) {
+    Object.freeze(o);
+    for (const k of Object.keys(o)) deepFreeze(o[k]);
+  }
+  return o;
+}
+const optStr = (v) => (isStr(v) ? v : "");
+const strList = (v) => (Array.isArray(v) ? v.filter(isStr) : []);
+
+/* Validate + normalise a process definition. Returns { ok, errors, process }
+   (process only when ok). `opts.builtin` allows a zero-phase process and the
+   built-in ids. Never throws on bad input. */
+export function validateProcessDef(def, opts = {}) {
+  const errors = [];
+  if (!def || typeof def !== "object" || Array.isArray(def)) {
+    return { ok: false, errors: ["Process definition must be an object."] };
+  }
+  if (!isStr(def.id) || !PROCESS_ID_RE.test(def.id)) errors.push("id must be 1–32 chars: lowercase letters, digits, - or _ (starting with a letter/digit).");
+  if (!isStr(def.name) || !def.name.trim()) errors.push("name is required.");
+  if (!Array.isArray(def.phases)) errors.push("phases must be an array.");
+  else if (!opts.builtin && def.phases.length === 0) errors.push("a process needs at least one phase.");
+
+  const phases = [];
+  const seen = new Set();
+  (Array.isArray(def.phases) ? def.phases : []).forEach((p, i) => {
+    const at = `phases[${i}]`;
+    if (!p || typeof p !== "object") { errors.push(`${at} must be an object.`); return; }
+    if (!isStr(p.code) || !PHASE_CODE_RE.test(p.code)) { errors.push(`${at}.code must be 1–8 chars of letters, digits, - or _.`); return; }
+    if (RESERVED_PHASE_CODES.has(p.code)) errors.push(`${at}.code "${p.code}" is reserved.`);
+    if (seen.has(p.code)) errors.push(`${at}.code "${p.code}" is duplicated.`);
+    seen.add(p.code);
+    if (!isStr(p.name) || !p.name.trim()) errors.push(`${at}.name is required.`);
+    let color = DEFAULT_PHASE_COLORS[i % DEFAULT_PHASE_COLORS.length];
+    if (p.color !== undefined) {
+      const c = p.color;
+      if (c && isStr(c.bg) && isStr(c.accent) && isStr(c.text)) color = { bg: c.bg, accent: c.accent, text: c.text };
+      else errors.push(`${at}.color must be { bg, accent, text } strings.`);
+    }
+    const tasks = Array.isArray(p.tasks)
+      ? p.tasks.filter(t => t && isStr(t.text)).map(t => ({
+          num: t.num === undefined ? "" : String(t.num), text: t.text,
+          ...(isStr(t.milestone) ? { milestone: t.milestone } : {}),
+          ...(t.gate ? { gate: true } : {}), ...(t.review ? { review: true } : {}),
+        }))
+      : [];
+    phases.push({
+      code: p.code, name: optStr(p.name), summary: optStr(p.summary),
+      num: p.num === undefined ? "" : String(p.num),
+      color, purpose: optStr(p.purpose), deliverables: strList(p.deliverables), tasks,
+    });
+  });
+
+  let gates = { ...DEFAULT_GATES };
+  if (def.gates !== undefined) {
+    const g = def.gates;
+    if (!g || typeof g !== "object") errors.push("gates must be an object.");
+    else {
+      if (g.enforce !== undefined) { if (typeof g.enforce === "boolean") gates.enforce = g.enforce; else errors.push("gates.enforce must be boolean."); }
+      for (const k of ["label", "finalLabel", "finalCode"]) {
+        if (g[k] !== undefined) { if (isStr(g[k]) && g[k]) gates[k] = g[k]; else errors.push(`gates.${k} must be a non-empty string.`); }
+      }
+    }
+  }
+  let entry = null;
+  if (def.entry != null) {
+    if (isStr(def.entry.label)) entry = { label: def.entry.label, stages: strList(def.entry.stages) };
+    else errors.push("entry must be { label, stages[] } or null.");
+  }
+  const exit = isStr(def.exit) && def.exit ? def.exit : null;
+  const commonDeliverables = Array.isArray(def.commonDeliverables)
+    ? def.commonDeliverables.filter(d => d && isStr(d.name)).map(d => ({ name: d.name, desc: optStr(d.desc) })) : [];
+  const roles = Array.isArray(def.roles)
+    ? def.roles.filter(r => r && isStr(r.code)).map(r => ({ code: r.code, desc: optStr(r.desc) })) : [];
+
+  if (errors.length) return { ok: false, errors };
+  const order = {};
+  phases.forEach((p, i) => { order[p.code] = i; });
+  const process = deepFreeze({
+    id: def.id, name: def.name.trim(), description: optStr(def.description),
+    builtin: !!opts.builtin, doc: optStr(def.doc), owner: optStr(def.owner), intro: optStr(def.intro),
+    phases, codes: phases.map(p => p.code), order,
+    gates, entry, exit, commonDeliverables, roles,
+  });
+  return { ok: true, errors: [], process };
+}
+
+const SOP18_DEF = {
+  id: "sop18",
+  name: "SOP-18 Product Development",
+  description: "DEC's 4-phase gated hardware development process (PRS → DP → DO → FP). R&D drives; Quality signs each gate.",
+  doc: "SOP-18 · v2 · 07-2025",
+  owner: "MPI",
+  intro: "DEC's 4-phase gated product development process. Every Cat. 3 New Hardware Product follows this. R&D drives; Quality signs each gate.",
+  phases: [
+    { code: "PRS", num: "100", name: "Product Requirements & Specifications",
+      summary: "Requirements & specifications",
+      color: { bg: "#fee2e2", accent: "#ef4444", text: "#7f1d1d" },
+      purpose: "Establish a robust foundation by gathering and analysing user requirements; transform them into official product requirements and technical specifications. A gate blocks technical-spec work until user requirements are signed off.",
+      deliverables: ["Project Plan", "General Product Description", "List of Applicable Standards", "WBSO Journal", "Risk Management Plan", "Product Specification", "Verification Plan", "Manufacturing Process Chain Requirements"],
+      tasks: [
+        { num: "101", text: "Kick-off — approved project proposal passed to the PL.", milestone: "Kick-off meeting successfully done" },
+        { num: "110", text: "Define User Needs and Requirements." },
+        { num: "120", text: "Gate — blocks technical specifications until user requirements are signed off.", gate: true },
+        { num: "130", text: "Develop Technical Specification (measurable engineering specs)." },
+        { num: "140", text: "Phase Review — all deliverables signed off.", milestone: "Project ready for Design Process phase", review: true }
+      ]
+    },
+    { code: "DP", num: "200", name: "Design Process",
+      summary: "Design, prototyping & testing",
+      color: { bg: "#dcfce7", accent: "#22c55e", text: "#14532d" },
+      purpose: "Iterative development and refinement of the product to meet defined specifications through prototyping, testing, analysis and continuous improvement.",
+      deliverables: ["Material Safety Assessment", "List of Applicable Standards (updated)", "Bill of Materials", "Registration Plan", "Manufacturing Process Chain Validation Plan", "Manufacturing Process Chain Requirements (updated)", "ETI Testing Report"],
+      tasks: [
+        { num: "201", text: "Start Design Process — triggered by closure of PRS." },
+        { num: "210", text: "Develop detailed designs/drawings." },
+        { num: "220", text: "Design Manufacturing Process Chain." },
+        { num: "230", text: "Pre-development Technical Review.", milestone: "Technical review of initial designs complete", review: true },
+        { num: "240", text: "Iterative Development Activities." },
+        { num: "250", text: "Introduce Manufacturing Process and Service Steps." },
+        { num: "260", text: "Final Technical Review.", milestone: "Technical review of final designs complete", review: true },
+        { num: "270", text: "Phase Review — all deliverables signed off.", review: true }
+      ]
+    },
+    { code: "DO", num: "300", name: "Design Output",
+      summary: "Verification & regulatory compliance",
+      color: { bg: "#dbeafe", accent: "#3b82f6", text: "#1e3a8a" },
+      purpose: "Finalise product design; verify against PRS specs and check regulatory compliance. Includes feedback loop back to PRS for validation.",
+      deliverables: ["OQ Report", "Bill of Materials (final)", "Regulatory and Standards Documentation", "Verification Report"],
+      tasks: [
+        { num: "301", text: "Start Design Output — triggered by DP closure.", milestone: "Signed-off Production-Ready Documentation" },
+        { num: "310", text: "Verify & Debug Component.", milestone: "Completion of Verification Report" },
+        { num: "320", text: "Qualify Manufacturing Process Chain (OQ).", milestone: "Completed OQ Batch Report" },
+        { num: "330", text: "Finalize Product — regulatory compliance checked; logged in SAP." },
+        { num: "340", text: "Phase Review — all deliverables signed off.", milestone: "Project ready for Final Product phase", review: true }
+      ]
+    },
+    { code: "FP", num: "400", name: "Final Product",
+      summary: "Validation, launch & surveillance",
+      color: { bg: "#f3e8ff", accent: "#a855f7", text: "#581c87" },
+      purpose: "Validate equipment, processes, marketing material and final production batches; ready the product for launch and 3–6 month surveillance (QAT). Ownership transfers to Sales & Marketing during QAT.",
+      deliverables: ["Market Readiness Documentation", "PQ Validation Report", "PDR Overview Report"],
+      tasks: [
+        { num: "401", text: "Start Final Product — triggered by DO closure." },
+        { num: "405", text: "Validate Product Design.", milestone: "Product validated against Product Requirements" },
+        { num: "410", text: "Validate Manufacturing & Service Process Chain (IQ/OQ/PQ)." },
+        { num: "420", text: "Technical File Review." },
+        { num: "425", text: "Finalize Marketing Authorization activities." },
+        { num: "430", text: "Prepare deliverables for Qualification Ramp-up Review (QRR)." },
+        { num: "435", text: "QRR — transfer ownership to Operations.", milestone: "Transfer to Operations achieved. Production started" },
+        { num: "440", text: "Pre-Launch Review (PLR).", milestone: "Green-light for product shipment", review: true },
+        { num: "450", text: "Phase Review — all deliverables signed off.", milestone: "Project ready for QAT step", review: true },
+        { num: "460", text: "3–6 Month Product Surveillance (QAT) — monitor for issues post-launch." },
+        { num: "499", text: "Close project.", milestone: "Project closed" }
+      ]
+    }
+  ],
+  gates: { enforce: true, label: "{code} closure", finalLabel: "Project close", finalCode: "END" },
+  entry: { label: "Project Proposal", stages: ["Strategic Planning", "Feasibility"] },
+  exit: "Release",
+  commonDeliverables: [
+    { name: "Project Diary", desc: "Preliminary info needed to define user needs and technical specs." },
+    { name: "List of Deliverables (LoD)", desc: "All relevant project deliverables." },
+    { name: "Phase Review Report", desc: "Approval of all deliverables in a phase." }
+  ],
+  roles: [
+    { code: "PL", desc: "Project Lead — overall responsibility and authority. Drives the procedure." },
+    { code: "PM", desc: "Product Manager — overall accountability." },
+    { code: "QM", desc: "Quality Manager / Expert — trained in R&D processes; participates in Phase Review closure." },
+    { code: "SME", desc: "Subject Matter Expert — domain knowledge for assigned tasks." },
+    { code: "ME", desc: "Manufacturing Engineering — develops the manufacturing process." }
+  ]
+};
+
+const STAGEGATE_DEF = {
+  id: "stagegate",
+  name: "Stage-Gate (3 phases)",
+  description: "A lightweight three-stage gated process: Scope → Develop → Launch, with a go/no-go review at the end of each stage.",
+  doc: "Stage-Gate · 3 phases",
+  intro: "A generic stage-gate flow. Work in a stage is planned freely; the next stage only starts once the previous stage's gate review has passed.",
+  phases: [
+    { code: "SCP", num: "1", name: "Scope", summary: "Define the problem, case and plan",
+      color: { bg: "#fef3c7", accent: "#d97706", text: "#78350f" },
+      purpose: "Understand the need, size the opportunity and agree what will be built, by whom and by when.",
+      deliverables: ["Business case", "Requirements brief", "Project plan and budget", "Risk log"],
+      tasks: [
+        { num: "1.1", text: "Kick-off — sponsor approves starting the project." },
+        { num: "1.2", text: "Capture needs and success criteria." },
+        { num: "1.3", text: "Draft scope, plan and budget." },
+        { num: "1.4", text: "Gate 1 — go / no-go to Develop.", milestone: "Scope approved", gate: true, review: true }
+      ] },
+    { code: "DEV", num: "2", name: "Develop", summary: "Design, build and test",
+      color: { bg: "#dbeafe", accent: "#2563eb", text: "#1e3a8a" },
+      purpose: "Design and build the solution, test it against the agreed requirements and prepare for launch.",
+      deliverables: ["Design / build artefacts", "Test report", "Launch readiness plan"],
+      tasks: [
+        { num: "2.1", text: "Design and build." },
+        { num: "2.2", text: "Test against requirements." },
+        { num: "2.3", text: "Prepare launch." },
+        { num: "2.4", text: "Gate 2 — go / no-go to Launch.", milestone: "Solution ready to launch", gate: true, review: true }
+      ] },
+    { code: "LCH", num: "3", name: "Launch", summary: "Release and hand over",
+      color: { bg: "#dcfce7", accent: "#16a34a", text: "#14532d" },
+      purpose: "Release the result, hand it over to the owners and close the project with lessons learned.",
+      deliverables: ["Release notes", "Handover documentation", "Post-project review"],
+      tasks: [
+        { num: "3.1", text: "Release." },
+        { num: "3.2", text: "Hand over to operations." },
+        { num: "3.3", text: "Close project.", milestone: "Project closed", review: true }
+      ] }
+  ],
+  gates: { enforce: true, label: "{name} gate", finalLabel: "Project close", finalCode: "END" },
+  entry: { label: "Idea", stages: ["Ideation"] },
+  exit: "Operate",
+  commonDeliverables: [
+    { name: "Business case", desc: "Kept current at every gate." },
+    { name: "Risk log", desc: "Reviewed at every gate." }
+  ],
+  roles: [
+    { code: "Sponsor", desc: "Funds the project and decides at each gate." },
+    { code: "Lead", desc: "Plans and drives the work between gates." }
+  ]
+};
+
+const NO_PROCESS_DEF = {
+  id: "none",
+  name: "No process",
+  description: "Free-form planning: no phases, gates or ordering rules. Existing phase tags are kept (dormant) so choosing a process again restores them.",
+  phases: [],
+  gates: { enforce: false, label: "{code} closure", finalLabel: "Project close", finalCode: "END" },
+};
+
+const PROCESS_REGISTRY = new Map();
+function defineBuiltin(def) {
+  const v = validateProcessDef(def, { builtin: true });
+  if (!v.ok) throw new Error(`Invalid built-in process ${def && def.id}: ${v.errors.join("; ")}`);
+  PROCESS_REGISTRY.set(v.process.id, v.process);
+  return v.process;
+}
+export const SOP18_PROCESS = defineBuiltin(SOP18_DEF);
+export const STAGE_GATE_PROCESS = defineBuiltin(STAGEGATE_DEF);
+export const NO_PROCESS = defineBuiltin(NO_PROCESS_DEF);
+const BUILTIN_PROCESS_IDS = new Set([SOP18_PROCESS.id, STAGE_GATE_PROCESS.id, NO_PROCESS.id]);
+
+/* Register (or replace) a user-defined process. Built-in ids are protected. */
+export function registerProcess(def) {
+  const v = validateProcessDef(def);
+  if (!v.ok) return v;
+  if (BUILTIN_PROCESS_IDS.has(v.process.id)) {
+    return { ok: false, errors: [`"${v.process.id}" is a built-in process id.`] };
+  }
+  PROCESS_REGISTRY.set(v.process.id, v.process);
+  return v;
+}
+export function unregisterProcess(id) {
+  if (BUILTIN_PROCESS_IDS.has(id)) return false;
+  return PROCESS_REGISTRY.delete(id);
+}
+export function getProcessById(id) { return PROCESS_REGISTRY.get(id) || null; }
+/* All processes, built-ins first (sop18, stagegate, none), then custom ones. */
+export function listProcesses() {
+  const all = [...PROCESS_REGISTRY.values()];
+  const rank = (p) => (p.builtin ? 0 : 1);
+  return all.map((p, i) => ({ p, i })).sort((a, b) => rank(a.p) - rank(b.p) || a.i - b.i).map(x => x.p);
+}
+/* Plain-JSON copy of a process definition (drops derived fields) — for
+   persistence and for embedding in a project export (state.processDef). */
+export function exportProcessDef(proc) {
+  const p = getProcess(proc);
+  return JSON.parse(JSON.stringify({
+    id: p.id, name: p.name, description: p.description, doc: p.doc, owner: p.owner, intro: p.intro,
+    phases: p.phases, gates: p.gates, entry: p.entry, exit: p.exit,
+    commonDeliverables: p.commonDeliverables, roles: p.roles,
+  }));
+}
+export function serializeCustomProcesses() {
+  return listProcesses().filter(p => !p.builtin).map(exportProcessDef);
+}
+/* Register every valid def in an array (e.g. parsed from localStorage).
+   Returns { loaded: [ids], rejected: [{ id, errors }] }; never throws. */
+export function loadCustomProcesses(defs) {
+  const out = { loaded: [], rejected: [] };
+  if (!Array.isArray(defs)) return out;
+  for (const d of defs) {
+    const r = registerProcess(d);
+    if (r.ok) out.loaded.push(r.process.id);
+    else out.rejected.push({ id: d && d.id, errors: r.errors });
+  }
+  return out;
+}
+
+/* Resolve "the process" from whatever the caller has:
+ *  - a Process object      → itself
+ *  - a project state       → registry lookup of state.processId
+ *                            (missing id → SOP-18; unknown id → NO_PROCESS)
+ *  - undefined / anything  → SOP-18 (the historical behaviour) */
+export function getProcess(x) {
+  if (x && typeof x === "object") {
+    if (Array.isArray(x.codes) && x.order && Array.isArray(x.phases)) return x;
+    if (isStr(x.processId) && x.processId) return PROCESS_REGISTRY.get(x.processId) || NO_PROCESS;
+  }
+  return SOP18_PROCESS;
+}
+/* False when the state names a process this install doesn't know. */
+export function isProcessResolved(state) {
+  return !(state && isStr(state.processId) && state.processId && !PROCESS_REGISTRY.has(state.processId));
+}
+export function processPhase(proc, code) {
+  const p = getProcess(proc);
+  return hasOwn(p.order, code) ? p.phases[p.order[code]] : null;
+}
+export function processPhaseIndex(proc, code) {
+  const p = getProcess(proc);
+  return hasOwn(p.order, code) ? p.order[code] : -1;
+}
+/* Gate label from the process template. Tokens: {code}, {name}. */
+export function gateLabel(proc, code, isLast) {
+  const p = getProcess(proc);
+  if (isLast) return p.gates.finalLabel;
+  const ph = processPhase(p, code);
+  return p.gates.label.replace(/\{code\}/g, code).replace(/\{name\}/g, ph ? ph.name : code);
+}
+
+
 export const TYPES = {
   work:      { label: "Work",      bar: "#bfdbfe", border: "#1d4ed8" },
   buffer:    { label: "Buffer",    bar: "#fde68a", border: "#b45309" },
@@ -172,11 +530,11 @@ export function renumberWPs(state) {
      {
        id,         // stable string id (system or user-generated)
        label,      // display name
-       kind,       // "product" — phase-bound (PRS/DP/DO/FP),
+       kind,       // "product" — phase-bound (the project's process phases),
                    // "continuous" — free-form, not phase-bound (PLE, Exploration)
        color: { bar, border },
        enabled,    // bool — whether the track is currently in use for this project
-       activePhase // only for kind === "product": null | "PRS" | "DP" | "DO" | "FP" | "_closed"
+       activePhase // only for kind === "product": null | <phase code of state.processId> | "_closed"
      }
 
    System seeds (always present after migration, may be renamed/removed by user):
@@ -220,7 +578,7 @@ export const TRACK_DEFAULTS = Object.fromEntries(
   SYSTEM_TRACK_SEEDS.map(t => [t.id, {
     label: t.label,
     description: t.kind === "product"
-      ? "Phase-bound product development (PRS → DP → DO → FP)."
+      ? "Phase-bound product development (follows the project's process)."
       : "Continuous work — not phase-bound.",
     color: t.color,
     phaseBound: t.kind === "product",
@@ -477,6 +835,21 @@ export function barDiscipline(bar, lane) {
    Migrates v4 schemas (3 fixed tracks + global activePhase) up to v5
    (extensible tracks each with kind/colour/activePhase). */
 export function normaliseState(state) {
+  // Process: every project has one. Old data (and exports without the field)
+  // loads as SOP-18. An embedded custom definition (state.processDef, written
+  // by applyProcessSwitch) is adopted so exports/backups stay self-contained.
+  if (state.processDef !== undefined) {
+    const d = state.processDef;
+    const embedded = d && validateProcessDef(d);
+    if (!embedded || !embedded.ok || BUILTIN_PROCESS_IDS.has(embedded.process.id)) {
+      delete state.processDef;
+    } else if (!PROCESS_REGISTRY.has(embedded.process.id)) {
+      registerProcess(d);
+    }
+  }
+  if (!isStr(state.processId) || !state.processId.trim()) {
+    state.processId = (state.processDef && isStr(state.processDef.id)) ? state.processDef.id : DEFAULT_PROCESS_ID;
+  }
   if (!Array.isArray(state.tracks)) state.tracks = [];
 
   // Step 1: enrich each existing track entry with v5 fields (kind, label,
@@ -602,8 +975,22 @@ export function normaliseState(state) {
       if (bar.followsEndOf !== undefined && typeof bar.followsEndOf !== "string") {
         delete bar.followsEndOf;
       }
+      // Completion: done is a boolean; doneAt only means something while
+      // done and must be a YYYY-MM-DD day (old data ticks have none).
+      if (bar.done !== undefined && typeof bar.done !== "boolean") bar.done = !!bar.done;
+      if (bar.doneAt !== undefined && (!bar.done || !isDay(bar.doneAt))) delete bar.doneAt;
     }
+    if (lane.note !== undefined && (!isStr(lane.note) || !lane.note.trim())) delete lane.note;
   }
+  // Activity log: keep well-formed entries only, newest ACTIVITY_LOG_CAP.
+  state.log = (Array.isArray(state.log) ? state.log : [])
+    .filter(e => e && isDay(e.day) && ACTIVITY_ACTIONS.has(e.action) && isStr(e.laneId))
+    .map(e => ({
+      at: isStr(e.at) ? e.at : "", day: e.day, action: e.action, laneId: e.laneId,
+      barId: isStr(e.barId) ? e.barId : null,
+      label: isStr(e.label) ? e.label : "", lane: isStr(e.lane) ? e.lane : "",
+    }))
+    .slice(-ACTIVITY_LOG_CAP);
   // Second pass: drop followsEndOf refs that point at non-existent bars,
   // then sync starts so companions begin at their target's end.
   const allBarIds = new Set();
@@ -696,21 +1083,23 @@ export function buildBarMap(state) {
 
 /* A "bleeding" task starts in one phase and extends into a later one
    (declared via phaseEnd). */
-export function isBleedingBar(bar) {
+export function isBleedingBar(bar, proc) {
+  const o = getProcess(proc).order;
   return !!(bar && bar.phase && bar.phaseEnd
-            && PHASE_ORDER.hasOwnProperty(bar.phase)
-            && PHASE_ORDER.hasOwnProperty(bar.phaseEnd)
-            && PHASE_ORDER[bar.phaseEnd] > PHASE_ORDER[bar.phase]);
+            && hasOwn(o, bar.phase) && hasOwn(o, bar.phaseEnd)
+            && o[bar.phaseEnd] > o[bar.phase]);
 }
 
-/* All phase codes a bar covers, in order. Untagged bar → []. */
-export function phaseSpanCodes(bar) {
-  if (!bar || !bar.phase || !PHASE_ORDER.hasOwnProperty(bar.phase)) return [];
-  const sIdx = PHASE_ORDER[bar.phase];
-  const endCode = (bar.phaseEnd && PHASE_ORDER.hasOwnProperty(bar.phaseEnd) && PHASE_ORDER[bar.phaseEnd] >= sIdx)
+/* All phase codes a bar covers, in order. Untagged (or dormant) bar → [].
+   `proc` is a Process or a project state; omitted = SOP-18. */
+export function phaseSpanCodes(bar, proc) {
+  const p = getProcess(proc);
+  if (!bar || !bar.phase || !hasOwn(p.order, bar.phase)) return [];
+  const sIdx = p.order[bar.phase];
+  const endCode = (bar.phaseEnd && hasOwn(p.order, bar.phaseEnd) && p.order[bar.phaseEnd] >= sIdx)
     ? bar.phaseEnd : bar.phase;
-  const eIdx = PHASE_ORDER[endCode];
-  return PHASE_CODES_IN_ORDER.slice(sIdx, eIdx + 1);
+  const eIdx = p.order[endCode];
+  return p.codes.slice(sIdx, eIdx + 1);
 }
 
 /* Visual start..end range of each phase across the whole project.
@@ -723,10 +1112,11 @@ export function phaseSpanCodes(bar) {
  *    exemption is enforced in enforcePhaseOrder.
  */
 export function computePhaseRanges(state, productId) {
+  const proc = getProcess(state);
   const ranges = {};
   for (const lane of state.lanes || []) {
     for (const b of lane.bars || []) {
-      if (!b.phase || !PHASE_ORDER.hasOwnProperty(b.phase)) continue;
+      if (!b.phase || !hasOwn(proc.order, b.phase)) continue;
       if (b.type === "milestone") continue;
       // When productId is passed, count bars whose effective track LIST
       // includes that product (multi-product tagging: a single bar may
@@ -736,7 +1126,7 @@ export function computePhaseRanges(state, productId) {
       if (productId && !barTracks(b, lane).includes(productId)) continue;
       const start = b.startIdx;
       const end = b.startIdx + effSpan(b) / WEEKS_PER_MONTH;
-      const gatePhase = isBleedingBar(b) ? b.phaseEnd : b.phase;
+      const gatePhase = isBleedingBar(b, proc) ? b.phaseEnd : b.phase;
       const rS = ranges[b.phase] || (ranges[b.phase] = {});
       if (rS.start === undefined || start < rS.start) rS.start = start;
       const rE = ranges[gatePhase] || (ranges[gatePhase] = {});
@@ -771,11 +1161,12 @@ export function computeAllProductPhaseRanges(state) {
    _productId for stacked rendering). */
 export function computeAllProductPhaseGates(state) {
   const products = getProductTracks(state);
+  const proc = getProcess(state);
   const out = [];
   for (const t of products) {
     const ranges = computePhaseRanges(state, t.id);
-    const present = ["PRS", "DP", "DO", "FP"].filter(c => ranges[c]);
-    for (const g of computePhaseGates(ranges, present)) {
+    const present = proc.codes.filter(c => ranges[c]);
+    for (const g of computePhaseGates(ranges, present, proc)) {
       g._productId = t.id;
       out.push(g);
     }
@@ -784,10 +1175,12 @@ export function computeAllProductPhaseGates(state) {
 }
 
 /* Phase-closure gate at the END of every phase. Returned objects have no
-   colour — callers (the HTML renderer) enrich them with sopPhase()-derived
-   accent/bg colours before drawing. The final phase gets a "Project close"
-   gate labelled "END". */
-export function computePhaseGates(phaseRanges, presentPhases) {
+   colour — callers (the HTML renderer) enrich them with the process phase's
+   accent/bg colours before drawing. The final phase gets the process's
+   final gate (default "Project close", code "END"). Labels come from the
+   process's gate template. `proc` = Process or state; omitted = SOP-18. */
+export function computePhaseGates(phaseRanges, presentPhases, proc) {
+  const p = getProcess(proc);
   const gates = [];
   for (let i = 0; i < presentPhases.length; i++) {
     const code = presentPhases[i];
@@ -799,8 +1192,8 @@ export function computePhaseGates(phaseRanges, presentPhases) {
       type: "gate",
       startIdx: r.end,
       span: 0,
-      label: isLast ? "Project close" : `${code} closure`,
-      _gateCode: isLast ? "END" : code,
+      label: gateLabel(p, code, isLast),
+      _gateCode: isLast ? p.gates.finalCode : code,
     });
   }
   return gates;
@@ -818,6 +1211,10 @@ export function computePhaseGates(phaseRanges, presentPhases) {
  * Mutates state.lanes[*].bars[*].startIdx.
  */
 export function enforcePhaseOrder(state) {
+  const proc = getProcess(state);
+  // Soft-gate processes (gates.enforce === false) and the zero-phase process
+  // draw gates but never move bars.
+  if (!proc.gates.enforce || proc.codes.length === 0) return;
   // Per-track phase axis. Each track (Product, Product 2, etc.) maintains
   // its own cumulativeMaxEnd — a Product 2 DO bar is gated only by
   // Product 2's own DP end, not by Product's. Multi-tagged bars
@@ -829,7 +1226,7 @@ export function enforcePhaseOrder(state) {
   // behind WP3 Tooling Validation" bug).
   const cumByTrack = new Map();           // trackId -> cumulativeMaxEnd
   const trackEnd = (tid) => cumByTrack.get(tid) || 0;
-  for (const phase of PHASE_CODES_IN_ORDER) {
+  for (const phase of proc.codes) {
     // Pass 1: snap bars in this phase to the max(prev gates) across their tracks.
     for (const lane of state.lanes || []) {
       for (const b of lane.bars || []) {
@@ -856,8 +1253,8 @@ export function enforcePhaseOrder(state) {
       for (const b of lane.bars || []) {
         if (b.extendsPhase) continue;
         const gatePhase = (b.phaseEnd
-                           && PHASE_ORDER.hasOwnProperty(b.phaseEnd)
-                           && PHASE_ORDER[b.phaseEnd] > PHASE_ORDER[b.phase])
+                           && hasOwn(proc.order, b.phaseEnd)
+                           && proc.order[b.phaseEnd] > proc.order[b.phase])
                           ? b.phaseEnd : b.phase;
         if (gatePhase !== phase) continue;
         const end = b.startIdx + (b.type === "milestone" ? 0 : effSpan(b) / WEEKS_PER_MONTH);
@@ -875,6 +1272,121 @@ export function enforcePhaseOrder(state) {
       if (end > cur) cumByTrack.set(tid, end);
     }
   }
+}
+
+/* ====================== Switching a project's process ======================
+   Policy (documented in CLAUDE.md):
+   - A phase code the NEW process also has keeps its code.
+   - Otherwise a code of the OLD process maps by relative position, first
+     phase → first phase, last → last, the rest spread evenly:
+       newIdx = round(oldIdx * (m-1) / (n-1))   (n, m = phase counts)
+     e.g. SOP-18 → Stage-Gate: PRS → SCP · DP,DO → DEV · FP → LCH. Lossy when
+     n > m, so the UI must show the plan and confirm first.
+   - Codes the OLD process doesn't know (already dormant) are never touched.
+   - Switching to a zero-phase process ("none") changes NO tags — they go
+     dormant and a later switch back restores them exactly.
+   - A bleed (phaseEnd) that no longer ends after its start phase is dropped.
+   - Dates are never moved — the user runs Auto-sequence afterwards. */
+export function mapPhaseCode(code, fromProc, toProc) {
+  const from = getProcess(fromProc), to = getProcess(toProc);
+  if (!isStr(code) || !to.codes.length) return code;     // dormant target: keep
+  if (!hasOwn(from.order, code)) return code;              // unknown to old: keep
+  if (hasOwn(to.order, code)) return code;                 // shared code: keep
+  const n = from.codes.length, m = to.codes.length;
+  return to.codes[n <= 1 ? 0 : Math.round(from.order[code] * (m - 1) / (n - 1))];
+}
+
+function walkSwitch(state, from, to, apply) {
+  const rows = new Map();   // "from→to" -> { from, to, bars, lanes, tracks }
+  const row = (a, b) => {
+    const k = `${a}→${b}`;
+    if (!rows.has(k)) rows.set(k, { from: a, to: b, bars: 0, lanes: 0, tracks: 0 });
+    return rows.get(k);
+  };
+  let retaggedBars = 0, bleedsDropped = 0, taggedBars = 0;
+  for (const lane of state.lanes || []) {
+    if (isStr(lane.phase) && lane.phase) {
+      const t = mapPhaseCode(lane.phase, from, to);
+      row(lane.phase, t).lanes++;
+      if (apply && t !== lane.phase) lane.phase = t;
+    }
+    for (const b of lane.bars || []) {
+      if (!isStr(b.phase) || !b.phase) continue;
+      taggedBars++;
+      const t = mapPhaseCode(b.phase, from, to);
+      row(b.phase, t).bars++;
+      let changed = t !== b.phase;
+      let end = b.phaseEnd;
+      if (isStr(end) && end) {
+        const te = mapPhaseCode(end, from, to);
+        if (te !== end) changed = true;
+        if (hasOwn(to.order, t) && hasOwn(to.order, te) && to.order[te] <= to.order[t]) {
+          // Bleed collapsed onto/before its start phase.
+          bleedsDropped++; changed = true;
+          if (apply) delete b.phaseEnd;
+        } else if (apply && te !== end) b.phaseEnd = te;
+      }
+      if (changed) retaggedBars++;
+      if (apply && t !== b.phase) b.phase = t;
+    }
+  }
+  const mapActive = (ap) => (ap && ap !== "_closed") ? mapPhaseCode(ap, from, to) : ap;
+  for (const t of state.tracks || []) {
+    if (t.kind === "product" && t.activePhase && t.activePhase !== "_closed") {
+      const m = mapActive(t.activePhase);
+      row(t.activePhase, m).tracks++;
+      if (apply) t.activePhase = m;
+    }
+  }
+  if (apply && state.activePhase) state.activePhase = mapActive(state.activePhase);
+  // Stable, readable order: by the old process's phase order, then target.
+  const idx = (c) => (hasOwn(from.order, c) ? from.order[c] : from.codes.length);
+  const mapping = [...rows.values()]
+    .sort((a, b) => idx(a.from) - idx(b.from) || String(a.to).localeCompare(String(b.to)))
+    .map(r => ({ ...r, changed: r.from !== r.to }));
+  return { mapping, retaggedBars, bleedsDropped, taggedBars };
+}
+
+function describeProc(p) { return { id: p.id, name: p.name, phases: p.codes.slice() }; }
+
+/* Dry run. Returns
+ *   { ok:false, error }                                    unknown target
+ *   { ok:true, noop, dormant, from, to, mapping[], retaggedBars, bleedsDropped,
+ *     taggedBars, dormantBars }
+ * `dormant` = target has no phases (tags are kept but ignored);
+ * `dormantBars` = tagged bars that will be ignored by the target process. */
+export function planProcessSwitch(state, newId) {
+  const to = getProcessById(newId);
+  if (!to) return { ok: false, error: `Unknown process "${newId}".` };
+  const from = getProcess(state);
+  const sameId = (isStr(state.processId) && state.processId ? state.processId : DEFAULT_PROCESS_ID) === to.id;
+  const w = walkSwitch(state, from, to, false);
+  let dormantBars = 0;
+  for (const lane of state.lanes || []) for (const b of lane.bars || []) {
+    if (!b.phase) continue;
+    const t = mapPhaseCode(b.phase, from, to);
+    if (!hasOwn(to.order, t)) dormantBars++;
+  }
+  return {
+    ok: true, noop: sameId, dormant: to.codes.length === 0,
+    from: describeProc(from), to: describeProc(to),
+    mapping: w.mapping, retaggedBars: w.retaggedBars, bleedsDropped: w.bleedsDropped,
+    taggedBars: w.taggedBars, dormantBars,
+  };
+}
+
+/* Apply the switch in place (same policy as planProcessSwitch). Sets
+   state.processId (+ state.processDef for custom processes so exports carry
+   the definition). Returns the plan. */
+export function applyProcessSwitch(state, newId) {
+  const plan = planProcessSwitch(state, newId);
+  if (!plan.ok || plan.noop) return plan;
+  const to = getProcessById(newId);
+  walkSwitch(state, getProcess(state), to, true);
+  state.processId = to.id;
+  if (to.builtin) delete state.processDef;
+  else state.processDef = exportProcessDef(to);
+  return plan;
 }
 
 /* ====================== Dependency / sequence ====================== */
@@ -1086,4 +1598,899 @@ export function barHoursDist(b, {
     if (h > 0) dist[m] += h;
   }
   return dist;
+}
+
+/* ── Progress / completion tracking ────────────────────────────────────
+   A task bar is complete when bar.done is true; bar.doneAt ("YYYY-MM-DD",
+   local day) records WHEN it was ticked (absent on data ticked before this
+   existed → "undated"). A work package (lane) is complete when it has at
+   least one task bar and all of them are done — derived, never stored.
+   lane.note is an optional free-text status note per WP.
+
+   state.log is a capped append-only activity feed of completions:
+     { at: ISO datetime, day: "YYYY-MM-DD", action, laneId, barId|null,
+       label, lane }
+   action ∈ done | reopen | wp-done | wp-reopen. label/lane are snapshots
+   so the feed still reads sensibly after a bar or WP is deleted.
+   Milestones are not tasks: they never count towards WP progress. */
+
+export const ACTIVITY_LOG_CAP = 500;
+const ACTIVITY_ACTIONS = new Set(["done", "reopen", "wp-done", "wp-reopen"]);
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isDay(s) {
+  return isStr(s) && DAY_RE.test(s) && !isNaN(new Date(s + "T00:00:00").getTime());
+}
+
+/* Local calendar day as YYYY-MM-DD (not UTC — a tick at 23:30 belongs to
+   today for the user). */
+export function localDay(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function addDays(day, n) {
+  const d = new Date(day + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return localDay(d);
+}
+
+function isTaskBar(bar) { return bar && bar.type !== "milestone"; }
+
+/* Per-WP progress. status: empty (no tasks) | not-started | in-progress |
+   complete. doneAt (complete only) = latest task completion day, if any
+   task is dated. lastActivity = latest completion day of any done task. */
+export function laneProgress(lane) {
+  const tasks = (lane.bars || []).filter(isTaskBar);
+  const done = tasks.filter(b => b.done);
+  const total = tasks.length;
+  const days = done.map(b => b.doneAt).filter(isDay).sort();
+  const lastActivity = days.length ? days[days.length - 1] : null;
+  const status = total === 0 ? "empty"
+    : done.length === total ? "complete"
+    : done.length > 0 ? "in-progress" : "not-started";
+  return {
+    total, done: done.length,
+    pct: total ? Math.round(done.length / total * 100) : 0,
+    status,
+    doneAt: status === "complete" ? lastActivity : null,
+    lastActivity,
+    note: isStr(lane.note) ? lane.note : "",
+  };
+}
+
+/* Whole-project rollup: task + WP counts. */
+export function projectProgress(state) {
+  let tasks = 0, done = 0, wps = 0, wpsComplete = 0;
+  for (const lane of state.lanes || []) {
+    const p = laneProgress(lane);
+    tasks += p.total; done += p.done;
+    if (p.status !== "empty") { wps++; if (p.status === "complete") wpsComplete++; }
+  }
+  return { tasks, done, pct: tasks ? Math.round(done / tasks * 100) : 0, wps, wpsComplete };
+}
+
+function pushLog(state, entry) {
+  if (!Array.isArray(state.log)) state.log = [];
+  state.log.push(entry);
+  if (state.log.length > ACTIVITY_LOG_CAP) state.log.splice(0, state.log.length - ACTIVITY_LOG_CAP);
+}
+
+function logEntry(now, day, action, lane, bar) {
+  return {
+    at: now.toISOString(), day, action,
+    laneId: lane.id, barId: bar ? bar.id : null,
+    label: bar ? (bar.label || "") : "",
+    lane: lane.code || "",
+  };
+}
+
+/* Flip one bar's done flag without touching the WP-level log entries. */
+function applyDone(state, lane, bar, want, day, now) {
+  bar.done = want;
+  if (want) bar.doneAt = day; else delete bar.doneAt;
+  pushLog(state, logEntry(now, day, want ? "done" : "reopen", lane, bar));
+}
+
+function logWpTransition(state, lane, before, after, day, now) {
+  if (before !== "complete" && after === "complete") pushLog(state, logEntry(now, day, "wp-done", lane, null));
+  else if (before === "complete" && after !== "complete") pushLog(state, logEntry(now, day, "wp-reopen", lane, null));
+}
+
+/* Tick / untick one bar. opts.now (Date, default new Date()) and opts.date
+   (YYYY-MM-DD backdate for the tick; default today). Ticking an already-done
+   bar with a different opts.date just re-dates it (its latest log entry moves to that day).
+   Returns null when the bar doesn't exist, else
+   { changed, redated?, wpComplete }. */
+export function setBarDone(state, barId, done, { now = new Date(), date } = {}) {
+  for (const lane of state.lanes || []) {
+    const bar = (lane.bars || []).find(b => b.id === barId);
+    if (!bar) continue;
+    const want = !!done;
+    const day = isDay(date) ? date : localDay(now);
+    if (!!bar.done === want) {
+      if (want && isDay(date) && bar.doneAt !== date) {
+        bar.doneAt = date;
+        // Keep the feed truthful: move this bar's latest "done" entry to the new day.
+        const entry = (state.log || []).findLast(e => e.barId === barId && e.action === "done");
+        if (entry) entry.day = date;
+        return { changed: true, redated: true, wpComplete: laneProgress(lane).status === "complete" };
+      }
+      return { changed: false, wpComplete: laneProgress(lane).status === "complete" };
+    }
+    const before = laneProgress(lane).status;
+    applyDone(state, lane, bar, want, day, now);
+    const after = laneProgress(lane).status;
+    logWpTransition(state, lane, before, after, day, now);
+    return { changed: true, wpComplete: after === "complete" };
+  }
+  return null;
+}
+
+/* Tick / untick every task in a WP at once ("mark WP complete"). Bars that
+   already match are left alone (their original doneAt is kept). Returns
+   null for an unknown lane, else { changed: <bars flipped>, wpComplete }. */
+export function setLaneDone(state, laneId, done, { now = new Date(), date } = {}) {
+  const lane = (state.lanes || []).find(l => l.id === laneId);
+  if (!lane) return null;
+  const want = !!done;
+  const day = isDay(date) ? date : localDay(now);
+  const before = laneProgress(lane).status;
+  let changed = 0;
+  for (const bar of lane.bars || []) {
+    if (!isTaskBar(bar) || !!bar.done === want) continue;
+    applyDone(state, lane, bar, want, day, now);
+    changed++;
+  }
+  const after = laneProgress(lane).status;
+  logWpTransition(state, lane, before, after, day, now);
+  return { changed, wpComplete: after === "complete" };
+}
+
+/* Set or clear a WP's free-text note. Returns false for an unknown lane. */
+export function setLaneNote(state, laneId, text) {
+  const lane = (state.lanes || []).find(l => l.id === laneId);
+  if (!lane) return false;
+  const t = isStr(text) ? text.trim() : "";
+  if (t) lane.note = t; else delete lane.note;
+  return true;
+}
+
+/* Activity feed, newest first: the logged events plus synthetic "done"
+   events for tasks that are done and dated but have no log entry (ticked
+   before logging existed, or imported). opts: days (window, default 14,
+   0/Infinity = all), now, limit (default 100). */
+export function recentActivity(state, { days = 14, now = new Date(), limit = 100 } = {}) {
+  const events = (Array.isArray(state.log) ? state.log : []).filter(e => e && isDay(e.day));
+  const logged = new Set(events.filter(e => e.action === "done").map(e => e.barId));
+  for (const lane of state.lanes || []) {
+    for (const bar of lane.bars || []) {
+      if (!isTaskBar(bar) || !bar.done || !isDay(bar.doneAt) || logged.has(bar.id)) continue;
+      events.push({ at: "", day: bar.doneAt, action: "done", laneId: lane.id, barId: bar.id,
+        label: bar.label || "", lane: lane.code || "" });
+    }
+  }
+  const cutoff = days && isFinite(days) ? addDays(localDay(now), -days) : null;
+  // Newest first: by day, then timestamp, then log position (so a wp-done
+  // stamped in the same instant as the tick that caused it reads above it).
+  return events
+    .map((e, i) => ({ e, i }))
+    .filter(({ e }) => !cutoff || e.day >= cutoff)
+    .sort((x, y) => (x.e.day === y.e.day
+      ? (x.e.at === y.e.at ? y.i - x.i : (x.e.at < y.e.at ? 1 : -1))
+      : (x.e.day < y.e.day ? 1 : -1)))
+    .slice(0, limit)
+    .map(({ e }) => e);
+}
+
+/* Group an events array (as returned by recentActivity) into
+   [{ day, events }] preserving order. */
+export function groupActivityByDay(events) {
+  const out = [];
+  for (const e of events) {
+    const last = out[out.length - 1];
+    if (last && last.day === e.day) last.events.push(e);
+    else out.push({ day: e.day, events: [e] });
+  }
+  return out;
+}
+
+/* "What got finished lately", derived from the CURRENT done flags (so it
+   stays right even after the capped log rolls over): tasks and WPs whose
+   completion day falls in the last `days` days (default 7), plus how many
+   done tasks have no date. */
+export function completionSummary(state, { days = 7, now = new Date() } = {}) {
+  const cutoff = addDays(localDay(now), -days);
+  let tasks = 0, wps = 0, undated = 0;
+  for (const lane of state.lanes || []) {
+    for (const bar of lane.bars || []) {
+      if (!isTaskBar(bar) || !bar.done) continue;
+      if (!isDay(bar.doneAt)) undated++;
+      else if (bar.doneAt >= cutoff) tasks++;
+    }
+    const p = laneProgress(lane);
+    if (p.status === "complete" && p.doneAt && p.doneAt >= cutoff) wps++;
+  }
+  return { days, tasks, wps, undated };
+}
+
+/* Burn-up series of dated completions: [{ day, count, cumulative }] in
+   ascending day order, from the currently-done tasks. */
+export function completionSeries(state) {
+  const byDay = {};
+  for (const lane of state.lanes || []) {
+    for (const bar of lane.bars || []) {
+      if (isTaskBar(bar) && bar.done && isDay(bar.doneAt)) byDay[bar.doneAt] = (byDay[bar.doneAt] || 0) + 1;
+    }
+  }
+  let cumulative = 0;
+  return Object.keys(byDay).sort().map(day => {
+    cumulative += byDay[day];
+    return { day, count: byDay[day], cumulative };
+  });
+}
+
+
+/* ====================== Alt timeline (tool-rail editor) ======================
+   Pure logic behind the Beta "Alt timeline view" (renderAltTimeline in the HTML):
+   the Photoshop-style tool table, geometry + hit-testing, snapping, marquee
+   selection, the gesture decision table and the state operations the tools
+   run. No DOM, no localStorage. Everything that mutates takes `state` and
+   returns a small result object; the UI calls saveState() once per gesture.
+   Units match the rest of the app: startIdx = months (a week = 0.25), span =
+   weeks, buffer = %, calendar length = effSpan(bar) weeks.
+   Every top-level name here starts with alt or ALT_ because the build inlines
+   this file into the HTML's global scope. */
+
+export const ALT_ROW_H = 34;          // task row height (px)
+export const ALT_LANE_H = 30;         // WP header row height (px)
+export const ALT_BAR_H = 22;
+export const ALT_EDGE_PX = 6;         // resize hot-zone at each end of a bar
+export const ALT_MIN_EFF_WEEKS = 1;   // shortest bar a resize may produce
+export const ALT_GRIDS = { off: 0, week: 1, "2week": 2, month: 4 };
+
+/* edit:true tools change the plan and are disabled in view-only mode. Select,
+   Mark done, Hand and Zoom stay usable (status updates / navigation). */
+export const ALT_TOOLS = [
+  { id: "select",    key: "v", label: "Select / Move",   edit: false, hint: "Click to select, drag to move, drag empty space to marquee-select" },
+  { id: "resize",    key: "r", label: "Resize / Trim",   edit: true,  hint: "Drag a bar's left or right half to trim that edge" },
+  { id: "draw",      key: "b", label: "Draw bar",        edit: true,  hint: "Drag across a row to draw a new bar of the chosen type" },
+  { id: "milestone", key: "m", label: "Milestone",       edit: true,  hint: "Click a row to drop a milestone, or a bar to add one at its end" },
+  { id: "link",      key: "l", label: "Link dependency", edit: true,  hint: "Drag from one bar to another (predecessor → successor)" },
+  { id: "split",     key: "c", label: "Split / Cut",     edit: true,  hint: "Click a bar to cut it in two at that week" },
+  { id: "lock",      key: "k", label: "Lock",            edit: true,  hint: "Click a bar to lock/unlock it (locked bars never move)" },
+  { id: "done",      key: "d", label: "Mark done",       edit: false, hint: "Click a task to tick or untick it" },
+  { id: "hand",      key: "h", label: "Hand",            edit: false, hint: "Drag to pan (hold Space from any tool)" },
+  { id: "zoom",      key: "z", label: "Zoom",            edit: false, hint: "Click or drag a rectangle to zoom in, Alt-click to zoom out" },
+];
+export const ALT_TYPE_DIGITS = { "1": "work", "2": "buffer", "3": "leadtime", "4": "review", "5": "milestone" };
+
+export function altToolById(id) { return ALT_TOOLS.find(t => t.id === id) || null; }
+export function altToolForKey(key) {
+  const k = String(key || "").toLowerCase();
+  return ALT_TOOLS.find(t => t.key === k) || null;
+}
+export function altToolAllowed(toolId, editMode) {
+  const t = altToolById(toolId);
+  return !!t && (!t.edit || !!editMode);
+}
+/* The tool that is effectively active: holding Space turns any tool into Hand. */
+export function altResolveTool(active, { space = false } = {}) {
+  return space ? "hand" : (altToolById(active) ? active : "select");
+}
+/* Keyboard tool switch. Returns { tool, blocked } — blocked is "view-only"
+   when the key names an edit tool while editing is off (tool stays as is). */
+export function altSwitchTool(current, key, { editMode = false } = {}) {
+  const t = altToolForKey(key);
+  if (!t) return { tool: current, blocked: null, changed: false };
+  if (!altToolAllowed(t.id, editMode)) return { tool: current, blocked: "view-only", changed: false };
+  return { tool: t.id, blocked: null, changed: t.id !== current };
+}
+
+/* ---------- Geometry ---------- */
+
+/* Pixel rectangle for one bar. rowY = top of its row. A stand-alone milestone
+   sits half a column in (matches the Timeline view); a followsEndOf milestone
+   sits exactly at its target's end. */
+export function altBarRect(bar, colW, rowY, laneId) {
+  const flags = {
+    barId: bar.id, laneId, type: bar.type,
+    locked: !!bar.locked, done: !!bar.done,
+    linked: !!bar.followsEndOf, ongoing: bar.type === "ongoing",
+  };
+  if (bar.type === "milestone") {
+    const cx = bar.followsEndOf ? bar.startIdx * colW : bar.startIdx * colW + colW / 2;
+    const s = 18;
+    return { ...flags, milestone: true, x: cx - s / 2, y: rowY + (ALT_ROW_H - s) / 2, w: s, h: s, cx };
+  }
+  const x = bar.startIdx * colW;
+  const w = Math.max(0.25, effSpan(bar) / WEEKS_PER_MONTH) * colW;
+  return { ...flags, milestone: false, x, y: rowY + (ALT_ROW_H - ALT_BAR_H) / 2, w, h: ALT_BAR_H, cx: x + w / 2 };
+}
+
+/* Rows + bar rectangles for the whole canvas. Collapsed WPs show only their
+   header row (their bars get no rect, so they can't be hit or linked). */
+export function altLayout(state, colW, { collapsed = new Set(), laneFilter = null } = {}) {
+  const rows = []; const rects = []; const rectById = {};
+  let y = 0;
+  (state.lanes || []).forEach((lane, laneIdx) => {
+    if (laneFilter && lane.id !== laneFilter) return;
+    const isCollapsed = collapsed.has(lane.id);
+    rows.push({ kind: "lane", laneId: lane.id, laneIdx, y, h: ALT_LANE_H, collapsed: isCollapsed });
+    y += ALT_LANE_H;
+    if (isCollapsed) return;
+    const bars = lane.bars || [];
+    if (!bars.length) {
+      rows.push({ kind: "empty", laneId: lane.id, laneIdx, y, h: ALT_ROW_H });
+      y += ALT_ROW_H;
+      return;
+    }
+    for (const bar of bars) {
+      rows.push({ kind: "bar", laneId: lane.id, laneIdx, barId: bar.id, y, h: ALT_ROW_H });
+      const r = altBarRect(bar, colW, y, lane.id);
+      rects.push(r); rectById[bar.id] = r;
+      y += ALT_ROW_H;
+    }
+  });
+  const numMonths = monthsBetween(state.start, state.end).length;
+  return { rows, rects, rectById, width: numMonths * colW, height: y, numMonths };
+}
+
+export function altRowAt(rows, y) {
+  for (const r of rows) if (y >= r.y && y < r.y + r.h) return r;
+  return null;
+}
+export function altWeekAt(x, colW) { return x / colW * WEEKS_PER_MONTH; }
+
+/* Which bar (and which part of it) is under (x, y)? Returns null or
+   { barId, laneId, zone: "l" | "r" | "body" | "ms", rel (0..1 across the bar),
+     locked, milestone, linked, ongoing, done }. Edge zones shrink to a third of
+   a narrow bar so the body stays grabbable. */
+export function altHitTest(rects, x, y, { edgePx = ALT_EDGE_PX, slop = 2 } = {}) {
+  for (let i = rects.length - 1; i >= 0; i--) {
+    const r = rects[i];
+    const pad = r.milestone ? slop + 2 : 0;
+    if (x < r.x - pad || x > r.x + r.w + pad || y < r.y - slop || y > r.y + r.h + slop) continue;
+    const out = {
+      barId: r.barId, laneId: r.laneId, locked: r.locked, milestone: r.milestone,
+      linked: r.linked, ongoing: r.ongoing, done: r.done,
+      rel: r.w > 0 ? Math.max(0, Math.min(1, (x - r.x) / r.w)) : 0.5,
+    };
+    if (r.milestone) return { ...out, zone: "ms" };
+    const edge = Math.min(edgePx, r.w / 3);
+    if (x - r.x <= edge) return { ...out, zone: "l" };
+    if (r.x + r.w - x <= edge) return { ...out, zone: "r" };
+    return { ...out, zone: "body" };
+  }
+  return null;
+}
+
+export function altNormBox(x0, y0, x1, y1) {
+  return { x0: Math.min(x0, x1), y0: Math.min(y0, y1), x1: Math.max(x0, x1), y1: Math.max(y0, y1) };
+}
+
+/* Marquee: ids of bars whose rectangle intersects the box. mode "replace"
+   returns just the hits; "add" unions with `current`; "toggle" XORs. */
+export function altMarqueeSelect(rects, box, mode = "replace", current = []) {
+  const b = altNormBox(box.x0, box.y0, box.x1, box.y1);
+  const hits = rects.filter(r => r.x <= b.x1 && r.x + r.w >= b.x0 && r.y <= b.y1 && r.y + r.h >= b.y0).map(r => r.barId);
+  if (mode === "add") return [...new Set([...current, ...hits])];
+  if (mode === "toggle") {
+    const cur = new Set(current);
+    for (const id of hits) { if (cur.has(id)) cur.delete(id); else cur.add(id); }
+    return [...cur];
+  }
+  return hits;
+}
+
+/* Click selection: plain = just this one; shift = add; cmd/ctrl = toggle. */
+export function altSelectClick(selection, id, { shift = false, meta = false } = {}) {
+  const sel = Array.isArray(selection) ? selection : [];
+  if (shift) return sel.includes(id) ? sel : [...sel, id];
+  if (meta) return sel.includes(id) ? sel.filter(x => x !== id) : [...sel, id];
+  return [id];
+}
+
+/* ---------- Snapping ---------- */
+
+export function altSnapGrid(weeks, grid) {
+  const g = ALT_GRIDS[grid] === undefined ? 1 : ALT_GRIDS[grid];
+  return g ? Math.round(weeks / g) * g : weeks;
+}
+
+/* Start/end positions (in weeks from project start) of every bar except
+   `exclude` — the magnets for edge snapping. */
+export function altEdgeWeeks(state, exclude = new Set()) {
+  const out = new Set();
+  for (const lane of state.lanes || []) {
+    for (const b of lane.bars || []) {
+      if (exclude.has(b.id)) continue;
+      const s = (b.startIdx || 0) * WEEKS_PER_MONTH;
+      out.add(s);
+      if (b.type !== "milestone") out.add(s + effSpan(b));
+    }
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+/* Snap a single position (weeks): nearest edge within thresholdW wins,
+   otherwise the grid. */
+export function altSnapPoint(weeks, { grid = "week", edges = [], thresholdW = 0.5, disable = false } = {}) {
+  if (disable) return { weeks, kind: null };
+  let best = null;
+  for (const e of edges) {
+    const d = Math.abs(e - weeks);
+    if (d <= thresholdW && (best === null || d < best.d)) best = { d, e };
+  }
+  if (best) return { weeks: best.e, kind: "edge" };
+  const g = altSnapGrid(weeks, grid);
+  return { weeks: g, kind: g === weeks ? null : "grid" };
+}
+
+/* Snap a drag that moves a bar of calendar length effW from startW by dW:
+   try both its start and its end against the edges, else grid-snap the start.
+   Returns { dW, kind, atW } (atW = the snapped guide position, for drawing). */
+export function altSnapMove({ startW, effW }, dW, opts = {}) {
+  if (opts.disable) return { dW, kind: null, atW: null };
+  const raw = startW + dW;
+  let best = null;
+  for (const e of opts.edges || []) {
+    for (const off of [0, effW]) {
+      const d = Math.abs(raw + off - e);
+      if (d <= (opts.thresholdW ?? 0.5) && (best === null || d < best.d)) best = { d, shift: e - (raw + off), at: e };
+    }
+  }
+  if (best) return { dW: dW + best.shift, kind: "edge", atW: best.at };
+  const g = altSnapGrid(raw, opts.grid || "week");
+  return { dW: g - startW, kind: g === raw ? null : "grid", atW: null };
+}
+
+/* ---------- Zoom ---------- */
+
+export const ALT_ZOOM_MIN = 15, ALT_ZOOM_MAX = 400;
+export function altZoomColW(colW, dir, factor = 1.25) {
+  const next = dir === "out" ? colW / factor : colW * factor;
+  return Math.max(ALT_ZOOM_MIN, Math.min(ALT_ZOOM_MAX, Math.round(next)));
+}
+/* Column width that makes the x-range [x0, x1] (in current canvas px) fill viewportW. */
+export function altZoomToRange(colW, x0, x1, viewportW) {
+  const span = Math.abs(x1 - x0);
+  if (span < 8) return { colW, scrollLeft: null };
+  const next = Math.max(ALT_ZOOM_MIN, Math.min(ALT_ZOOM_MAX, Math.round(colW * viewportW / span)));
+  return { colW: next, scrollLeft: Math.min(x0, x1) * (next / colW) };
+}
+
+/* ---------- Gesture decision table ---------- */
+
+/* What does pressing the mouse do, given the active tool, what is under the
+   cursor (altHitTest result or null), the row under it (altRowAt or null) and
+   modifier keys? Returns { kind, ... }:
+     none | blocked{why} | select{drag:false?, why?} | move | resize-l | resize-r |
+     marquee{mode} | draw{laneId, afterBarId} | milestone-drop{laneId, afterBarId} |
+     milestone-at-end{barId} | link{fromId} | split{barId} | toggle-lock{barId} |
+     toggle-done{barId} | pan | zoom-rect | zoom-out
+   `select` with drag:false means "click selects but the bar can't be dragged"
+   (why: locked | auto | linked | view-only). */
+export function altBeginGesture(toolId, hit, mods = {}, row = null, { editMode = false } = {}) {
+  const tool = altToolById(toolId) || altToolById("select");
+  if (tool.edit && !editMode) return { kind: "blocked", why: "view-only" };
+  const marqueeMode = mods.shift ? "add" : (mods.meta || mods.ctrl) ? "toggle" : "replace";
+  const frozen = (h) => h.locked ? "locked" : h.ongoing ? "auto" : (h.milestone && h.linked) ? "linked" : null;
+  switch (tool.id) {
+    case "hand": return { kind: "pan" };
+    case "zoom": return { kind: mods.alt ? "zoom-out" : "zoom-rect" };
+    case "done":
+      if (!hit || hit.milestone) return { kind: "none" };
+      return { kind: "toggle-done", barId: hit.barId };
+    case "select": {
+      if (!hit) return { kind: "marquee", mode: marqueeMode };
+      if (!editMode) return { kind: "select", drag: false, why: "view-only" };
+      const why = frozen(hit);
+      if (why) return { kind: "select", drag: false, why };
+      if (!hit.milestone && hit.zone === "l") return { kind: "resize-l" };
+      if (!hit.milestone && hit.zone === "r") return { kind: "resize-r" };
+      return { kind: "move" };
+    }
+    case "resize": {
+      if (!hit || hit.milestone) return { kind: "none" };
+      const why = frozen(hit);
+      if (why) return { kind: "blocked", why };
+      return { kind: hit.rel < 0.5 ? "resize-l" : "resize-r" };
+    }
+    case "draw":
+      if (hit) return { kind: "select", drag: false };
+      if (!row) return { kind: "none" };
+      return { kind: "draw", laneId: row.laneId, afterBarId: row.barId || null };
+    case "milestone":
+      if (hit && hit.milestone) return { kind: "select", drag: false };
+      if (hit) return { kind: "milestone-at-end", barId: hit.barId };
+      if (!row) return { kind: "none" };
+      return { kind: "milestone-drop", laneId: row.laneId, afterBarId: row.barId || null };
+    case "link":
+      return hit ? { kind: "link", fromId: hit.barId } : { kind: "none" };
+    case "split": {
+      if (!hit || hit.milestone) return { kind: "none" };
+      const why = frozen(hit);
+      return why ? { kind: "blocked", why } : { kind: "split", barId: hit.barId };
+    }
+    case "lock":
+      if (!hit || hit.milestone) return { kind: "none" };
+      return { kind: "toggle-lock", barId: hit.barId };
+  }
+  return { kind: "none" };
+}
+
+export const ALT_CURSORS = {
+  select: "default", move: "grab", "resize-l": "ew-resize", "resize-r": "ew-resize",
+  marquee: "crosshair", draw: "crosshair", "milestone-drop": "copy", "milestone-at-end": "copy",
+  link: "alias", split: "col-resize", "toggle-lock": "pointer", "toggle-done": "pointer",
+  pan: "grab", "zoom-rect": "zoom-in", "zoom-out": "zoom-out", blocked: "not-allowed", none: "default",
+};
+
+/* ---------- Operations ---------- */
+
+/* Why a bar can't be dragged/trimmed/cut/deleted, or null if it can. */
+export function altFrozenReason(bar) {
+  if (!bar) return "missing";
+  if (bar.locked) return "locked";
+  if (bar.type === "ongoing") return "auto";
+  if (bar.followsEndOf) return "linked";
+  return null;
+}
+
+/* Capture the pre-gesture geometry of the given bars. */
+export function altSnapshot(state, ids) {
+  const map = buildBarMap(state);
+  const snap = {};
+  for (const id of ids) {
+    const e = map[id]; if (!e) continue;
+    snap[id] = { startIdx: e.bar.startIdx || 0, span: e.bar.span || 0, buffer: e.bar.buffer || 0 };
+  }
+  return snap;
+}
+
+/* Move every unfrozen bar in `snap` by dWeeks from its snapshot position. The
+   group is clamped as one so relative offsets survive (can't push anything
+   before the project start / past the last month). */
+export function altMoveBars(state, snap, dWeeks, { numMonths = null } = {}) {
+  const map = buildBarMap(state);
+  const movers = []; const blocked = [];
+  for (const id of Object.keys(snap)) {
+    const e = map[id]; if (!e) continue;
+    const why = altFrozenReason(e.bar);
+    if (why) blocked.push({ id, reason: why }); else movers.push(id);
+  }
+  let lo = -Infinity, hi = Infinity;
+  for (const id of movers) {
+    const s0 = snap[id].startIdx * WEEKS_PER_MONTH;
+    const b = map[id].bar;
+    const e0 = s0 + (b.type === "milestone" ? 0 : effSpan({ ...b, span: snap[id].span, buffer: snap[id].buffer }));
+    lo = Math.max(lo, -s0);
+    if (numMonths != null) hi = Math.min(hi, numMonths * WEEKS_PER_MONTH - e0);
+  }
+  const d = movers.length ? Math.max(lo, Math.min(hi, dWeeks)) : 0;
+  for (const id of movers) map[id].bar.startIdx = snap[id].startIdx + d / WEEKS_PER_MONTH;
+  return { moved: movers, blocked, dWeeks: d };
+}
+
+/* Drag one edge of a bar. `dWeeks` is in CALENDAR (effective) weeks; the raw
+   span is derived through the bar's buffer so the visual edge follows the pointer. */
+export function altResizeBar(state, snap, id, edge, dWeeks, { numMonths = null } = {}) {
+  const e = buildBarMap(state)[id];
+  if (!e) return { ok: false, reason: "missing" };
+  const bar = e.bar;
+  if (bar.type === "milestone") return { ok: false, reason: "milestone" };
+  const why = altFrozenReason(bar);
+  if (why) return { ok: false, reason: why };
+  const o = snap[id] || { startIdx: bar.startIdx, span: bar.span, buffer: bar.buffer };
+  const f = 1 + (o.buffer || 0) / 100;
+  const s0 = o.startIdx * WEEKS_PER_MONTH;
+  const eff0 = o.span * f;
+  if (edge === "r") {
+    let eff = Math.max(ALT_MIN_EFF_WEEKS, eff0 + dWeeks);
+    if (numMonths != null) eff = Math.max(ALT_MIN_EFF_WEEKS, Math.min(eff, numMonths * WEEKS_PER_MONTH - s0));
+    bar.span = eff / f;
+    return { ok: true, startIdx: bar.startIdx, effWeeks: eff };
+  }
+  const d = Math.max(-s0, Math.min(eff0 - ALT_MIN_EFF_WEEKS, dWeeks));
+  bar.startIdx = (s0 + d) / WEEKS_PER_MONTH;
+  bar.span = (eff0 - d) / f;
+  return { ok: true, startIdx: bar.startIdx, effWeeks: eff0 - d };
+}
+
+function altValidTrack(state, id) { return !!getTrackById(state, id); }
+
+/* New bar in `laneId` (after `afterBarId` when given, else at the end).
+   opts: type (not "ongoing"), startIdx, span (weeks), label, buffer, alloc,
+   phase, track, discipline. Returns the bar, or null for an unknown lane. */
+export function altCreateBar(state, laneId, opts = {}) {
+  const lane = (state.lanes || []).find(l => l.id === laneId);
+  if (!lane) return null;
+  const type = (TYPES[opts.type] && opts.type !== "ongoing") ? opts.type : "work";
+  const ms = type === "milestone";
+  const bar = {
+    id: bid(), type,
+    startIdx: Math.max(0, Number.isFinite(opts.startIdx) ? opts.startIdx : 0),
+    span: ms ? 0 : Math.max(ALT_MIN_EFF_WEEKS / 2, Number.isFinite(opts.span) ? opts.span : WEEKS_PER_MONTH),
+    label: typeof opts.label === "string" && opts.label.trim() ? opts.label.trim() : (ms ? "New milestone" : "New task"),
+    dependsOn: [],
+    buffer: ms ? 0 : (Number.isFinite(opts.buffer) && opts.buffer >= 0 ? opts.buffer : 10),
+    alloc: Number.isFinite(opts.alloc) && opts.alloc >= 0 && opts.alloc <= 100 ? opts.alloc : 100,
+  };
+  const procCodes = getProcess(state).codes;
+  const phase = opts.phase !== undefined ? opts.phase : lane.phase;
+  if (phase && procCodes.includes(phase)) bar.phase = phase;
+  if (opts.track && altValidTrack(state, opts.track)) bar.track = opts.track;
+  if (opts.discipline && (opts.discipline === "_none" || getDisciplineById(state, opts.discipline))) bar.discipline = opts.discipline;
+  const idx = opts.afterBarId ? lane.bars.findIndex(b => b.id === opts.afterBarId) : -1;
+  if (idx >= 0) lane.bars.splice(idx + 1, 0, bar); else lane.bars.push(bar);
+  return bar;
+}
+
+/* Milestone glued to the end of `barId` (same mechanism as the context menu's
+   "Add milestone at end": followsEndOf, no dependency arrow). */
+export function altAddEndMilestone(state, barId) {
+  const e = buildBarMap(state)[barId];
+  if (!e || e.bar.type === "milestone") return null;
+  const ms = altCreateBar(state, e.lane.id, {
+    type: "milestone", label: `${e.bar.label || "Activity"} — Done`,
+    phase: e.bar.phase || null, afterBarId: barId,
+  });
+  if (!ms) return null;
+  ms.followsEndOf = barId;
+  if (Array.isArray(e.bar.tracks) && e.bar.tracks.length) ms.tracks = e.bar.tracks.slice();
+  else if (e.bar.track) ms.track = e.bar.track;
+  syncFollowsEndOf(state);
+  return ms;
+}
+
+/* Cut a bar in two at `atWeeks` (calendar weeks from the bar's own start).
+   The second half becomes a new bar right after it ("<label> — part 2") that
+   depends on the first; successors and follow-end milestones move to the
+   second half. Returns { ok, newId } or { ok:false, error }. */
+export function altSplitBar(state, barId, atWeeks, { gapWeeks = 0 } = {}) {
+  const map = buildBarMap(state);
+  const e = map[barId];
+  if (!e) return { ok: false, error: "missing" };
+  const bar = e.bar;
+  if (bar.type === "milestone") return { ok: false, error: "milestone" };
+  const why = altFrozenReason(bar);
+  if (why) return { ok: false, error: why };
+  const eff = effSpan(bar);
+  const cut = Math.round(atWeeks * 2) / 2;
+  if (!(cut >= ALT_MIN_EFF_WEEKS && cut <= eff - ALT_MIN_EFF_WEEKS)) return { ok: false, error: "too-short" };
+  const f = eff / bar.span;                    // raw -> calendar factor (1 + buffer/100)
+  const rawFirst = cut / f;
+  const rawSecond = bar.span - rawFirst;
+  const second = {
+    ...bar,
+    id: bid(),
+    label: `${bar.label || "Task"} — part 2`,
+    startIdx: bar.startIdx + (cut + Math.max(0, gapWeeks)) / WEEKS_PER_MONTH,
+    span: rawSecond,
+    dependsOn: [bar.id],
+  };
+  delete second.done; delete second.doneAt; delete second.locked; delete second.followsEndOf; delete second.phaseEnd;
+  bar.span = rawFirst;
+  const i = e.lane.bars.indexOf(bar);
+  e.lane.bars.splice(i + 1, 0, second);
+  for (const lane of state.lanes) {
+    for (const b of lane.bars) {
+      if (b === second || b === bar) continue;
+      if ((b.dependsOn || []).includes(bar.id)) b.dependsOn = b.dependsOn.map(d => d === bar.id ? second.id : d);
+      if (b.followsEndOf === bar.id) b.followsEndOf = second.id;
+    }
+  }
+  // A bleed (phaseEnd) belongs to the tail, not the head.
+  if (bar.phaseEnd) { second.phaseEnd = bar.phaseEnd; delete bar.phaseEnd; }
+  syncFollowsEndOf(state);
+  return { ok: true, newId: second.id };
+}
+
+/* Add predecessor → successor. error: self | missing | exists | cycle. */
+export function altLinkBars(state, predId, succId) {
+  if (predId === succId) return { ok: false, error: "self" };
+  const map = buildBarMap(state);
+  const succ = map[succId]; const pred = map[predId];
+  if (!succ || !pred) return { ok: false, error: "missing" };
+  if (!Array.isArray(succ.bar.dependsOn)) succ.bar.dependsOn = [];
+  if (succ.bar.dependsOn.includes(predId)) return { ok: false, error: "exists" };
+  if (createsCycle(succId, predId, map)) return { ok: false, error: "cycle" };
+  succ.bar.dependsOn.push(predId);
+  return { ok: true };
+}
+export function altUnlinkBars(state, predId, succId) {
+  const e = buildBarMap(state)[succId];
+  if (!e || !(e.bar.dependsOn || []).includes(predId)) return { ok: false };
+  e.bar.dependsOn = e.bar.dependsOn.filter(d => d !== predId);
+  return { ok: true };
+}
+
+/* Delete bars (locked ones are protected) and scrub every reference to them.
+   Returns { removed: [ids], skipped: [{id, reason}] }. */
+export function altDeleteBars(state, ids) {
+  const map = buildBarMap(state);
+  const want = new Set(ids); const removed = new Set(); const skipped = [];
+  for (const id of want) {
+    const e = map[id]; if (!e) continue;
+    if (e.bar.locked) { skipped.push({ id, reason: "locked" }); continue; }
+    removed.add(id);
+  }
+  if (!removed.size) return { removed: [], skipped };
+  for (const lane of state.lanes) {
+    lane.bars = lane.bars.filter(b => !removed.has(b.id));
+    for (const b of lane.bars) {
+      if (b.dependsOn) b.dependsOn = b.dependsOn.filter(d => !removed.has(d));
+      if (b.followsEndOf && removed.has(b.followsEndOf)) delete b.followsEndOf;
+    }
+  }
+  return { removed: [...removed], skipped };
+}
+
+/* Copy bars next to their originals (same lane, right after), shifted later by
+   `offsetWeeks` (default: their own length). Copies are never locked/done and
+   keep their predecessors. Returns the new ids. */
+export function altDuplicateBars(state, ids, { offsetWeeks = null } = {}) {
+  const map = buildBarMap(state);
+  const out = [];
+  for (const id of ids) {
+    const e = map[id]; if (!e) continue;
+    const b = e.bar;
+    if (b.type === "ongoing") continue;
+    const shift = offsetWeeks != null ? offsetWeeks : Math.max(1, effSpan(b));
+    const copy = {
+      ...b, id: bid(), dependsOn: [...(b.dependsOn || [])],
+      startIdx: (b.startIdx || 0) + shift / WEEKS_PER_MONTH,
+    };
+    delete copy.done; delete copy.doneAt; delete copy.locked; delete copy.followsEndOf;
+    if (b.tracks) copy.tracks = b.tracks.slice();
+    e.lane.bars.splice(e.lane.bars.indexOf(b) + 1, 0, copy);
+    out.push(copy.id);
+  }
+  return out;
+}
+
+/* Fields the options bar / inspector can bulk-apply. */
+export const ALT_BULK_FIELDS = ["type", "span", "buffer", "alloc", "phase", "track", "discipline", "locked"];
+
+/* Apply `patch` to every bar in `ids`. Only keys present in the patch are
+   touched, and invalid values are ignored (counted in `invalid`). Locked bars
+   accept only the `locked` field. Fields that make no sense for a bar (span /
+   buffer / alloc on a milestone) are skipped. Returns
+   { changed, skippedLocked, invalid }. */
+export function altBulkEdit(state, ids, patch) {
+  const map = buildBarMap(state);
+  const codes = getProcess(state).codes;
+  let changed = 0, skippedLocked = 0, invalid = 0;
+  for (const id of ids) {
+    const e = map[id]; if (!e) continue;
+    const b = e.bar;
+    let touched = false;
+    const only = b.locked ? { locked: patch.locked } : patch;
+    if (b.locked && Object.keys(patch).some(k => k !== "locked")) skippedLocked++;
+    for (const [k, v] of Object.entries(only)) {
+      if (v === undefined) continue;
+      const ms = b.type === "milestone";
+      if (k === "type") {
+        if (!TYPES[v] || v === "ongoing" || b.type === "ongoing" || v === b.type) { if (v !== b.type) invalid++; continue; }
+        b.type = v;
+        if (v === "milestone") { b.span = 0; } else if (!(b.span > 0)) { b.span = WEEKS_PER_MONTH; }
+        touched = true;
+      } else if (k === "span") {
+        if (ms || b.type === "ongoing") continue;
+        if (!(Number.isFinite(v) && v >= ALT_MIN_EFF_WEEKS / 2)) { invalid++; continue; }
+        if (b.span !== v) { b.span = v; touched = true; }
+      } else if (k === "buffer") {
+        if (ms || b.type === "ongoing") continue;
+        if (!(Number.isFinite(v) && v >= 0)) { invalid++; continue; }
+        if (b.buffer !== v) { b.buffer = v; touched = true; }
+      } else if (k === "alloc") {
+        if (ms) continue;
+        if (!(Number.isFinite(v) && v >= 0 && v <= 100)) { invalid++; continue; }
+        if (b.alloc !== v) { b.alloc = v; touched = true; }
+      } else if (k === "phase") {
+        if (v !== "" && v !== null && !codes.includes(v)) { invalid++; continue; }
+        const nv = v || undefined;
+        if (b.phase !== nv) { if (nv) b.phase = nv; else { delete b.phase; delete b.phaseEnd; } touched = true; }
+      } else if (k === "track") {
+        if (v && !altValidTrack(state, v)) { invalid++; continue; }
+        if (v) { b.track = v; delete b.tracks; } else { delete b.track; delete b.tracks; }
+        touched = true;
+      } else if (k === "discipline") {
+        if (v && v !== "_none" && !getDisciplineById(state, v)) { invalid++; continue; }
+        if (v) b.discipline = v; else delete b.discipline;
+        touched = true;
+      } else if (k === "locked") {
+        if (ms) continue;
+        const nv = !!v;
+        if (!!b.locked !== nv) { if (nv) b.locked = true; else delete b.locked; touched = true; }
+      }
+    }
+    if (touched) changed++;
+  }
+  return { changed, skippedLocked, invalid };
+}
+
+/* Align the selection's unfrozen bars to its earliest start ("start") or
+   latest end ("end"). Returns the ids that moved. */
+export function altAlignBars(state, ids, mode) {
+  const map = buildBarMap(state);
+  const bars = ids.map(id => map[id] && map[id].bar).filter(Boolean);
+  if (bars.length < 2) return [];
+  const startOf = (b) => (b.startIdx || 0) * WEEKS_PER_MONTH;
+  const endOf = (b) => startOf(b) + (b.type === "milestone" ? 0 : effSpan(b));
+  const moved = [];
+  if (mode === "end") {
+    const target = Math.max(...bars.map(endOf));
+    for (const b of bars) {
+      if (altFrozenReason(b)) continue;
+      const ns = (target - (b.type === "milestone" ? 0 : effSpan(b))) / WEEKS_PER_MONTH;
+      if (ns !== b.startIdx) { b.startIdx = ns; moved.push(b.id); }
+    }
+  } else {
+    const target = Math.min(...bars.map(startOf)) / WEEKS_PER_MONTH;
+    for (const b of bars) {
+      if (altFrozenReason(b)) continue;
+      if (target !== b.startIdx) { b.startIdx = target; moved.push(b.id); }
+    }
+  }
+  return moved;
+}
+
+/* Inspector / options-bar read side: for a selection, each bulk field's value
+   or { mixed: true } when the bars disagree. */
+export function altSelectionSummary(state, ids) {
+  const map = buildBarMap(state);
+  const bars = ids.map(id => map[id] && map[id].bar).filter(Boolean);
+  const fieldVal = {
+    type: b => b.type, span: b => b.span || 0, buffer: b => b.buffer || 0,
+    alloc: b => (typeof b.alloc === "number" ? b.alloc : 100),
+    phase: b => b.phase || "",
+    track: b => (Array.isArray(b.tracks) && b.tracks.length ? b.tracks.join(",") : (b.track || "")),
+    discipline: b => b.discipline || "",
+    locked: b => !!b.locked, done: b => !!b.done,
+  };
+  const values = {};
+  for (const [k, fn] of Object.entries(fieldVal)) {
+    const set = new Set(bars.map(fn));
+    values[k] = set.size <= 1 ? { value: bars.length ? [...set][0] : null, mixed: false } : { value: null, mixed: true };
+  }
+  let effWeeks = 0, startW = Infinity, endW = -Infinity;
+  for (const b of bars) {
+    const s = (b.startIdx || 0) * WEEKS_PER_MONTH;
+    const e = s + (b.type === "milestone" ? 0 : effSpan(b));
+    if (b.type !== "milestone") effWeeks += effSpan(b);
+    startW = Math.min(startW, s); endW = Math.max(endW, e);
+  }
+  return {
+    count: bars.length,
+    lanes: new Set(ids.map(id => map[id] && map[id].lane.id).filter(Boolean)).size,
+    effWeeks, startW: bars.length ? startW : null, endW: bars.length ? endW : null,
+    values,
+  };
+}
+
+/* ISO start/end date of a bar (UTC date strings) from the project start; a
+   fractional month counts in 7-day weeks (0.25 month = 1 week). */
+export function altBarDates(state, bar) {
+  const p = parseYM(state.start);
+  const idx = bar.startIdx || 0;
+  const wholeM = Math.floor(idx);
+  const weeks = Math.round((idx - wholeM) * WEEKS_PER_MONTH);
+  const start = new Date(Date.UTC(p.y, p.m - 1 + wholeM, p.d || 1) + weeks * 7 * 86400000);
+  const end = new Date(start.getTime() + (bar.type === "milestone" ? 0 : Math.round(effSpan(bar) * 7) * 86400000));
+  const iso = (d) => d.toISOString().slice(0, 10);
+  return { start: iso(start), end: iso(end) };
+}
+/* Inverse for the date picker: ISO day -> startIdx (months, whole-week quantised). */
+export function altStartIdxFromDate(state, isoDay) {
+  const p = parseYM(state.start);
+  const m = String(isoDay || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = +m[1], mo = +m[2], d = +m[3];
+  let whole = (y - p.y) * 12 + (mo - p.m);
+  const monthStart = Date.UTC(p.y, p.m - 1 + whole, p.d || 1);
+  let days = (Date.UTC(y, mo - 1, d) - monthStart) / 86400000;
+  // Day-of-month beyond the project start's day: fall back to week arithmetic.
+  const weeks = Math.round(days / 7);
+  return Math.max(0, whole + weeks / WEEKS_PER_MONTH);
 }
