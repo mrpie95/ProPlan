@@ -512,6 +512,11 @@ export function wpNameOnly(code) {
   return (m ? m[1] : s).trim();
 }
 
+/* Display form of a lane code: "WP 1 — Name" -> "WP1 — Name" (one WP format everywhere; stored code untouched). */
+export function wpLabel(code) {
+  return String(code || "").replace(/^\s*WP\s*(\d+)/i, "WP$1");
+}
+
 /* Mutate every lane.code so they read "WP 1 — Name", "WP 2 — Name", … in
    display order. Preserves whatever follows the existing prefix. */
 export function renumberWPs(state) {
@@ -835,6 +840,8 @@ export function barDiscipline(bar, lane) {
    Migrates v4 schemas (3 fixed tracks + global activePhase) up to v5
    (extensible tracks each with kind/colour/activePhase). */
 export function normaliseState(state) {
+  // Optional target launch day (set in the Plan's "Project dates" card).
+  if ("launch" in state && !isDay(state.launch)) delete state.launch;
   // Process: every project has one. Old data (and exports without the field)
   // loads as SOP-18. An embedded custom definition (state.processDef, written
   // by applyProcessSwitch) is adopted so exports/backups stay self-contained.
@@ -889,6 +896,8 @@ export function normaliseState(state) {
     }
   }
 
+  // Per-product target launch day (Plan ▸ Project dates); junk is dropped.
+  for (const t of state.tracks) if ("launch" in t && (t.kind !== "product" || !isDay(t.launch))) delete t.launch;
   // Step 2: migrate legacy global state.activePhase into the first product
   // track. We use the "product" system seed if it exists; otherwise the
   // first product-kind track. Only runs when the legacy field is set AND
@@ -979,6 +988,8 @@ export function normaliseState(state) {
       // done and must be a YYYY-MM-DD day (old data ticks have none).
       if (bar.done !== undefined && typeof bar.done !== "boolean") bar.done = !!bar.done;
       if (bar.doneAt !== undefined && (!bar.done || !isDay(bar.doneAt))) delete bar.doneAt;
+      // Status: only "doing" is stored, and never together with done / on a milestone.
+      if (bar.status !== undefined && (bar.status !== "doing" || bar.done || bar.type === "milestone")) delete bar.status;
     }
     if (lane.note !== undefined && (!isStr(lane.note) || !lane.note.trim())) delete lane.note;
   }
@@ -1389,6 +1400,126 @@ export function applyProcessSwitch(state, newId) {
   return plan;
 }
 
+/* ====================== Navigation & menu bar ======================
+   Pure tables behind the header: the in-page menu bar (Project / Edit / View /
+   Export & backup / Beta / Help) and the three nav groups under it. The HTML
+   renders both from here, and every menu id is dispatched by runCommand() —
+   the same ids the native macOS menu (src-tauri/src/main.rs) emits.
+   Grouping rule: EDITORS are the views you change data in; VIEWS are
+   read-only / presentation / reference / history; SUMMARY is the lone home page. */
+export const NAV_VIEWS = Object.freeze({
+  summary:       { label: "Summary",           desc: "Project overview — details and a summary of everything in this project" },
+  structure:     { label: "Structure",         desc: "Products, tracks and disciplines" },
+  progress:      { label: "Progress",          desc: "Tick off work packages and tasks, see what has been happening" },
+  plan:          { label: "Plan",              desc: "Work packages as cards — add and edit tasks" },
+  altTimeline:   { label: "Timeline",          desc: "Timeline editor — tool rail, inspector, drag bars, link dependencies" },
+  viewA:         { label: "Legacy timeline",   desc: "The original Gantt timeline — drag bars, link dependencies" },
+  roadmap:       { label: "Simple timeline",   desc: "Compressed timeline for management — phases + headline activities" },
+  phaseTimeline: { label: "Phase timeline",    desc: "Per-product phase strips + launches, nothing else" },
+  milestones:    { label: "Milestones",        desc: "Every milestone in one sortable table" },
+  proposal:      { label: "Proposal timeline", desc: "Hours-per-month rollup, printable for proposals" },
+  phase:         { label: "Phase status",      desc: "Phase-focused project status" },
+  process:       { label: "Process",           desc: "Phase model & reference" },
+  snapshots:     { label: "Snapshots",         desc: "Save and restore named versions" },
+});
+/** kind: "single" = one standalone button, "tabs" = always-visible segmented pills,
+ *  "menu" = one button opening a dropdown (optionally sectioned). */
+export const NAV_LAYOUT = Object.freeze([
+  { id: "summary", label: "Summary", kind: "single", views: ["summary"] },
+  { id: "editors", label: "Editors", kind: "tabs",   views: ["structure", "plan", "progress", "altTimeline"] },
+  { id: "views",   label: "Views",   kind: "menu",   views: ["roadmap", "phaseTimeline", "milestones", "proposal", "phase", "process", "snapshots", "viewA"],
+    sections: [
+      { label: "Present",             views: ["roadmap", "phaseTimeline", "milestones", "proposal"] },
+      { label: "Reference & history", views: ["phase", "process", "snapshots"] },
+      { label: "Legacy",              views: ["viewA"] },
+    ] },
+]);
+/** Every built-in view id reachable from the nav bar (beta views are separate). */
+export function navViewIds() { return NAV_LAYOUT.flatMap(g => g.views); }
+/** Which nav group owns `view`: "summary" | "editors" | "views" | "beta" (a registered beta view) | null. */
+export function navGroupOfView(view, betaIds = []) {
+  for (const g of NAV_LAYOUT) if (g.views.includes(view)) return g.id;
+  return betaIds.includes(view) ? "beta" : null;
+}
+/** Validate the window.BETA_VIEWS registry: keeps entries with a string id + label,
+ *  drops duplicates and ids that clash with a built-in view. `ready` = has a render function. */
+export function normalizeBetaViews(list) {
+  const seen = new Set(navViewIds()), out = [];
+  for (const v of Array.isArray(list) ? list : []) {
+    if (!v || typeof v.id !== "string" || !v.id || typeof v.label !== "string" || !v.label || seen.has(v.id)) continue;
+    seen.add(v.id);
+    out.push({ id: v.id, label: v.label, desc: typeof v.desc === "string" ? v.desc : "", ready: typeof v.render === "function" });
+  }
+  return out;
+}
+
+/** Menu bar. Items: {id,label,icon?,accel?,danger?} = command (id goes to runCommand);
+ *  {t:"sep"} {t:"section",label} {t:"sub",label,items} and dynamic fills
+ *  {t:"projects"} (project list) / {t:"beta"} (Beta views registry). */
+export const MENU_BAR = Object.freeze([
+  { id: "project", label: "Project", items: [
+    { t: "projects" },
+    { t: "sep" },
+    { id: "newProject",       label: "New project…",       icon: "＋" },
+    { id: "duplicateProject", label: "Duplicate project…", icon: "⧉" },
+    { id: "renameProject",    label: "Rename project…",    icon: "✎" },
+    { id: "deleteProject",    label: "Delete project…",    icon: "🗑", danger: true },
+    { t: "sep" },
+    { id: "saveSnapshot",     label: "Save snapshot…",     icon: "📸" },
+    { id: "view:snapshots",   label: "Snapshots…",         icon: "🕘" },
+    { t: "sep" },
+    { t: "filestatus", desktop: true },
+    { id: "openProjectFile",  label: "Open project file…",        icon: "📂", desktop: true },
+    { id: "saveProjectCopy",  label: "Save a copy as…",           icon: "⎘", desktop: true },
+    { id: "showProjectFile",  label: "Show project file in Finder", icon: "🔍", desktop: true },
+    { id: "openProjectFolder", label: "Open project folder",      icon: "📁", desktop: true },
+    { id: "toggleFileSave",   label: "Autosave to project file",  icon: "💾", desktop: true },
+    { t: "sep", desktop: true },
+    { id: "changeProcess",    label: "Process…",           icon: "⚑" },
+  ] },
+  { id: "edit", label: "Edit", items: [
+    { id: "undo",       label: "Undo",       icon: "↶", accel: "⌘Z" },
+    { id: "redo",       label: "Redo",       icon: "↷", accel: "⇧⌘Z" },
+    { t: "sep" },
+    { id: "toggleEdit", label: "Edit mode",  icon: "✎" },
+    { t: "sep" },
+    { id: "loadDemo",   label: "Load demo plan…" },
+    { id: "clear",      label: "Clear timeline…", danger: true },
+  ] },
+  { id: "view", label: "View", items: [
+    { id: "toggleTheme", label: "Dark mode", icon: "🌙", accel: "⇧⌘L" },
+    { id: "focusMode",   label: "Focus mode", icon: "⛶" },
+  ] },
+  { id: "export", label: "Export & backup", items: [
+    { t: "section", label: "Export" },
+    { id: "json",      label: "Project as JSON",       icon: "⬇", accel: "⌘E" },
+    { id: "exportAll", label: "Back up all projects",  icon: "⬇", accel: "⇧⌘E" },
+    { id: "png",       label: "Timeline as PNG",       icon: "🖼" },
+    { id: "pdf",       label: "Timeline as PDF",       icon: "📄" },
+    { id: "html",      label: "Page as HTML",          icon: "🌐" },
+    { id: "timelineHtml", label: "Timeline as HTML (Confluence)…", icon: "🧩" },
+    { t: "sep" },
+    { t: "section", label: "Import" },
+    { id: "import",          label: "JSON (replace plan)…", icon: "⬆" },
+    { id: "importAsProject", label: "JSON as new project…",         icon: "⬆" },
+    { id: "importBackup",    label: "Restore backup…",              icon: "⬆" },
+    { id: "importXlsx",      label: "Excel (.xlsx)…",               icon: "⬆" },
+  ] },
+  { id: "beta", label: "Beta", items: [
+    { t: "sub", label: "Beta views", items: [{ t: "beta" }] },
+  ] },
+  { id: "help", label: "Help", items: [
+    { id: "about", label: "About ProPlan…", icon: "ℹ" },
+  ] },
+]);
+/** Every command id used in the menu bar (excludes separators/sections/dynamic fills). */
+export function menuCommandIds(menus = MENU_BAR) {
+  const ids = [];
+  const walk = (items) => { for (const it of items) { if (it.items) walk(it.items); if (it.id) ids.push(it.id); } };
+  for (const m of menus) walk(m.items);
+  return ids;
+}
+
 /* ====================== Dependency / sequence ====================== */
 
 /* Kahn's algorithm. Returns barIds in topological order or null on cycle. */
@@ -1634,7 +1765,8 @@ function addDays(day, n) {
   return localDay(d);
 }
 
-function isTaskBar(bar) { return bar && bar.type !== "milestone"; }
+/* Every bar counts toward progress — milestones are tickable (done / pending) like tasks. */
+function isTaskBar(bar) { return !!bar; }
 
 /* Per-WP progress. status: empty (no tasks) | not-started | in-progress |
    complete. doneAt (complete only) = latest task completion day, if any
@@ -1645,11 +1777,12 @@ export function laneProgress(lane) {
   const total = tasks.length;
   const days = done.map(b => b.doneAt).filter(isDay).sort();
   const lastActivity = days.length ? days[days.length - 1] : null;
+  const doing = tasks.filter(b => !b.done && b.status === "doing").length;
   const status = total === 0 ? "empty"
     : done.length === total ? "complete"
-    : done.length > 0 ? "in-progress" : "not-started";
+    : (done.length > 0 || doing > 0) ? "in-progress" : "not-started";
   return {
-    total, done: done.length,
+    total, done: done.length, doing,
     pct: total ? Math.round(done.length / total * 100) : 0,
     status,
     doneAt: status === "complete" ? lastActivity : null,
@@ -1660,13 +1793,13 @@ export function laneProgress(lane) {
 
 /* Whole-project rollup: task + WP counts. */
 export function projectProgress(state) {
-  let tasks = 0, done = 0, wps = 0, wpsComplete = 0;
+  let tasks = 0, done = 0, doing = 0, wps = 0, wpsComplete = 0;
   for (const lane of state.lanes || []) {
     const p = laneProgress(lane);
-    tasks += p.total; done += p.done;
+    tasks += p.total; done += p.done; doing += p.doing;
     if (p.status !== "empty") { wps++; if (p.status === "complete") wpsComplete++; }
   }
-  return { tasks, done, pct: tasks ? Math.round(done / tasks * 100) : 0, wps, wpsComplete };
+  return { tasks, done, doing, pct: tasks ? Math.round(done / tasks * 100) : 0, wps, wpsComplete };
 }
 
 function pushLog(state, entry) {
@@ -1687,6 +1820,7 @@ function logEntry(now, day, action, lane, bar) {
 /* Flip one bar's done flag without touching the WP-level log entries. */
 function applyDone(state, lane, bar, want, day, now) {
   bar.done = want;
+  delete bar.status;                    // done / reopened tasks are no longer in progress
   if (want) bar.doneAt = day; else delete bar.doneAt;
   pushLog(state, logEntry(now, day, want ? "done" : "reopen", lane, bar));
 }
@@ -1701,6 +1835,32 @@ function logWpTransition(state, lane, before, after, day, now) {
    bar with a different opts.date just re-dates it (its latest log entry moves to that day).
    Returns null when the bar doesn't exist, else
    { changed, redated?, wpComplete }. */
+/* Task status: pending (default) · doing (in progress) · done. `done` stays the source of truth for
+   completion (bar.done / doneAt / log); only "doing" is stored as bar.status. Milestones have no status.
+   Returns null for an unknown bar, else { changed, status, wpComplete }. */
+export const BAR_STATUSES = Object.freeze(["pending", "doing", "done"]);
+export function barStatus(bar) {
+  if (!bar) return null;
+  return bar.done ? "done" : (bar.status === "doing" && bar.type !== "milestone") ? "doing" : "pending";
+}
+export function setBarStatus(state, barId, status, opts = {}) {
+  if (!BAR_STATUSES.includes(status)) return null;
+  for (const lane of state.lanes || []) {
+    const bar = (lane.bars || []).find(b => b.id === barId);
+    if (!bar) continue;
+    if (bar.type === "milestone" && status === "doing") return { changed: false, status: barStatus(bar), wpComplete: false };   // milestones: pending / done only
+    const before = barStatus(bar);
+    if (status === "done") {
+      const r = setBarDone(state, barId, true, opts);
+      return { changed: r.changed, status, wpComplete: r.wpComplete };
+    }
+    if (bar.done) setBarDone(state, barId, false, opts);
+    if (status === "doing") bar.status = "doing"; else delete bar.status;
+    return { changed: before !== status, status, wpComplete: laneProgress(lane).status === "complete" };
+  }
+  return null;
+}
+
 export function setBarDone(state, barId, done, { now = new Date(), date } = {}) {
   for (const lane of state.lanes || []) {
     const bar = (lane.bars || []).find(b => b.id === barId);
@@ -1841,9 +2001,10 @@ export function completionSeries(state) {
    Every top-level name here starts with alt or ALT_ because the build inlines
    this file into the HTML's global scope. */
 
-export const ALT_ROW_H = 34;          // task row height (px)
-export const ALT_LANE_H = 30;         // WP header row height (px)
-export const ALT_BAR_H = 22;
+export const ALT_ROW_H = 22;          // task row height (px)
+export const ALT_MS_ROW_H = 16;       // inline milestone row (slimmer: a diamond needs no 22 px)
+export const ALT_LANE_H = 24;         // WP header row height (px)
+export const ALT_BAR_H = 18;
 export const ALT_EDGE_PX = 6;         // resize hot-zone at each end of a bar
 export const ALT_MIN_EFF_WEEKS = 1;   // shortest bar a resize may produce
 export const ALT_GRIDS = { off: 0, week: 1, "2week": 2, month: 4 };
@@ -1891,7 +2052,7 @@ export function altSwitchTool(current, key, { editMode = false } = {}) {
 /* Pixel rectangle for one bar. rowY = top of its row. A stand-alone milestone
    sits half a column in (matches the Timeline view); a followsEndOf milestone
    sits exactly at its target's end. */
-export function altBarRect(bar, colW, rowY, laneId) {
+export function altBarRect(bar, colW, rowY, laneId, rowH = ALT_ROW_H) {
   const flags = {
     barId: bar.id, laneId, type: bar.type,
     locked: !!bar.locked, done: !!bar.done,
@@ -1899,8 +2060,8 @@ export function altBarRect(bar, colW, rowY, laneId) {
   };
   if (bar.type === "milestone") {
     const cx = bar.followsEndOf ? bar.startIdx * colW : bar.startIdx * colW + colW / 2;
-    const s = 18;
-    return { ...flags, milestone: true, x: cx - s / 2, y: rowY + (ALT_ROW_H - s) / 2, w: s, h: s, cx };
+    const s = rowH < ALT_ROW_H ? 13 : 18;
+    return { ...flags, milestone: true, x: cx - s / 2, y: rowY + (rowH - s) / 2, w: s, h: s, cx };
   }
   const x = bar.startIdx * colW;
   const w = Math.max(0.25, effSpan(bar) / WEEKS_PER_MONTH) * colW;
@@ -1909,28 +2070,53 @@ export function altBarRect(bar, colW, rowY, laneId) {
 
 /* Rows + bar rectangles for the whole canvas. Collapsed WPs show only their
    header row (their bars get no rect, so they can't be hit or linked). */
-export function altLayout(state, colW, { collapsed = new Set(), laneFilter = null } = {}) {
+export function altLayout(state, colW, { collapsed = new Set(), laneFilter = null, barFilter = null, laneHeaders = true, milestonesAtBottom = false } = {}) {
   const rows = []; const rects = []; const rectById = {};
+  const msTail = [];     // milestonesAtBottom: collected here, laid out under a "Milestones" section at the end
   let y = 0;
   (state.lanes || []).forEach((lane, laneIdx) => {
-    if (laneFilter && lane.id !== laneFilter) return;
+    if (typeof laneFilter === "function" ? !laneFilter(lane) : (laneFilter && lane.id !== laneFilter)) return;
+    const allBars = lane.bars || [];
+    const shown = barFilter ? allBars.filter(b => barFilter(b, lane)) : allBars;
+    if (barFilter && allBars.length && !shown.length) return;   // every task filtered out → hide the WP
     const isCollapsed = collapsed.has(lane.id);
-    rows.push({ kind: "lane", laneId: lane.id, laneIdx, y, h: ALT_LANE_H, collapsed: isCollapsed });
-    y += ALT_LANE_H;
+    let bars = shown;
+    if (milestonesAtBottom) {
+      for (const b of shown) if (b.type === "milestone" && !isCollapsed) msTail.push({ bar: b, lane, laneIdx });
+      const tasks = shown.filter(b => b.type !== "milestone");
+      if (!tasks.length && shown.length) return;      // a WP of only milestones: they all live in the bottom section
+      bars = tasks;
+    }
+    // laneHeaders:false drops the WP header row of expanded WPs that have tasks (collapsed and empty WPs keep one).
+    if (laneHeaders || isCollapsed || !bars.length) {
+      rows.push({ kind: "lane", laneId: lane.id, laneIdx, y, h: ALT_LANE_H, collapsed: isCollapsed });
+      y += ALT_LANE_H;
+    }
     if (isCollapsed) return;
-    const bars = lane.bars || [];
     if (!bars.length) {
       rows.push({ kind: "empty", laneId: lane.id, laneIdx, y, h: ALT_ROW_H });
       y += ALT_ROW_H;
       return;
     }
     for (const bar of bars) {
-      rows.push({ kind: "bar", laneId: lane.id, laneIdx, barId: bar.id, y, h: ALT_ROW_H });
+      const rh = bar.type === "milestone" ? ALT_MS_ROW_H : ALT_ROW_H;
+      rows.push({ kind: "bar", laneId: lane.id, laneIdx, barId: bar.id, y, h: rh });
+      const r = altBarRect(bar, colW, y, lane.id, rh);
+      rects.push(r); rectById[bar.id] = r;
+      y += rh;
+    }
+  });
+  if (msTail.length) {
+    rows.push({ kind: "section", laneId: null, laneIdx: -1, y, h: ALT_LANE_H, title: "Milestones" });
+    y += ALT_LANE_H;
+    msTail.sort((a, b) => (a.bar.startIdx - b.bar.startIdx) || (a.laneIdx - b.laneIdx));
+    for (const { bar, lane, laneIdx } of msTail) {
+      rows.push({ kind: "bar", laneId: lane.id, laneIdx, barId: bar.id, y, h: ALT_ROW_H, tail: true });
       const r = altBarRect(bar, colW, y, lane.id);
       rects.push(r); rectById[bar.id] = r;
       y += ALT_ROW_H;
     }
-  });
+  }
   const numMonths = monthsBetween(state.start, state.end).length;
   return { rows, rects, rectById, width: numMonths * colW, height: y, numMonths };
 }
@@ -2059,6 +2245,87 @@ export function altZoomToRange(colW, x0, x1, viewportW) {
   return { colW: next, scrollLeft: Math.min(x0, x1) * (next / colW) };
 }
 
+/* ---------- View presets (Alt timeline View card) ---------- */
+
+/* The view settings a preset can drive. Keys: months (0 = whole project), deps ('all'|'routed'|'markers'), names (task names in the left list),
+   msBottom (milestones in a bottom section), today / arrows / compact / weeks (Display toggles). */
+export const VIEW_DEFAULTS = Object.freeze({ months: 0, deps: 'all', names: false, msBottom: false, today: true, arrows: true, compact: false, weeks: false });
+/* A preset lists only the keys it cares about; the others are left alone when applying and ignored when matching. */
+export const VIEW_PRESETS = Object.freeze([
+  Object.freeze({ id: 'planning', label: 'Planning', desc: '12 months, curved links, task names shown, today line on', settings: Object.freeze({ months: 12, deps: 'all', names: true, today: true, arrows: true }) }),
+  Object.freeze({ id: 'review', label: 'Review', desc: '24 months, jump markers, names hidden, milestones at the bottom', settings: Object.freeze({ months: 24, deps: 'markers', names: false, msBottom: true }) }),
+  Object.freeze({ id: 'presentation', label: 'Presentation', desc: 'Whole project, no arrows, compact labels, names hidden, week numbers off', settings: Object.freeze({ months: 0, arrows: false, compact: true, names: false, weeks: false }) }),
+]);
+export function viewPresetById(id) { return VIEW_PRESETS.find(p => p.id === id) || null; }
+/* Which preset do these settings match? The one with the most keys wins a tie between overlapping presets; 'custom' when none. */
+export function matchViewPreset(settings) {
+  const s = settings || {};
+  let best = null;
+  for (const p of VIEW_PRESETS) {
+    const keys = Object.keys(p.settings);
+    if (!keys.every(k => s[k] === p.settings[k])) continue;
+    if (!best || keys.length > Object.keys(best.settings).length) best = p;
+  }
+  return best ? best.id : 'custom';
+}
+/* The settings to change (only keys that differ from `current`) to apply a preset; null for an unknown id. */
+export function viewPresetPatch(id, current) {
+  const p = viewPresetById(id); if (!p) return null;
+  const cur = current || {}, out = {};
+  for (const k of Object.keys(p.settings)) if (cur[k] !== p.settings[k]) out[k] = p.settings[k];
+  return out;
+}
+/* ---------- Months shown (Alt timeline zoom) ----------
+   The Alt canvas does not store a px/month zoom: the user picks how many MONTHS are visible (0 = whole project) and the
+   column width is derived so exactly that many fill the plot. */
+export const ALT_MONTHS_MIN = 1, ALT_MONTHS_MAX = 60;
+export const ALT_MONTHS_LADDER = Object.freeze([1, 2, 3, 4, 6, 9, 12, 18, 24, 36, 48, 60]);
+export const ALT_COLW_MIN = 6;
+/* Integer 1..60, or 0 (= whole project) for 0 / negative / non-numeric input. */
+export function altClampMonths(n) {
+  const v = typeof n === 'number' ? n : parseFloat(n);
+  if (!Number.isFinite(v) || v <= 0) return 0;
+  return Math.max(ALT_MONTHS_MIN, Math.min(ALT_MONTHS_MAX, Math.round(v)));
+}
+/* The months actually shown: 0 or >= the project length means the whole project. */
+export function altEffMonths(n, projectMonths) {
+  const pm = Math.max(1, Math.floor(projectMonths) || 1), c = altClampMonths(n);
+  return c === 0 || c >= pm ? pm : c;
+}
+/* Column width (px per month) that makes n months exactly fill viewportPx (the visible plot width). */
+export function altColWForMonths(viewportPx, n, minW = ALT_COLW_MIN) {
+  const m = Math.max(1, Math.round(n) || 1);
+  return Math.max(minW, Math.floor((Number(viewportPx) || 0) / m));
+}
+/* One step on the ladder: 'in' = fewer months, 'out' = more (past the project length = 0, the whole project). */
+export function altMonthsStep(n, dir, projectMonths = 0) {
+  const pm = Math.max(0, Math.floor(projectMonths) || 0);
+  const cur = altClampMonths(n) || pm || ALT_MONTHS_MAX;
+  if (dir === 'in') {
+    const lower = ALT_MONTHS_LADDER.filter(x => x < cur);
+    return lower.length ? lower[lower.length - 1] : ALT_MONTHS_MIN;
+  }
+  if (altClampMonths(n) === 0) return 0;
+  const higher = ALT_MONTHS_LADDER.find(x => x > cur);
+  if (higher === undefined) return pm && pm <= ALT_MONTHS_MAX ? 0 : ALT_MONTHS_MAX;
+  return pm && higher >= pm ? 0 : higher;
+}
+/* Months covered by a dragged span of spanPx at the current column width (>= 1). */
+export function altMonthsForSpan(spanPx, colW) { return altClampMonths(Math.max(1, Math.round(Math.abs(spanPx) / Math.max(1, colW)))); }
+/* Text from the months field: "all" / "0" -> 0, a number -> clamped 1..60, anything else -> null. */
+export function altParseMonths(text) {
+  const t = String(text == null ? '' : text).trim().toLowerCase();
+  if (t === 'all' || t === 'fit') return 0;
+  if (!/^\d+([.,]\d+)?$/.test(t)) return null;
+  return altClampMonths(parseFloat(t.replace(',', '.')));
+}
+/* Quick presets shown under the stepper (0 = All). */
+export const VIEW_MONTH_PRESETS = Object.freeze([
+  Object.freeze({ id: 'm3', label: '3', months: 3 }), Object.freeze({ id: 'm6', label: '6', months: 6 }),
+  Object.freeze({ id: 'm12', label: '12', months: 12 }), Object.freeze({ id: 'm24', label: '24', months: 24 }),
+  Object.freeze({ id: 'all', label: 'All', months: 0 }),
+]);
+
 /* ---------- Gesture decision table ---------- */
 
 /* What does pressing the mouse do, given the active tool, what is under the
@@ -2079,7 +2346,7 @@ export function altBeginGesture(toolId, hit, mods = {}, row = null, { editMode =
     case "hand": return { kind: "pan" };
     case "zoom": return { kind: mods.alt ? "zoom-out" : "zoom-rect" };
     case "done":
-      if (!hit || hit.milestone) return { kind: "none" };
+      if (!hit) return { kind: "none" };
       return { kind: "toggle-done", barId: hit.barId };
     case "select": {
       if (!hit) return { kind: "marquee", mode: marqueeMode };
@@ -2113,7 +2380,7 @@ export function altBeginGesture(toolId, hit, mods = {}, row = null, { editMode =
       return why ? { kind: "blocked", why } : { kind: "split", barId: hit.barId };
     }
     case "lock":
-      if (!hit || hit.milestone) return { kind: "none" };
+      if (!hit) return { kind: "none" };
       return { kind: "toggle-lock", barId: hit.barId };
   }
   return { kind: "none" };
@@ -2269,7 +2536,7 @@ export function altSplitBar(state, barId, atWeeks, { gapWeeks = 0 } = {}) {
     span: rawSecond,
     dependsOn: [bar.id],
   };
-  delete second.done; delete second.doneAt; delete second.locked; delete second.followsEndOf; delete second.phaseEnd;
+  delete second.done; delete second.doneAt; delete second.status; delete second.locked; delete second.followsEndOf; delete second.phaseEnd;
   bar.span = rawFirst;
   const i = e.lane.bars.indexOf(bar);
   e.lane.bars.splice(i + 1, 0, second);
@@ -2341,7 +2608,7 @@ export function altDuplicateBars(state, ids, { offsetWeeks = null } = {}) {
       ...b, id: bid(), dependsOn: [...(b.dependsOn || [])],
       startIdx: (b.startIdx || 0) + shift / WEEKS_PER_MONTH,
     };
-    delete copy.done; delete copy.doneAt; delete copy.locked; delete copy.followsEndOf;
+    delete copy.done; delete copy.doneAt; delete copy.status; delete copy.locked; delete copy.followsEndOf;
     if (b.tracks) copy.tracks = b.tracks.slice();
     e.lane.bars.splice(e.lane.bars.indexOf(b) + 1, 0, copy);
     out.push(copy.id);
@@ -2400,7 +2667,6 @@ export function altBulkEdit(state, ids, patch) {
         if (v) b.discipline = v; else delete b.discipline;
         touched = true;
       } else if (k === "locked") {
-        if (ms) continue;
         const nv = !!v;
         if (!!b.locked !== nv) { if (nv) b.locked = true; else delete b.locked; touched = true; }
       }
@@ -2493,4 +2759,394 @@ export function altStartIdxFromDate(state, isoDay) {
   // Day-of-month beyond the project start's day: fall back to week arithmetic.
   const weeks = Math.round(days / 7);
   return Math.max(0, whole + weeks / WEEKS_PER_MONTH);
+}
+
+/* ============================================================================
+ * Versions & build tracking
+ * package.json "version" is the single source of truth (semver). Every
+ * `npm run build` stamps a BUILD_INFO object into the HTML and appends an
+ * entry to build-info.json (scripts/build.mjs). These helpers are pure so
+ * they can be unit-tested; the About dialog formats with the same code.
+ * ========================================================================== */
+export const BUILD_HISTORY_CAP = 50;
+
+/** "1.2.3" or "1.2.3-beta.1" -> {major, minor, patch, pre}; null if invalid. */
+export function parseSemver(v) {
+  const m = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(String(v == null ? "" : v).trim());
+  if (!m) return null;
+  return { major: +m[1], minor: +m[2], patch: +m[3], pre: m[4] || "" };
+}
+/** Next version for kind "major" | "minor" | "patch". Throws on a bad version/kind. */
+export function bumpVersion(version, kind) {
+  const p = parseSemver(version);
+  if (!p) throw new Error(`Not a semver version: ${version}`);
+  if (kind === "major") return `${p.major + 1}.0.0`;
+  if (kind === "minor") return `${p.major}.${p.minor + 1}.0`;
+  if (kind === "patch") return `${p.major}.${p.minor}.${p.patch + 1}`;
+  throw new Error(`Unknown bump kind: ${kind} (use major|minor|patch)`);
+}
+/** Negative / 0 / positive like a - b; invalid versions sort lowest. */
+export function compareSemver(a, b) {
+  const x = parseSemver(a), y = parseSemver(b);
+  if (!x || !y) return (x ? 1 : 0) - (y ? 1 : 0);
+  for (const k of ["major", "minor", "patch"]) if (x[k] !== y[k]) return x[k] - y[k];
+  if (x.pre === y.pre) return 0;
+  if (!x.pre) return 1;
+  if (!y.pre) return -1;
+  return x.pre < y.pre ? -1 : 1;
+}
+/** Short git label: "abc1234", "abc1234+dirty", or "unknown". */
+export function formatCommit(commit, dirty) {
+  const c = String(commit || "").trim();
+  if (!c) return "unknown";
+  return dirty ? `${c}+dirty` : c;
+}
+/** A history entry as stored in build-info.json. */
+export function makeBuildEntry({ build, version, date, commit, dirty, branch, testsPassing } = {}) {
+  const e = {
+    build: Math.max(0, Math.floor(+build || 0)),
+    version: String(version || ""),
+    date: String(date || ""),
+    commit: String(commit || ""),
+    dirty: !!dirty,
+    branch: String(branch || ""),
+  };
+  if (typeof testsPassing === "number" && isFinite(testsPassing)) e.testsPassing = testsPassing;
+  return e;
+}
+/** Append an entry and keep only the newest `cap` (oldest dropped). Never mutates. */
+export function appendBuildHistory(history, entry, cap = BUILD_HISTORY_CAP) {
+  const list = Array.isArray(history) ? history.slice() : [];
+  list.push(entry);
+  const n = Math.max(1, Math.floor(cap) || BUILD_HISTORY_CAP);
+  return list.length > n ? list.slice(list.length - n) : list;
+}
+/** Next build number given the persisted file ({lastBuild, history}). */
+export function nextBuildNumber(info) {
+  const last = info && Number.isFinite(+info.lastBuild) ? Math.floor(+info.lastBuild) : 0;
+  const hist = info && Array.isArray(info.history) ? info.history.reduce((m, h) => Math.max(m, +h.build || 0), 0) : 0;
+  return Math.max(last, hist) + 1;
+}
+/** "0.2.0 (build 7)" */
+export function formatVersionLabel(info) {
+  if (!info || !info.version) return "dev";
+  return info.build ? `${info.version} (build ${info.build})` : String(info.version);
+}
+/** Multi-line plain text for the About dialog's "Copy build info". */
+export function formatBuildInfo(info, appName = "ProPlan") {
+  const i = info || {};
+  const lines = [`${appName} ${i.version || "dev"}${i.build ? ` (build ${i.build})` : ""}`];
+  if (i.date) lines.push(`Built: ${i.date}`);
+  if (i.commit) lines.push(`Commit: ${formatCommit(i.commit, i.dirty)}${i.branch ? ` on ${i.branch}` : ""}`);
+  else if (i.branch) lines.push(`Branch: ${i.branch}`);
+  if (typeof i.testsPassing === "number") lines.push(`Tests passing: ${i.testsPassing}`);
+  return lines.join("\n");
+}
+/** Keep-a-Changelog stub inserted by `npm run release:*`. */
+export function changelogStub(version, day) {
+  return `## [${version}] - ${day}\n\n### Added\n- \n\n### Changed\n- \n\n### Fixed\n- \n`;
+}
+/** Insert `entry` above the first "## [" heading (or append); idempotent per version. */
+export function insertChangelogEntry(text, version, entry) {
+  const src = String(text || "");
+  if (src.includes(`## [${version}]`)) return src;
+  const at = src.search(/^## \[/m);
+  if (at < 0) return src.replace(/\s*$/, "\n\n") + entry + "\n";
+  return src.slice(0, at) + entry + "\n" + src.slice(at);
+}
+
+/* =====================================================================
+   Timeline controls (shared View bar)
+   The .hdr-tier2 row (Start/End, Zoom, Track, Display, …) is shared by the
+   classic Timeline (viewA) and the Alt timeline. "view" controls change what
+   you look at and live in that one bar; "edit" controls change the plan and
+   live in the bar on the classic Timeline but in the Alt options bar on the
+   Alt timeline, so no control is ever shown twice. DOM ids are in `dom`.
+   ===================================================================== */
+export const TIMELINE_CONTROLS = Object.freeze([
+  { id: "zoom",        group: "view", dom: "zoom",                low: false },
+  { id: "fit",         group: "view", dom: "fitBtn",              low: false },
+  { id: "exportImage", group: "view", dom: "exportImgBtn",        low: true  },
+  { id: "collapseAll", group: "view", dom: "collapseAllBtn",      low: true  },
+  { id: "display",     group: "view", dom: "displayMenu",         low: false },
+  { id: "track",       group: "view", dom: "trackFilterControl",  low: false },
+  { id: "disciplines", group: "view", dom: "disciplineFilterMenu", low: false },
+  { id: "layout",      group: "view", dom: "layoutModeControl",   low: true  },
+  { id: "focusWp",     group: "view", dom: "wpFocusSelect",       low: false },
+  { id: "autoSeq",     group: "edit", dom: "autoSeq",             low: false, editOnly: true },
+  { id: "undo",        group: "edit", dom: "undoBtn",             low: false, editOnly: true },
+  { id: "redo",        group: "edit", dom: "redoBtn",             low: false, editOnly: true },
+  { id: "editToggle",  group: "edit", dom: "viewOnlyToggle",      low: false },
+  { id: "focusMode",   group: "view", dom: "focusModeToggle",     low: false },
+]);
+export const TIMELINE_CONTROL_VIEWS = Object.freeze(["viewA", "altTimeline"]);
+
+/**
+ * Where each control lives for a view.
+ *   bar      — ids shown in the shared View bar, in display order
+ *   overflow — (legacy) ids folded into the "⋯" menu; always empty now
+ *   options  — ids rendered by the Alt options bar instead (edit controls)
+ *   panel    — ids living in the Alt side panel's View card (all view-group controls; the Alt view never
+ *              shows the .hdr-tier2 bar, so bar/overflow stay empty there)
+ *   hidden   — ids not shown right now (edit-only controls while not editing)
+ * The classic Timeline (viewA) is never reduced: every control stays in the
+ * bar, narrow or not. Views other than the two timelines get empty lists.
+ */
+export function timelineControlsFor(view, { editing = false, narrow = false } = {}) {
+  const out = { bar: [], overflow: [], options: [], hidden: [], panel: [] };
+  if (!TIMELINE_CONTROL_VIEWS.includes(view)) return out;
+  const alt = view === "altTimeline";
+  for (const c of TIMELINE_CONTROLS) {
+    if (alt && c.group === "edit") { out.options.push(c.id); continue; }
+    if (alt) { out.panel.push(c.id); continue; }
+    if (c.editOnly && !editing) { out.hidden.push(c.id); continue; }
+    out.bar.push(c.id);
+  }
+  return out;
+}
+
+/* Launch markers for the timelines: one per product track with a target launch (track.launch),
+   or the project-level state.launch when there are no products. `at` = months from state.start
+   (fractional, so it lines up with bar startIdx); markers outside the project range are still returned
+   (callers skip what they can't draw). Sorted by date. */
+export function launchMarkers(state) {
+  const out = [];
+  const s = parseYM(state.start);
+  const push = (id, label, day, color) => {
+    if (!isDay(day)) return;
+    const [y, m, d] = day.split("-").map(Number);
+    const dim = new Date(y, m, 0).getDate();
+    out.push({ id, label, day, color: color || null, at: (y - s.y) * 12 + (m - s.m) + (d - 1) / dim });
+  };
+  const prods = getProductTracks(state);
+  if (prods.length) for (const t of prods) push(t.id, `${t.label} launch`, t.launch, t.color && t.color.accent);
+  else push("project", "Launch", state.launch, null);
+  return out.sort((a, b) => a.at - b.at);
+}
+
+
+/* ====================== Project files ======================
+   One JSON file per project on disk (desktop app): <slug>.proplan.json =
+   {format:"proplan-project", version:1, savedAt, app:{version,build}, name,
+    state, snapshots}. Pure helpers only — the HTML does the I/O. */
+export const PROJECT_FILE_FORMAT = "proplan-project";
+export const PROJECT_FILE_VERSION = 1;
+export const PROJECT_FILE_EXT = ".proplan.json";
+const PROJECT_FILE_MAX_SNAPSHOTS = 200;
+
+/** "My Plan: v2!" → "my-plan-v2" (never empty, max 60 chars). */
+export function projectFileSlug(name) {
+  const s = String(name == null ? "" : name).normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/g, "");
+  return s || "project";
+}
+/** True for a bare, safe file name inside the project folder. */
+export function isSafeProjectFilename(name) {
+  return typeof name === "string" && name.length > PROJECT_FILE_EXT.length && name.length <= 120 &&
+    name.endsWith(PROJECT_FILE_EXT) && !/[\/\\\0:]/.test(name) && !name.startsWith(".") && !name.includes("..");
+}
+/** Slug + ".proplan.json", suffixed -2, -3… until it isn't in `taken` (case-insensitive). */
+export function uniqueProjectFilename(name, taken = []) {
+  const used = new Set((taken || []).map(t => String(t).toLowerCase()));
+  const base = projectFileSlug(name);
+  let n = 1, f = base + PROJECT_FILE_EXT;
+  while (used.has(f.toLowerCase())) { n++; f = `${base}-${n}${PROJECT_FILE_EXT}`; }
+  return f;
+}
+export function serializeProjectFile({ name, state, snapshots = [], app = {}, savedAt = Date.now() } = {}) {
+  return JSON.stringify({
+    format: PROJECT_FILE_FORMAT, version: PROJECT_FILE_VERSION,
+    savedAt: new Date(savedAt).toISOString(),
+    app: { version: app.version || "dev", build: app.build || null },
+    name: String(name || "Untitled project"), state, snapshots: Array.isArray(snapshots) ? snapshots : [],
+  }, null, 2);
+}
+/** Parse + validate a project file. Never throws. → {ok:true,name,state,snapshots,savedAt,app} | {ok:false,error}.
+ *  The state is deep-cloned and run through normaliseState; junk snapshots are dropped. */
+export function parseProjectFile(text) {
+  let o;
+  try { o = JSON.parse(text); } catch { return { ok: false, error: "Not valid JSON." }; }
+  if (!o || typeof o !== "object" || o.format !== PROJECT_FILE_FORMAT) return { ok: false, error: "Not a ProPlan project file." };
+  if (typeof o.version !== "number" || o.version > PROJECT_FILE_VERSION) return { ok: false, error: "This file was saved by a newer ProPlan." };
+  if (!o.state || typeof o.state !== "object" || Array.isArray(o.state) || !Array.isArray(o.state.lanes)) return { ok: false, error: "The file has no plan in it." };
+  let state;
+  try { state = JSON.parse(JSON.stringify(o.state)); normaliseState(state); } catch { return { ok: false, error: "The plan in this file is damaged." }; }
+  const snapshots = (Array.isArray(o.snapshots) ? o.snapshots : []).filter(sn =>
+    sn && typeof sn === "object" && typeof sn.id === "string" && sn.state && typeof sn.state === "object" && Array.isArray(sn.state.lanes)
+  ).slice(0, PROJECT_FILE_MAX_SNAPSHOTS).map(sn => ({
+    id: sn.id, name: typeof sn.name === "string" && sn.name ? sn.name : "Snapshot",
+    createdAt: Number.isFinite(sn.createdAt) ? sn.createdAt : 0, state: sn.state,
+  }));
+  const t = Date.parse(o.savedAt);
+  const name = typeof o.name === "string" && o.name.trim() ? o.name.trim().slice(0, 120) : "Imported project";
+  return { ok: true, name, state, snapshots, savedAt: Number.isFinite(t) ? t : 0, app: o.app && typeof o.app === "object" ? o.app : {} };
+}
+/** Is the disk copy newer than what this app last wrote/edited? (2 s slack for fs timestamp skew.) */
+export function isFileNewerThanLocal(fileModifiedMs, { updatedAt = 0, fileSavedAt = 0 } = {}) {
+  return Number.isFinite(fileModifiedMs) && fileModifiedMs > Math.max(updatedAt || 0, fileSavedAt || 0) + 2000;
+}
+
+/* ---------- Task + milestone codes ----------
+   A task's position inside its work package: "WP1.3" = third task of the first WP. Milestones are numbered
+   separately with an M: "WP1.M2" (short "M1.2") = second milestone of WP 1, so they never look like tasks.
+   Derived on the fly, so it follows reordering. */
+export function altTaskCodes(state) {
+  const out = {};
+  (state.lanes || []).forEach((lane, li) => {
+    let t = 0, m = 0;
+    (lane.bars || []).forEach((bar) => {
+      if (bar.type === "milestone") { m++; out[bar.id] = { wp: li + 1, n: m, milestone: true, code: `WP${li + 1}.M${m}`, short: `M${li + 1}.${m}` }; }
+      else { t++; out[bar.id] = { wp: li + 1, n: t, milestone: false, code: `WP${li + 1}.${t}`, short: `${li + 1}.${t}` }; }
+    });
+  });
+  return out;
+}
+
+/* Dependency edges [{pred, succ, invalid}] for the visible bars only; `invalid` = the successor starts
+   before the predecessor finishes (more than a week of overlap tolerance is 1/WEEKS_PER_MONTH month). */
+export function altDepEdges(state, visibleIds = null) {
+  const map = buildBarMap(state);
+  const edges = [];
+  for (const lane of state.lanes || []) for (const bar of lane.bars || []) for (const p of bar.dependsOn || []) {
+    const pe = map[p]; if (!pe) continue;
+    if (visibleIds && (!visibleIds.has(p) || !visibleIds.has(bar.id))) continue;
+    const predEnd = pe.bar.startIdx + (pe.bar.type === "milestone" ? 0 : effSpan(pe.bar) / WEEKS_PER_MONTH);
+    edges.push({ pred: p, succ: bar.id, invalid: (predEnd - bar.startIdx) > 1 / WEEKS_PER_MONTH });
+  }
+  return edges;
+}
+
+
+/* ====================== HTML export (Confluence) ======================
+   exportTimelineHtml(state, opts) -> a self-contained, script-free, resource-free HTML string.
+   Every element carries INLINE styles (Confluence strips <style> blocks in many contexts); the
+   Gantt uses percentage-positioned absolute children inside fixed-height relative rows: tables
+   can't place fractional month offsets, and the HTML macro (an iframe) keeps absolute layout intact.
+   opts: { mode:"fragment"|"page", title, deps=true, showMilestones=true, compact=false, today:"YYYY-MM-DD",
+           filterTrack:trackId, filterLane:laneId, shownBarIds:Iterable<barId> (e.g. the app's current filters) } */
+function tlhEsc(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function tlhColor(c, fallback) { return /^#[0-9a-fA-F]{3,8}$/.test(String(c || "")) ? c : fallback; }
+function tlhDayAt(startYM, day) {
+  if (!isDay(day)) return null;
+  const [y, m, d] = day.split("-").map(Number);
+  return (y - startYM.y) * 12 + (m - startYM.m) + (d - 1) / new Date(y, m, 0).getDate();
+}
+export function exportTimelineHtml(state, opts = {}) {
+  const o = Object.assign({ mode: "fragment", deps: true, showMilestones: true, compact: false }, opts || {});
+  const s = state || {};
+  const months = monthsBetween(s.start, s.end);
+  const total = Math.max(1, months.length);
+  const proc = getProcess(s);
+  const codes = altTaskCodes(s);
+  const shown = o.shownBarIds ? new Set(o.shownBarIds) : null;
+  const pct = (v) => `${Math.round(Math.max(0, Math.min(total, v)) / total * 10000) / 100}%`;
+  const rowH = o.compact ? 20 : 30, labelW = o.compact ? 220 : 300, barH = o.compact ? 10 : 14;
+  const FONT = "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;";
+  const GRID = "#e5e7eb", INK = "#111827", MUTED = "#6b7280";
+  const gridBg = `background-image:linear-gradient(to right,${GRID} 1px,transparent 1px);background-size:${Math.round(10000 / total) / 100}% 100%;`;
+  const startYM = parseYM(s.start);
+
+  // Which bars/lanes to draw.
+  const lanes = [];
+  for (const lane of s.lanes || []) {
+    if (o.filterLane && lane.id !== o.filterLane) continue;
+    const bars = (lane.bars || []).filter(b => {
+      if (b.type === "milestone" && !o.showMilestones) return false;
+      if (shown && !shown.has(b.id)) return false;
+      if (o.filterTrack && o.filterTrack !== "all" && !barTracks(b, lane).includes(o.filterTrack)) return false;
+      return true;
+    });
+    if (bars.length) lanes.push({ lane, bars });
+  }
+
+  const colorOf = (b) => {
+    const ph = b.phase && proc.phases.find(p => p.code === b.phase);
+    const t = TYPES[b.type] || TYPES.work;
+    return ph ? { bg: tlhColor(ph.color.bg, t.bar), border: tlhColor(ph.color.accent, t.border) } : { bg: t.bar, border: t.border };
+  };
+  const styleOf = (b) => {
+    const c = colorOf(b), st = barStatus(b);
+    if (st === "done") return { bg: "#86efac", border: "#15803d", rail: "" };
+    if (st === "doing") return { bg: c.bg, border: c.border, rail: "border-left:4px solid #f59e0b;" };
+    return { bg: c.bg, border: c.border, rail: "" };
+  };
+
+  // Overlay lines (launch / today): positioned over the track column only.
+  const lines = [];
+  for (const mk of launchMarkers(s)) if (mk.at >= 0 && mk.at <= total) lines.push({ at: mk.at, label: mk.label, color: tlhColor(mk.color, "#b45309"), dash: true });
+  const todayAt = o.today ? tlhDayAt(startYM, o.today) : null;
+  if (todayAt != null && todayAt >= 0 && todayAt <= total) lines.push({ at: todayAt, label: "Today", color: "#dc2626", dash: false });
+
+  // Header lines.
+  const metaBits = [`Start: ${tlhEsc(s.start || "")}`, `End: ${tlhEsc(s.end || "")}`];
+  for (const mk of launchMarkers(s)) metaBits.push(`${tlhEsc(mk.label)}: ${tlhEsc(mk.day)}`);
+  const title = o.title != null ? o.title : "Timeline";
+
+  // Legend.
+  const sw = (bg, border, text, extra = "") => `<span style="display:inline-block;margin-right:14px;white-space:nowrap;"><span style="display:inline-block;width:14px;height:10px;vertical-align:middle;margin-right:5px;background:${bg};border:1px solid ${border};${extra}"></span>${tlhEsc(text)}</span>`;
+  const legend = [
+    ...["work", "buffer", "leadtime", "review", "ongoing"].map(k => sw(TYPES[k].bar, TYPES[k].border, TYPES[k].label)),
+    `<span style="display:inline-block;margin-right:14px;white-space:nowrap;"><span style="display:inline-block;width:9px;height:9px;vertical-align:middle;margin-right:6px;background:${TYPES.milestone.bar};border:1px solid ${TYPES.milestone.border};transform:rotate(45deg);"></span>Milestone</span>`,
+    sw("#86efac", "#15803d", "Done"),
+    sw("#e5e7eb", "#9ca3af", "In progress", "border-left:4px solid #f59e0b;width:11px;"),
+    sw("#e5e7eb", "#9ca3af", "Pending"),
+  ].join("");
+
+  // Month / year header.
+  const yearCells = [];
+  months.forEach(mm => { const last = yearCells[yearCells.length - 1]; if (last && last.y === mm.y) last.n++; else yearCells.push({ y: mm.y, n: 1 }); });
+  const cellS = (n, extra) => `display:inline-block;width:${Math.round(n / total * 10000) / 100}%;box-sizing:border-box;text-align:center;overflow:hidden;white-space:nowrap;${extra}`;
+  const initialsOnly = total > 18;
+  const head = `<div style="display:flex;border-bottom:1px solid ${GRID};background:#f9fafb;">
+<div style="flex:0 0 ${labelW}px;width:${labelW}px;box-sizing:border-box;padding:6px 8px;font-size:12px;font-weight:600;color:${MUTED};">Task</div>
+<div style="flex:1 1 auto;min-width:0;">
+<div style="font-size:0;border-bottom:1px solid ${GRID};">${yearCells.map(y => `<span style="${cellS(y.n, `font-size:11px;font-weight:600;color:${INK};padding:2px 0;border-left:1px solid ${GRID};`)}">${y.n >= 2 ? y.y : ""}</span>`).join("")}</div>
+<div style="font-size:0;">${months.map(mm => `<span style="${cellS(1, `font-size:10px;color:${MUTED};padding:2px 0;border-left:1px solid ${GRID};`)}">${initialsOnly ? MONTH_NAMES[mm.m - 1][0] : MONTH_NAMES[mm.m - 1]}</span>`).join("")}</div>
+</div></div>`;
+
+  // Rows.
+  const rows = [];
+  for (const { lane, bars } of lanes) {
+    const p = laneProgress(lane);
+    rows.push(`<div style="display:flex;background:#eef2ff;border-bottom:1px solid ${GRID};border-top:1px solid ${GRID};">
+<div style="flex:1 1 auto;padding:5px 8px;font-size:13px;font-weight:700;color:${INK};">${tlhEsc(wpLabel(lane.code || ""))}${lane.desc ? ` <span style="font-weight:400;color:${MUTED};">${tlhEsc(lane.desc)}</span>` : ""}</div>
+<div style="flex:0 0 auto;padding:5px 8px;font-size:12px;color:${MUTED};white-space:nowrap;">${p.done}/${p.total} done${p.total ? ` · ${p.pct}%` : ""}</div></div>`);
+    for (const b of bars) {
+      const code = (codes[b.id] || {}).code || "";
+      const st = styleOf(b), ms = b.type === "milestone";
+      const x = b.startIdx || 0, w = ms ? 0 : effSpan(b) / WEEKS_PER_MONTH;
+      let dates = "";
+      try { const d = altBarDates(s, b); dates = ms ? d.start : `${d.start} → ${d.end}`; } catch { /* ignore */ }
+      const tip = tlhEsc(`${code} ${b.label || ""} (${dates})`);
+      const mark = ms
+        ? `<div title="${tip}" style="position:absolute;left:${pct(x)};top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;box-sizing:border-box;transform:rotate(45deg);background:${barStatus(b) === "done" ? "#22c55e" : TYPES.milestone.bar};border:1.5px solid ${barStatus(b) === "done" ? "#16a34a" : st.border};"></div>`
+        : `<div title="${tip}" style="position:absolute;left:${pct(x)};width:${pct(Math.min(w, total - x) + 0)};min-width:3px;top:50%;height:${barH}px;margin-top:-${barH / 2}px;box-sizing:border-box;background:${st.bg};border:1px solid ${st.border};${st.rail}border-radius:3px;"></div>`;
+      const depCodes = o.deps && !o.compact ? (b.dependsOn || []).map(id => (codes[id] || {}).short).filter(Boolean) : [];
+      rows.push(`<div style="display:flex;height:${rowH}px;border-bottom:1px solid #f3f4f6;">
+<div style="flex:0 0 ${labelW}px;width:${labelW}px;box-sizing:border-box;padding:0 8px;overflow:hidden;font-size:12px;line-height:${depCodes.length ? 14 : rowH}px;${depCodes.length ? "padding-top:" + Math.floor((rowH - 28) / 2 + 1) + "px;" : ""}white-space:nowrap;text-overflow:ellipsis;"><span style="color:${MUTED};margin-right:6px;" title="${tlhEsc(code)}">${tlhEsc((codes[b.id] || {}).short || code)}</span><span style="color:${INK};${barStatus(b) === "done" ? "text-decoration:line-through;color:" + MUTED + ";" : ""}">${tlhEsc(b.label || "")}</span>${depCodes.length ? `<br><span style="font-size:10px;color:${MUTED};">after ${tlhEsc(depCodes.join(", "))}</span>` : ""}</div>
+<div style="flex:1 1 auto;min-width:0;position:relative;${gridBg}">${mark}</div></div>`);
+    }
+  }
+  if (!rows.length) rows.push(`<div style="padding:16px;font-size:13px;color:${MUTED};">No tasks to show.</div>`);
+
+  const overlay = lines.length
+    ? `<div style="position:absolute;top:0;bottom:0;left:${labelW}px;right:0;pointer-events:none;">${lines.map(l =>
+      `<div style="position:absolute;left:${pct(l.at)};top:0;bottom:0;width:0;border-left:2px ${l.dash ? "dashed" : "solid"} ${l.color};"><span style="position:absolute;top:0;left:3px;font-size:10px;line-height:12px;white-space:nowrap;color:${l.color};background:rgba(255,255,255,0.85);padding:0 2px;">${tlhEsc(l.label)}</span></div>`).join("")}</div>`
+    : "";
+
+  const fragment = `<div style="${FONT}color:${INK};max-width:1400px;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+<div style="font-size:20px;font-weight:700;margin:0 0 2px;">${tlhEsc(title)}</div>
+<div style="font-size:12px;color:${MUTED};margin:0 0 8px;">${metaBits.join(" &middot; ")}</div>
+<div style="font-size:12px;margin:0 0 10px;">${legend}</div>
+<div style="overflow-x:auto;border:1px solid ${GRID};border-radius:4px;">
+<div style="min-width:900px;position:relative;background:#ffffff;">
+${head}
+${rows.join("\n")}
+${overlay}
+</div></div></div>`;
+
+  if (o.mode !== "page") return fragment;
+  return `<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${tlhEsc(title)}</title></head><body style="margin:16px;background:#ffffff;">\n${fragment}\n</body></html>\n`;
 }

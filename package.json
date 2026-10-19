@@ -1,6 +1,6 @@
 {
   "name": "proplan",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Single-file Gantt/phase planner. The app is Carpati Timeline.html; this package.json hosts the test runner + build/inline script.",
   "type": "module",
@@ -9,9 +9,13 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "build": "node scripts/build.mjs",
+    "version:sync": "node scripts/sync-version.mjs",
+    "release:patch": "node scripts/release.mjs patch",
+    "release:minor": "node scripts/release.mjs minor",
+    "release:major": "node scripts/release.mjs major",
     "tauri": "tauri",
     "app:dev": "tauri dev",
-    "app:build": "tauri build"
+    "app:build": "node scripts/build.mjs && tauri build"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",

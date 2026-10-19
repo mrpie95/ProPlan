@@ -76,3 +76,16 @@ describe('renumberWPs', () => {
     expect(after2).toEqual(after1);
   });
 });
+
+import { wpLabel, altBarRect, ALT_MS_ROW_H } from '../src/proplan-core.mjs';
+describe('wpLabel / slim milestone rows', () => {
+  it('normalises WP n to WPn for display', () => {
+    expect(wpLabel('WP 1 — Foo')).toBe('WP1 — Foo');
+    expect(wpLabel('WP12')).toBe('WP12');
+    expect(wpLabel('')).toBe('');
+  });
+  it('milestone diamond fits a slim row', () => {
+    const r = altBarRect({ id: 'm', type: 'milestone', startIdx: 1 }, 80, 0, 'L', ALT_MS_ROW_H);
+    expect(r.y).toBeGreaterThanOrEqual(0); expect(r.y + r.h).toBeLessThanOrEqual(ALT_MS_ROW_H);
+  });
+});

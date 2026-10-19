@@ -7,7 +7,7 @@ import {
   altBeginGesture, altFrozenReason, altSnapshot, altMoveBars, altResizeBar,
   altCreateBar, altAddEndMilestone, altSplitBar, altLinkBars, altUnlinkBars,
   altDeleteBars, altDuplicateBars, altBulkEdit, altAlignBars, altSelectionSummary,
-  altBarDates, altStartIdxFromDate, ALT_ROW_H, ALT_LANE_H,
+  altBarDates, altStartIdxFromDate, ALT_ROW_H, ALT_MS_ROW_H, ALT_LANE_H,
 } from '../src/proplan-core.mjs';
 
 function mk() {
@@ -65,7 +65,7 @@ describe('geometry', () => {
     const lay = altLayout(s, 80);
     expect(lay.rows.map(r => r.kind)).toEqual(['lane', 'bar', 'bar', 'bar', 'lane', 'bar', 'lane', 'empty']);
     expect(lay.rows[1].y).toBe(ALT_LANE_H);
-    expect(lay.height).toBe(3 * ALT_LANE_H + 4 * ALT_ROW_H + ALT_ROW_H);
+    expect(lay.height).toBe(3 * ALT_LANE_H + 3 * ALT_ROW_H + ALT_MS_ROW_H + ALT_ROW_H);
     expect(lay.width).toBe(12 * 80);
     expect(lay.rects).toHaveLength(4);
   });
@@ -250,7 +250,8 @@ describe('gesture decision table', () => {
     expect(altBeginGesture('split', hit(), {}, row, E)).toEqual({ kind: 'split', barId: 'a' });
     expect(altBeginGesture('split', hit({ milestone: true }), {}, row, E).kind).toBe('none');
     expect(altBeginGesture('lock', hit({ locked: true }), {}, row, E)).toEqual({ kind: 'toggle-lock', barId: 'a' });
-    expect(altBeginGesture('done', hit({ milestone: true }), {}, row, E).kind).toBe('none');
+    expect(altBeginGesture('lock', hit({ milestone: true }), {}, row, E)).toEqual({ kind: 'toggle-lock', barId: 'a' });
+    expect(altBeginGesture('done', hit({ milestone: true }), {}, row, E)).toEqual({ kind: 'toggle-done', barId: 'a' });
     expect(altBeginGesture('zoom', null, { alt: true }, null, E).kind).toBe('zoom-out');
   });
 });
@@ -553,5 +554,49 @@ describe('align + summary + dates', () => {
     expect(altFrozenReason({ type: 'ongoing' })).toBe('auto');
     expect(altFrozenReason({ type: 'milestone', followsEndOf: 'x' })).toBe('linked');
     expect(altFrozenReason({ type: 'work' })).toBeNull();
+  });
+});
+
+describe('altLayout without WP header rows', () => {
+  it('drops headers of expanded WPs with tasks, keeps collapsed and empty ones', () => {
+    const s = mk();
+    const lay = altLayout(s, 80, { laneHeaders: false, collapsed: new Set(['L2']) });
+    expect(lay.rows.map(r => r.kind + ':' + r.laneId)).toEqual(['bar:L1', 'bar:L1', 'bar:L1', 'lane:L2', 'lane:L3', 'empty:L3']);
+    expect(lay.height).toBe(2 * ALT_ROW_H + ALT_MS_ROW_H + ALT_LANE_H + ALT_LANE_H + ALT_ROW_H);
+    expect(lay.rectById.a.y).toBeCloseTo((ALT_ROW_H - 18) / 2, 5);
+  });
+});
+
+describe('milestone locks and layout filters', () => {
+  it('bulk edit can lock and unlock a milestone, which then freezes it', () => {
+    const s = mk();
+    expect(altBulkEdit(s, ['m'], { locked: true }).changed).toBe(1);
+    expect(bar(s, 'm').locked).toBe(true);
+    expect(altFrozenReason(bar(s, 'm'))).toBe('locked');
+    expect(altBulkEdit(s, ['m'], { locked: false }).changed).toBe(1);
+    expect(bar(s, 'm').locked).toBeUndefined();
+  });
+  it('altLayout barFilter drops hidden tasks and WPs whose tasks are all hidden', () => {
+    const s = mk();
+    const lay = altLayout(s, 80, { barFilter: (b) => b.type !== 'milestone' && b.id !== 'c' });
+    expect(lay.rects.map(r => r.barId)).toEqual(['a', 'b']);
+    expect(lay.rows.filter(r => r.kind === 'lane').map(r => r.laneId)).toEqual(['L1', 'L3']);   // L2 hidden, empty L3 kept
+  });
+  it('altLayout laneFilter accepts a predicate', () => {
+    const s = mk();
+    const lay = altLayout(s, 80, { laneFilter: (l) => l.id === 'L2' });
+    expect(lay.rects.map(r => r.barId)).toEqual(['c']);
+  });
+});
+
+describe('altLayout milestonesAtBottom', () => {
+  it('moves milestones under a Milestones section, ordered by date; WPs of only milestones disappear', () => {
+    const s = mk();
+    s.lanes[2].bars.push({ id: 'm9', type: 'milestone', startIdx: 0, span: 0, label: 'Only', dependsOn: [] });
+    const lay = altLayout(s, 80, { milestonesAtBottom: true, laneHeaders: false });
+    expect(lay.rows.map(r => (r.kind === 'section' ? 'section' : r.barId || r.kind))).toEqual(['a', 'b', 'c', 'section', 'm9', 'm']);
+    expect(lay.rows.at(-1).tail).toBe(true);
+    expect(lay.rects.map(r => r.barId)).toEqual(['a', 'b', 'c', 'm9', 'm']);
+    expect(lay.height).toBe(3 * ALT_ROW_H + ALT_LANE_H + 2 * ALT_ROW_H);
   });
 });

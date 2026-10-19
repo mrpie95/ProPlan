@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dependency Arrow Options</title>
+<style>
+:root{--bg:#f6f7f9;--panel:#fff;--text:#1d2330;--muted:#6b7385;--grid:#e6e9ef;--line:#8a93a6;--accent:#2f6fed;--danger:#d93a3a;--ok:#2a8a57;
+--c1:#cfe0ff;--c1b:#6a95e8;--c2:#d7f0df;--c2b:#5fb283;--c3:#fbe5c8;--c3b:#e0963d;--ms:#7a4fd6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12151c;--panel:#1b2029;--text:#e6e9f0;--muted:#98a1b5;--grid:#2a303c;--line:#7d879c;--accent:#6b9bff;--danger:#ff6b6b;--ok:#5cc58c;
+--c1:#27406f;--c1b:#6a95e8;--c2:#25503a;--c2b:#5fb283;--c3:#5a3f1c;--c3b:#e0963d;--ms:#a98cf5}}
+:root[data-theme="dark"]{--bg:#12151c;--panel:#1b2029;--text:#e6e9f0;--muted:#98a1b5;--grid:#2a303c;--line:#7d879c;--accent:#6b9bff;--danger:#ff6b6b;--ok:#5cc58c;
+--c1:#27406f;--c1b:#6a95e8;--c2:#25503a;--c2b:#5fb283;--c3:#5a3f1c;--c3b:#e0963d;--ms:#a98cf5}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+.wrap{max-width:1500px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 14px;max-width:80ch}
+.bar-top{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:14px}
+.tab,.btn{border:1px solid var(--grid);background:var(--panel);color:var(--text);padding:5px 10px;border-radius:7px;cursor:pointer;font:inherit;font-size:13px}
+.tab.on,.btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tab.reco{border-color:var(--ok)}
+.sp{flex:1}
+.cards{display:grid;grid-template-columns:1fr;gap:18px}
+.cards.grid{grid-template-columns:repeat(auto-fit,minmax(720px,1fr))}
+.cards:not(.grid) .card:not(.active){display:none}
+@media(max-width:760px){.cards.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--grid);border-radius:10px;padding:14px}
+.card h2{font-size:16px;margin:0 0 2px}
+.card .desc{color:var(--muted);margin:0 0 10px;font-size:13px}
+.scroll{overflow-x:auto;border:1px solid var(--grid);border-radius:8px;background:var(--bg)}
+.plot{position:relative;user-select:none}
+.lbl{position:absolute;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);display:flex;align-items:center;gap:4px}
+.lbl i{font-style:normal;font-size:9px;font-weight:700;padding:0 4px;border-radius:3px;color:#fff}
+.vl{position:absolute;top:0;bottom:0;width:1px;background:var(--grid)}
+.mh{position:absolute;top:2px;font-size:9.5px;color:var(--muted)}
+.hl{position:absolute;left:0;right:0;height:1px;background:var(--grid);opacity:.6}
+.bar{position:absolute;border-radius:4px;border:1px solid;transition:opacity .15s;cursor:pointer;font-size:10px;line-height:14px;padding:0 4px;overflow:hidden;white-space:nowrap}
+.bar.dim{opacity:.22}.bar.sel{outline:2px solid var(--accent);outline-offset:1px}
+.ms{position:absolute;width:13px;height:13px;transform:rotate(45deg);background:var(--ms);cursor:pointer;transition:opacity .15s}
+.ms.dim{opacity:.22}
+svg.ov{position:absolute;left:0;top:0;pointer-events:none;overflow:visible}
+.ov path{fill:none;transition:opacity .12s}
+.chip{position:absolute;font-size:9.5px;line-height:13px;padding:0 4px;border-radius:7px;color:#fff;background:var(--accent);cursor:pointer;white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis;z-index:3}
+.chip.ghost{background:var(--panel);color:var(--text);border:1px solid var(--line)}
+.chip.flash{outline:2px solid var(--danger);z-index:5}
+.pop{position:absolute;z-index:9;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font-size:11.5px;box-shadow:0 4px 14px rgba(0,0,0,.25);pointer-events:none;min-width:170px}
+.pop b{display:block;margin-bottom:2px}
+.pop .v{color:var(--danger)}
+.tools{display:flex;gap:4px;margin:0 0 8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.proc{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;margin-top:10px;font-size:13px}
+.proc div{padding:6px 8px;border-radius:6px;background:var(--bg)}
+.proc .pro b{color:var(--ok)}.proc .con b{color:var(--danger)}
+.eff{grid-column:1/3}
+code{background:var(--bg);padding:1px 5px;border-radius:4px;font-size:12px}
+.reco-box{margin-top:26px;background:var(--panel);border:2px solid var(--ok);border-radius:10px;padding:16px 18px}
+.reco-box h2{margin:0 0 6px}
+.reco-box table{border-collapse:collapse;width:100%;font-size:13px;margin-top:8px}
+.reco-box td,.reco-box th{border-top:1px solid var(--grid);padding:6px 8px;text-align:left;vertical-align:top}
+.leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:2px 0 10px}
+.leg span:before{content:"";display:inline-block;width:12px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle;background:var(--lc)}
+@media(max-width:700px){.proc{grid-template-columns:1fr}.eff{grid-column:1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Making Alt-timeline dependency arrows less invasive</h1>
+<p class="sub">Same 14-row mini project in every panel: 3 WPs, one task (Requirements) fanning out to 5 successors, a long cross-WP link (Prototype build &rarr; Final validation), a milestone, and one real violation (Pilot batch starts before Tooling ends). Hover or click bars; each panel is live. Panel 1 approximates today's behaviour.</p>
+<div class="bar-top" id="tabs"></div>
+<div class="cards" id="cards"></div>
+
+<div class="reco-box">
+<h2>Recommended combination</h2>
+<p style="margin:0">Your instinct is right, with one addition. Default <b>Dependencies: Selected</b> (the selection's full upstream/downstream chain) + <b>violations always red</b>, <b>hover previews</b> a task's chain in a lighter stroke (nothing is drawn when the mouse is on empty canvas), and any link that spans more than 3 rows (or is not between neighbouring rows) is never drawn as a curve but as <b>name-stubs</b> at both ends ("&larr; Prototype build"). Add a <b>slack-weighted</b> stroke when mode = All so "All" stays readable, and a hold-<code>D</code> key to flash everything. See the last tab, "Recommended", which is this combination.</p>
+<table>
+<tr><th>Piece</th><th>Where in the app</th></tr>
+<tr><td>Mode toggle (Off / Selected / All / Violations) in the options bar</td><td>New <code>atDepMode</code> var (persist in <code>localStorage["proplan.atDeps"]</code>, same try/catch pattern as other view prefs); button group in the Select-tool options bar renderer; <code>runCommand</code> id e.g. <code>altDeps:&lt;mode&gt;</code> + menu entry in <code>MENU_BAR</code> (core) so the native menu test stays green.</td></tr>
+<tr><td>Filter which edges are drawn</td><td><code>atDepsSvgHtml(lay)</code>: inside the existing double loop compute <code>invalid</code> first, then <code>show = invalid || mode==="all" || (mode==="selected" &amp;&amp; inChain(predId,bar.id))</code>. Add pure helper <code>altDepChain(lanes, ids)</code> (ancestors+descendants, edges on those paths) in <code>src/proplan-core.mjs</code> (+ <code>EXPORT_NAMES</code> in <code>scripts/build.mjs</code>, test in <code>tests/alttimeline.test.mjs</code>), and <code>altDepSlack(pred, succ)</code> for weighting.</td></tr>
+<tr><td>Hover preview</td><td><code>atHover(e)</code> already hit-tests: store <code>atHoverBar</code> and, only if it changed, re-run <code>atRenderDeps(lay)</code> (cheap: it only rebuilds the SVG; never <code>saveState()</code>, rule 1). Use class <code>.pv</code> (lighter) vs <code>.hl</code> (selected).</td></tr>
+<tr><td>Long-link stubs</td><td><code>atDepsSvgHtml</code>: if <code>Math.abs(rowOf(pred)-rowOf(succ)) &gt; 3</code> emit two small absolutely positioned chips (HTML appended after the SVG in <code>atRenderDeps</code>) instead of the path; chip click calls the existing select routine on the partner bar and scrolls it into view. Row indices are already in <code>lay.rectById</code> (y) / <code>lay.rows</code>.</td></tr>
+<tr><td>Slimmer strokes</td><td>CSS: <code>.at-dep</code> from 1.4px/.65 opacity to 1px/.35; keep <code>.at-dep.hl</code> (selected, accent 2px) and <code>.at-dep.invalid</code> (red dashed, always 1.0). Add <code>.at-dep.pv</code>. Replace the bezier in <code>atDepPath</code> with a short orthogonal gutter route (panel 3) for the shown edges so remaining arrows never cut through unrelated bars.</td></tr>
+<tr><td>Classic Timeline tab</td><td><code>renderArrows</code> / <code>renderArrowsIn</code>: same filter (selection is the dep-editor's selected bar); gate on a shared pref so both views behave alike. Optional, Effort M.</td></tr>
+</table>
+<p style="margin-bottom:0"><b>Total effort: M</b> (about half a day plus tests). The first slice (mode filter + violations + hover) is S and already removes ~90% of the noise.</p>
+</div>
+</div>
+
+<script>
+const U=46, LX=138, RH=26, BH=16, HH=20, MONTHS=12;
+const W=LX+MONTHS*U+10, H=HH+14*RH+6;
+const WP=[{n:"WP1",col:"1"},{n:"WP2",col:"2"},{n:"WP3",col:"3"}];
+// id,label,wp,row,start,dur,deps,milestone
+const T=[
+["t1","Requirements",0,0,0,2.5,[]],
+["t2","Concept design",0,1,2.5,3,["t1"]],
+["t3","Prototype build",0,2,5.5,4,["t2"]],
+["t4","Test plan",0,3,3,2,["t1"]],
+["t5","Design freeze",0,4,5.5,0,["t2"],1],
+["t6","Supplier select",1,5,3.5,2,["t1"]],
+["t7","Tooling",1,6,6,3,["t5","t6"]],
+["t8","Pilot batch",1,7,8.5,2,["t7"]],
+["t9","Packaging",1,8,3,3,["t1"]],
+["t10","Supplier OK",1,9,10.5,0,["t8"],1],
+["t11","Regulatory plan",2,10,2.5,2,["t1"]],
+["t12","Lab testing",2,11,6,3,["t4","t11"]],
+["t13","Cert submission",2,12,9.5,1.5,["t12","t9"]],
+["t14","Final validation",2,13,11,1,["t3","t13","t10"]]
+].map(a=>({id:a[0],label:a[1],wp:a[2],row:a[3],s:a[4],d:a[5],deps:a[6],ms:!!a[7]}));
+const byId=Object.fromEntries(T.map(t=>[t.id,t]));
+const end=t=>t.s+t.d;
+const E=[];
+T.forEach(t=>t.deps.forEach(p=>{const slack=t.s-end(byId[p]);E.push({p,s:t.id,slack,viol:slack<-0.01,dr:Math.abs(t.row-byId[p].row)});}));
+// tightest chain ending at the last task
+const crit=new Set();(function(){let cur="t14";crit.add(cur);while(byId[cur].deps.length){let best=null;byId[cur].deps.forEach(p=>{const sl=byId[cur].s-end(byId[p]);if(!best||sl<best.sl)best={p,sl};});crit.add(best.p);E.find(e=>e.p===best.p&&e.s===cur).crit=true;cur=best.p;}})();
+const preds=id=>byId[id].deps, succs=id=>T.filter(t=>t.deps.includes(id)).map(t=>t.id);
+function chain(id){const A=new Set([id]),D=new Set([id]);(function up(x){preds(x).forEach(p=>{if(!A.has(p)){A.add(p);up(p)}})})(id);(function dn(x){succs(x).forEach(s=>{if(!D.has(s)){D.add(s);dn(s)}})})(id);
+ return E.filter(e=>(A.has(e.p)&&A.has(e.s))||(D.has(e.p)&&D.has(e.s)));}
+function geo(t){const y=HH+t.row*RH+RH/2;const cx=LX+t.s*U;return t.ms?{x:cx-6,xo:cx+9,xi:cx-9,cx,y,w:12}:{x:cx,xo:cx+t.d*U,xi:cx,y,w:t.d*U};}
+function curve(e){const a=geo(byId[e.p]),b=geo(byId[e.s]);const x1=a.xo,y1=a.y,x2=b.xi,y2=b.y;const arc=Math.max(14,Math.min(90,Math.max((x2-x1)*.45,Math.abs(y2-y1)*.4)));
+ return {d:`M${x1} ${y1}C${x1+arc} ${y1},${x2-arc} ${y2},${x2} ${y2}`,pts:[x1,y1,x1+arc,y1,x2-arc,y2,x2,y2]};}
+function bez(p,t){const m=1-t;return [m*m*m*p[0]+3*m*m*t*p[2]+3*m*t*t*p[4]+t*t*t*p[6],m*m*m*p[1]+3*m*m*t*p[3]+3*m*t*t*p[5]+t*t*t*p[7]];}
+function ortho(e){const A=byId[e.p],B=byId[e.s];const a=geo(A),b=geo(B);const x1=a.xo,y1=a.y,x2=b.xi,y2=b.y;
+ if(A.row===B.row)return `M${x1} ${y1}H${x2}`;
+ const gy=B.row>A.row?HH+B.row*RH+1:HH+(B.row+1)*RH-1;const tx=x1+5+(e.i||0)*0;
+ return `M${x1} ${y1}H${tx}V${gy}H${x2-6}V${y2}H${x2}`;}
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n);
+const letter=id=>String.fromCharCode(64+ +id.slice(1));
+const tagCol=id=>["#2f6fed","#d9731a","#2a9d8f","#b5338a","#7a4fd6","#c0392b","#3b8e3b","#8a6d00","#0a7ea4","#6b5b95","#e07a8a","#4f7942","#a0522d","#555e9b"][+id.slice(1)-1];
+const short=s=>s.length>14?s.slice(0,13)+"…":s;
+const svg=(inner)=>`<svg class="ov" width="${W}" height="${H}">${inner}<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10z" fill="context-stroke"/></marker></defs></svg>`;
+const P=(d,stroke,w,op,extra="")=>`<path d="${d}" stroke="${stroke}" stroke-width="${w}" opacity="${op}" ${extra} marker-end="url(#ah)"/>`;
+const RED=e=>P(curve(e).d,"var(--danger)",1.8,1,'stroke-dasharray="5 3"');
+
+const OPTIONS=[
+{id:"today",name:"0. Today (baseline)",desc:"Every dependency as a bezier, the same density as the current Alt timeline. Violations dashed red.",
+ pro:"Complete picture at a glance on tiny projects.",con:"Fan-out and long links paint over unrelated rows and bar labels.",eff:"Already shipped: atDepPath, atDepsSvgHtml, .at-dep.",
+ draw:p=>({svg:E.map(e=>e.viol?RED(e):P(curve(e).d,"var(--line)",1.4,.65)).join("")})},
+{id:"focus",name:"1. Selected / hovered chain only",desc:"Nothing is drawn until you hover or click a bar; then only its upstream and downstream chain, everything else dims to ~0.",
+ pro:"Zero noise by default; shows exactly the question you asked (what blocks / what follows this).",con:"Cannot see the whole network; needs a hover to discover links.",eff:"S. atDepsSvgHtml (filter by chain + selection/hover), new pure altDepChain in core, atHover re-render on hover change, .at-dep.pv CSS.",
+ draw:p=>{const a=p.hover||p.sel;if(!a)return{svg:""};const c=chain(a),ids=new Set(c.flatMap(e=>[e.p,e.s]));ids.add(a);
+  return{svg:c.map(e=>e.viol?RED(e):P(curve(e).d,"var(--accent)",2,1)).join(""),dim:t=>!ids.has(t.id)};}},
+{id:"stubs",name:"2. Jump markers (stubs + coloured tags)",desc:"No lines. The predecessor gets a coloured dot + letter; every successor wears a chip with the same letter/colour. Click any marker to highlight its partners.",
+ pro:"Fan-out costs one dot instead of five curves; links never cross rows.",con:"You must read a tag and find the match; the eye can't follow flow.",eff:"M. New atDepStubsHtml (HTML chips from lay.rectById) replaces atDepsSvgHtml output in this mode; click handler selects partner bar + scrolls.",
+ draw:p=>{let h="";const sel=p.sel;const hasS=id=>succs(id).length;
+  T.forEach(t=>{const g=geo(t);if(hasS(t.id)){const on=!sel||sel===t.id;h+=`<div class="chip" data-id="${t.id}" style="left:${g.xo+3}px;top:${g.y-6}px;background:${tagCol(t.id)};opacity:${on?1:.25}">${letter(t.id)} &#9656;</div>`;}
+   t.deps.forEach(pid=>{const on=!sel||sel===pid||sel===t.id;h+=`<div class="chip" data-id="${pid}" style="left:${g.xi-24}px;top:${g.y-6}px;background:${tagCol(pid)};opacity:${on?1:.25};margin-left:${-(t.deps.indexOf(pid))*22}px">&#9656;${letter(pid)}</div>`;});});
+  return{html:h,svg:sel?succs(sel).concat(preds(sel)).length?E.filter(e=>e.p===sel||e.s===sel).map(e=>P(curve(e).d,"var(--accent)",1.6,.9)).join(""):"":""};},chips:true},
+{id:"ortho",name:"3. Gutter-routed, bundled, thin",desc:"Orthogonal routes that run only in the gaps between rows; edges from one task share the same trunk (edge bundling). 1px, low contrast, arrowhead only at the target.",
+ pro:"Never crosses a bar body; a fan-out reads as one tree.",con:"Still many lines on dense plans; routing code to maintain.",eff:"M. Replace atDepPath with an orthogonal router (gutter y from lay.rows), same signature; classic renderArrowsIn would need its own port.",
+ draw:p=>({svg:E.map(e=>e.viol?P(ortho(e),"var(--danger)",1.6,1,'stroke-dasharray="5 3"'):P(ortho(e),"var(--line)",1,.45,'stroke-linejoin="round"')).join("")})},
+{id:"crit",name:"4. Critical path only",desc:"Only the tightest (lowest-slack) chain to the last task is drawn, solid; other bars lightly dim. Violations still red.",
+ pro:"Answers 'what actually drives the end date' with 4 arrows.",con:"Hides all non-critical links; needs the app to compute the path (slack-based, so cheap).",eff:"S-M. New altCriticalEdges(state) in core (tight-slack backtrack from latest-ending bar); filter in atDepsSvgHtml.",
+ draw:p=>({svg:E.filter(e=>e.crit||e.viol).map(e=>e.viol?RED(e):P(curve(e).d,"var(--accent)",2.4,1)).join(""),dim:t=>!crit.has(t.id)&&false,soft:t=>!crit.has(t.id)})},
+{id:"badge",name:"5. Dependency badges + popover",desc:"A small '← 3' / '2 →' pill on each bar. Hover a badge for the list (with slack); click selects that chain. No lines at all.",
+ pro:"Compact, exact, great for dense plans and for tooltips on touch.",con:"No spatial feel of flow; lists are textual.",eff:"M. Badge HTML in the bar renderer (atBarHtml), popover reuse of the dep chips code in the inspector; no SVG needed.",
+ draw:p=>{let h="";T.forEach(t=>{const g=geo(t);const n=t.deps.length,m=succs(t.id).length;const bad=t.deps.some(pid=>E.find(e=>e.p===pid&&e.s===t.id).viol);
+  if(n)h+=`<div class="chip ${bad?"":"ghost"}" data-pop="${t.id}" style="left:${g.x-34}px;top:${g.y-6}px;${bad?"background:var(--danger)":""}">&larr; ${n}</div>`;
+  if(m)h+=`<div class="chip ghost" data-pop="${t.id}" style="left:${g.xo+4}px;top:${g.y-6}px">${m} &rarr;</div>`;});
+  return{html:h,svg:p.sel?chain(p.sel).map(e=>P(curve(e).d,"var(--accent)",1.6,.9)).join(""):""};},pop:true},
+{id:"short",name:"6. Short links drawn, long links named",desc:"Links between neighbouring rows are short curves; anything further becomes a stub that names the other task ('&larr; Prototype build').",
+ pro:"Removes exactly the lines that cross the canvas; still shows local flow.",con:"Mixed vocabulary (lines + chips); threshold needs a sane default.",eff:"S-M. atDepsSvgHtml: if row distance > N emit chips (lay.rectById y) instead of path; reuse for the final recommendation.",
+ draw:p=>{let s="",h="";const outCount={};E.forEach(e=>{if(e.dr<=1){s+=e.viol?RED(e):P(curve(e).d,"var(--line)",1.3,.7);}else{outCount[e.p]=(outCount[e.p]||0)+1;}});
+  E.filter(e=>e.dr>1).forEach(e=>{const b=geo(byId[e.s]);h+=`<div class="chip ghost" style="left:${b.xi-6-short(byId[e.p].label).length*5.2-16}px;top:${b.y-6}px">&larr; ${short(byId[e.p].label)}</div>`;});
+  Object.keys(outCount).forEach(id=>{const g=geo(byId[id]);const n=outCount[id];const names=E.filter(e=>e.p===id&&e.dr>1).map(e=>byId[e.s]);h+=`<div class="chip ghost" style="left:${g.xo+4}px;top:${g.y-6}px">${n>1?n+" tasks":short(names[0].label)} &rarr;</div>`;});
+  return{svg:s,html:h};}},
+{id:"toggle",name:"7. Toolbar toggle: Off / Selected / All / Violations",desc:"A four-state control in the options bar. Violations are always red in every state. Try each state.",
+ pro:"User decides how much to see; trivial mental model; matches Photoshop 'show guides' habits.",con:"A mode the user must discover; default matters a lot.",eff:"S. atDepMode var + persisted pref, option-bar buttons, filter in atDepsSvgHtml, runCommand id + MENU_BAR entry.",
+ tool:["off","selected","all","violations"],
+ draw:p=>{const m=p.mode||"selected";const a=p.hover||p.sel;let list=[];
+  if(m==="all")list=E;else if(m==="selected"&&a)list=chain(a);
+  const vs=E.filter(e=>e.viol);const ids=a&&m==="selected"?new Set(list.flatMap(e=>[e.p,e.s])):null;
+  const norm=list.filter(e=>!e.viol).map(e=>P(curve(e).d,m==="all"?"var(--line)":"var(--accent)",m==="all"?1.2:2,m==="all"?.6:1)).join("");
+  const red=(m==="off"?[]:vs).map(RED).join("");
+  return{svg:norm+red,dim:ids?(t=>!ids.has(t.id)):null};}},
+{id:"slack",name:"8. Slack-weighted strokes",desc:"All arrows, but weight and opacity follow slack: zero/negative slack = bold, a few weeks = medium, loose = hairline and nearly transparent.",
+ pro:"Importance is encoded in the line itself; loose links fade into the grid; still 'all links'.",con:"Still draws every curve; colour/width must be tuned for dark mode.",eff:"S. One-line change in atDepsSvgHtml via new altDepSlack(pred,succ); CSS custom props --dep-w/--dep-o per path.",
+ draw:p=>({svg:E.slice().sort((a,b)=>b.slack-a.slack).map(e=>{if(e.viol)return RED(e);const s=e.slack;const [w,o,c]=s<=.01?[2.2,.95,"var(--accent)"]:s<=.5?[1.6,.6,"var(--accent)"]:s<=1?[1.1,.3,"var(--line)"]:[.8,.14,"var(--line)"];return P(curve(e).d,c,w,o);}).join("")})},
+{id:"lens",name:"9. Proximity lens (creative)",desc:"Arrows fade in only near the cursor (about 100px radius), like a flashlight over the plot; far-away curves stay invisible.",
+ pro:"Zero clicks; exploring by moving the mouse reveals local dependencies anywhere.",con:"Hover only (no touch, no static screenshots/exports); per-mousemove cost grows with edges.",eff:"M. mousemove handler in atHover computing min distance to each path's sampled points (precompute in atDepsSvgHtml); set opacity via style only, no re-layout.",
+ draw:p=>{const m=p.mouse;return{svg:E.map(e=>{const c=curve(e);let dmin=1e9;if(m)for(let i=0;i<=12;i++){const q=bez(c.pts,i/12);dmin=Math.min(dmin,Math.hypot(q[0]-m[0],q[1]-m[1]));}
+  const o=e.viol?1:(m?Math.max(0,1-dmin/110):0);return e.viol?RED(e):P(c.d,"var(--accent)",1.8,o.toFixed(2));}).join(""),
+  html:m?`<div style="position:absolute;left:${m[0]-55}px;top:${m[1]-55}px;width:110px;height:110px;border-radius:50%;border:1px dashed var(--line);opacity:.35;pointer-events:none"></div>`:""};}},
+{id:"edgeport",name:"10. Port rails (creative)",desc:"Each row gets two tiny edge rails: a coloured tick at the left of every bar that has predecessors and at the right of every bar with successors, tick height = count. Hover a tick-pair to see the line; at rest nothing crosses rows.",
+ pro:"Very low ink; fan-in/fan-out visible as tick stacks; scales to hundreds of tasks.",con:"Another visual language to learn; weaker than text for 'who exactly'.",eff:"M. New port markers in atBarHtml; reuse chain draw from option 1 for the hover state.",
+ draw:p=>{let h="";T.forEach(t=>{const g=geo(t);const n=t.deps.length,m=succs(t.id).length;
+  if(n)h+=`<div style="position:absolute;left:${g.xi-4}px;top:${g.y-Math.min(8,n*3)}px;width:3px;height:${Math.min(16,n*6)}px;background:var(--ok);border-radius:2px"></div>`;
+  if(m)h+=`<div style="position:absolute;left:${g.xo+2}px;top:${g.y-Math.min(8,m*3)}px;width:3px;height:${Math.min(16,m*4)}px;background:var(--accent);border-radius:2px"></div>`;});
+  const a=p.hover||p.sel;return{html:h,svg:a?chain(a).map(e=>e.viol?RED(e):P(curve(e).d,"var(--accent)",1.8,.9)).join(""):"",dim:a?(t=>!new Set(chain(a).flatMap(e=>[e.p,e.s])).has(t.id)&&t.id!==a):null};}},
+{id:"reco",name:"Recommended: Selected + violations + hover preview + stubs for long links",desc:"Mode selector defaults to Selected. Hover previews a chain (lighter), click pins it. Violations always red. Links spanning more than 3 rows turn into named stubs instead of curves. Try 'Final validation' or 'Requirements'.",
+ pro:"Calm by default, rich on demand, honest about problems, never crosses the canvas.",con:"Two small modes to learn (toolbar + hover); All mode still busy (mitigate with slack weighting).",eff:"M overall: first slice (mode filter + violations + hover) is S.",
+ tool:["off","selected","all"],
+ draw:p=>{const m=p.mode||"selected";const pinned=p.sel,pv=p.hover&&p.hover!==p.sel?p.hover:null;let s="",h="";
+  const drawSet=(list,strong)=>list.forEach(e=>{if(e.viol)return;if(e.dr>3){const A=geo(byId[e.p]),B=geo(byId[e.s]);
+    h+=`<div class="chip ${strong?"":"ghost"}" data-id="${e.s}" style="left:${A.xo+4}px;top:${A.y-6}px">${short(byId[e.s].label)} &rarr;</div>`;
+    h+=`<div class="chip ${strong?"":"ghost"}" data-id="${e.p}" style="left:${B.xi-6-short(byId[e.p].label).length*5.4-14}px;top:${B.y-6}px">&larr; ${short(byId[e.p].label)}</div>`;}
+   else s+=P(curve(e).d,strong?"var(--accent)":"var(--accent)",strong?2:1.4,strong?1:.55);});
+  let ids=null;
+  if(m==="all"){E.filter(e=>!e.viol&&e.dr<=3).forEach(e=>{const w=e.slack<=.5?1.4:.9;s+=P(curve(e).d,"var(--line)",w,e.slack<=.5?.5:.22)});drawSet(E.filter(e=>e.dr>3),false);}
+  else if(m==="selected"){if(pinned){const c=chain(pinned);drawSet(c,true);ids=new Set(c.flatMap(e=>[e.p,e.s]));ids.add(pinned);}
+   if(pv){const c=chain(pv);drawSet(c,false);if(!pinned){ids=new Set(c.flatMap(e=>[e.p,e.s]));ids.add(pv);}}}
+  if(m!=="off")s+=E.filter(e=>e.viol).map(RED).join("");
+  return{svg:s,html:h,dim:ids?(t=>!ids.has(t.id)):null};}}
+];
+
+function buildPanel(o,idx){
+ const st={sel:null,hover:null,mouse:null,mode:o.tool?(o.id==="toggle"?"selected":"selected"):null};
+ const card=document.createElement("div");card.className="card"+(idx===0?" active":"");card.dataset.id=o.id;
+ const tools=o.tool?`<div class="tools">Dependencies: ${o.tool.map(m=>`<button class="btn${m===st.mode?" on":""}" data-m="${m}">${m[0].toUpperCase()+m.slice(1)}</button>`).join("")}<span>(violations stay red)</span></div>`:"";
+ card.innerHTML=`<h2>${o.name}</h2><p class="desc">${o.desc}</p>
+ <div class="leg"><span style="--lc:var(--c1b)">WP1</span><span style="--lc:var(--c2b)">WP2</span><span style="--lc:var(--c3b)">WP3</span><span style="--lc:var(--ms)">milestone</span><span style="--lc:var(--danger)">violation: Pilot batch starts before Tooling ends</span></div>${tools}
+ <div class="scroll"><div class="plot" style="width:${W}px;height:${H}px"></div></div>
+ <div class="proc"><div class="pro"><b>Pro.</b> ${o.pro}</div><div class="con"><b>Con.</b> ${o.con}</div><div class="eff"><b>Effort / what changes.</b> ${o.eff}</div></div>`;
+ const plot=card.querySelector(".plot");
+ // static layers
+ let base="";for(let m=0;m<=MONTHS;m++)base+=`<div class="vl" style="left:${LX+m*U}px"></div>`+(m<MONTHS?`<div class="mh" style="left:${LX+m*U+3}px">M${m+1}</div>`:"");
+ for(let r=0;r<=14;r++)base+=`<div class="hl" style="top:${HH+r*RH}px;${r===5||r===10?"opacity:1;background:var(--line)":""}"></div>`;
+ T.forEach(t=>{const g=geo(t);const w=WP[t.wp];
+  base+=`<div class="lbl" style="left:4px;top:${HH+t.row*RH}px;height:${RH}px;width:${LX-10}px"><i style="background:var(--c${w.col}b)">${w.n}</i>${t.label}</div>`;
+  base+=t.ms?`<div class="ms" data-b="${t.id}" style="left:${g.cx-6.5}px;top:${g.y-6.5}px"></div>`
+   :`<div class="bar" data-b="${t.id}" style="left:${g.x}px;top:${g.y-BH/2}px;width:${g.w}px;height:${BH}px;background:var(--c${w.col});border-color:var(--c${w.col}b)"></div>`;});
+ plot.innerHTML=base+'<div class="layer"></div><div class="hlayer"></div>';
+ const layer=plot.querySelector(".layer"),hl=plot.querySelector(".hlayer");
+ function redraw(){
+  const r=o.draw(st);
+  layer.innerHTML=(r.svg!==undefined?svg(r.svg):"");
+  hl.innerHTML=r.html||"";
+  plot.querySelectorAll("[data-b]").forEach(n=>{const t=byId[n.dataset.b];n.classList.toggle("dim",!!(r.dim&&r.dim(t)));n.classList.toggle("sel",st.sel===t.id);n.style.opacity=r.soft&&r.soft(t)?.55:"";});
+  hl.querySelectorAll(".chip").forEach(c=>{c.style.zIndex=3;});
+ }
+ plot.addEventListener("mouseover",e=>{const b=e.target.closest("[data-b]");const nid=b?b.dataset.b:null;if(nid!==st.hover&&(b||!e.target.closest(".chip"))){st.hover=nid;redraw();}});
+ plot.addEventListener("mouseleave",()=>{st.hover=null;st.mouse=null;redraw();});
+ plot.addEventListener("mousemove",e=>{if(o.id!=="lens")return;const r=plot.getBoundingClientRect();st.mouse=[e.clientX-r.left,e.clientY-r.top];redraw();});
+ plot.addEventListener("click",e=>{
+  const chip=e.target.closest(".chip");
+  if(chip&&chip.dataset.id){const id=chip.dataset.id;st.sel=o.id==="stubs"&&st.sel===id?null:id;redraw();
+    if(o.id==="stubs"){hl.querySelectorAll(".chip").forEach(c=>{if(c.dataset.id===id)c.classList.add("flash")});}return;}
+  const b=e.target.closest("[data-b]");st.sel=b?(st.sel===b.dataset.b?null:b.dataset.b):null;redraw();});
+ if(o.pop){const pop=document.createElement("div");pop.className="pop";pop.style.display="none";plot.appendChild(pop);
+  plot.addEventListener("mouseover",e=>{const c=e.target.closest("[data-pop]");if(!c){pop.style.display="none";return;}
+   const t=byId[c.dataset.pop];const lines=t.deps.map(p=>{const ed=E.find(x=>x.p===p&&x.s===t.id);return `<div class="${ed.viol?"v":""}">&larr; ${byId[p].label} <span style="color:var(--muted)">(slack ${ed.slack.toFixed(1)} mo)</span>${ed.viol?" violation":""}</div>`}).join("")+succs(t.id).map(s=>`<div>&rarr; ${byId[s].label}</div>`).join("");
+   pop.innerHTML=`<b>${t.label}</b>${lines}`;pop.style.display="block";pop.style.left=Math.min(W-200,parseFloat(c.style.left))+"px";pop.style.top=(parseFloat(c.style.top)+16)+"px";});}
+ card.querySelectorAll(".tools .btn").forEach(b=>b.onclick=()=>{st.mode=b.dataset.m;card.querySelectorAll(".tools .btn").forEach(x=>x.classList.toggle("on",x===b));redraw();});
+ redraw();return card;
+}
+const cards=document.getElementById("cards"),tabs=document.getElementById("tabs");
+OPTIONS.forEach((o,i)=>{cards.appendChild(buildPanel(o,i));
+ const b=document.createElement("button");b.className="tab"+(i===0?" on":"")+(o.id==="reco"?" reco":"");b.textContent=o.id==="reco"?"Recommended":(o.name.split(".")[0]+". "+o.name.split(". ")[1].split(" (")[0].split(":")[0].slice(0,26));
+ b.onclick=()=>{cards.classList.remove("grid");gridBtn.classList.remove("on");tabs.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===b));cards.querySelectorAll(".card").forEach(c=>c.classList.toggle("active",c.dataset.id===o.id));};
+ tabs.appendChild(b);});
+const sp=document.createElement("span");sp.className="sp";tabs.appendChild(sp);
+const gridBtn=document.createElement("button");gridBtn.className="btn";gridBtn.textContent="Compare all";
+gridBtn.onclick=()=>{const on=cards.classList.toggle("grid");gridBtn.classList.toggle("on",on);};tabs.appendChild(gridBtn);
+const th=document.createElement("button");th.className="btn";th.textContent="Light/Dark";
+th.onclick=()=>{const r=document.documentElement;const dark=r.dataset.theme?r.dataset.theme==="dark":matchMedia("(prefers-color-scheme:dark)").matches;r.dataset.theme=dark?"light":"dark";cards.querySelectorAll(".card").forEach(()=>{});};tabs.appendChild(th);
+</script>
+</body>
+</html>

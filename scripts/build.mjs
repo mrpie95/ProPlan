@@ -24,6 +24,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { stampBuild } from './stamp-build.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, '..');
@@ -40,6 +41,9 @@ const EXPORT_NAMES = [
   'listProcesses', 'exportProcessDef', 'serializeCustomProcesses', 'loadCustomProcesses',
   'getProcess', 'isProcessResolved', 'processPhase', 'processPhaseIndex', 'gateLabel',
   'mapPhaseCode', 'planProcessSwitch', 'applyProcessSwitch',
+  'NAV_VIEWS', 'NAV_LAYOUT', 'MENU_BAR', 'navViewIds', 'navGroupOfView', 'normalizeBetaViews', 'menuCommandIds',
+  'PROJECT_FILE_FORMAT', 'PROJECT_FILE_VERSION', 'PROJECT_FILE_EXT', 'projectFileSlug', 'isSafeProjectFilename',
+  'uniqueProjectFilename', 'serializeProjectFile', 'parseProjectFile', 'isFileNewerThanLocal',
   'PROPOSAL_HOURS_PER_WEEK', 'TYPES', 'LANE_TRACKS', 'TRACK_DEFAULTS',
   'SYSTEM_TRACK_SEEDS', 'NEW_PRODUCT_COLOR_PALETTE',
   'enabledTracks', 'isTrackEnabled', 'barTrack', 'barTracks',
@@ -57,7 +61,7 @@ const EXPORT_NAMES = [
   'projectSpanWeeks', 'syncOngoingBars', 'syncFollowsEndOf',
   'effSpan', 'barAllocPct', 'effortWeeks',
   'rnd1', 'fmtDur', 'laneEffWeeks',
-  'wpNameOnly', 'renumberWPs',
+  'wpNameOnly', 'wpLabel', 'renumberWPs',
   'normaliseState', 'spansToWeeks', 'buildBarMap',
   'isBleedingBar', 'phaseSpanCodes',
   'computePhaseRanges', 'computeAllProductPhaseRanges',
@@ -67,10 +71,14 @@ const EXPORT_NAMES = [
   'packLaneRows',
   'proposalBarCountsForHours', 'barHoursDist',
   'ACTIVITY_LOG_CAP', 'isDay', 'localDay', 'laneProgress', 'projectProgress',
-  'setBarDone', 'setLaneDone', 'setLaneNote',
+  'setBarDone', 'setBarStatus', 'barStatus', 'BAR_STATUSES', 'setLaneDone', 'setLaneNote',
   'recentActivity', 'groupActivityByDay', 'completionSummary', 'completionSeries',
+  // Versions & build tracking
+  'BUILD_HISTORY_CAP', 'parseSemver', 'bumpVersion', 'compareSemver', 'formatCommit',
+  'makeBuildEntry', 'appendBuildHistory', 'nextBuildNumber', 'formatVersionLabel',
+  'formatBuildInfo', 'changelogStub', 'insertChangelogEntry',
   // Alt timeline (tool-rail editor)
-  'ALT_ROW_H', 'ALT_LANE_H', 'ALT_BAR_H', 'ALT_EDGE_PX', 'ALT_MIN_EFF_WEEKS', 'ALT_GRIDS',
+  'ALT_ROW_H', 'ALT_MS_ROW_H', 'ALT_LANE_H', 'ALT_BAR_H', 'ALT_EDGE_PX', 'ALT_MIN_EFF_WEEKS', 'ALT_GRIDS',
   'ALT_TOOLS', 'ALT_TYPE_DIGITS', 'ALT_CURSORS', 'ALT_BULK_FIELDS', 'ALT_ZOOM_MIN', 'ALT_ZOOM_MAX',
   'altToolById', 'altToolForKey', 'altToolAllowed', 'altResolveTool', 'altSwitchTool',
   'altBarRect', 'altLayout', 'altRowAt', 'altWeekAt', 'altHitTest', 'altNormBox',
@@ -80,6 +88,10 @@ const EXPORT_NAMES = [
   'altCreateBar', 'altAddEndMilestone', 'altSplitBar', 'altLinkBars', 'altUnlinkBars',
   'altDeleteBars', 'altDuplicateBars', 'altBulkEdit', 'altAlignBars', 'altSelectionSummary',
   'altBarDates', 'altStartIdxFromDate',
+  'TIMELINE_CONTROLS', 'launchMarkers', 'exportTimelineHtml', 'altTaskCodes', 'altDepEdges', 'TIMELINE_CONTROL_VIEWS', 'timelineControlsFor',
+  // View card presets
+  'VIEW_DEFAULTS', 'VIEW_PRESETS', 'VIEW_MONTH_PRESETS', 'viewPresetById', 'matchViewPreset', 'viewPresetPatch',
+  'ALT_MONTHS_MIN', 'ALT_MONTHS_MAX', 'ALT_MONTHS_LADDER', 'ALT_COLW_MIN', 'altClampMonths', 'altEffMonths', 'altColWForMonths', 'altMonthsStep', 'altMonthsForSpan', 'altParseMonths',
 ];
 
 /* Names that the HTML defines its own thin wrapper for (passing the global
@@ -160,6 +172,10 @@ if (hasMarkers) {
   console.error(`    ${moduleImportLine}`);
   process.exit(1);
 }
+
+// Version + build tracking: syncs the Tauri version files, bumps the build
+// number in build-info.json and stamps `const BUILD_INFO` into the HTML.
+html = stampBuild(html);
 
 writeFileSync(HTML_PATH, html);
 const sizeMb = (html.length / 1024 / 1024).toFixed(2);
