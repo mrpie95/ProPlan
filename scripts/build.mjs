@@ -1,0 +1,182 @@
+#!/usr/bin/env node
+/* Re-inline src/proplan-core.mjs into Carpati Timeline.html.
+ *
+ * Workflow:
+ *   1. Edit src/proplan-core.mjs (logic) and/or Carpati Timeline.html (UI).
+ *   2. Run `npm run build`.
+ *   3. The HTML's inlined module block is replaced with a fresh build.
+ *
+ * The canonical HTML is the inlined one — it runs from file:// without a
+ * server. The .mjs is the source of truth for testing.
+ *
+ * The block to be replaced is delimited by these markers:
+ *
+ *   // === BEGIN INLINED proplan-core.mjs ===
+ *   ... module body ...
+ *   const Core = { ... };
+ *   // === END INLINED proplan-core.mjs ===
+ *
+ * On a fresh dev HTML that still has `import * as Core from './src/proplan-core.mjs';`
+ * we replace THAT line with the marker block. Subsequent runs replace
+ * everything between the markers.
+ */
+
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { stampBuild } from './stamp-build.mjs';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(here, '..');
+const HTML_PATH = resolve(ROOT, 'Carpati Timeline.html');
+const MODULE_PATH = resolve(ROOT, 'src', 'proplan-core.mjs');
+
+const BEGIN = '// === BEGIN INLINED proplan-core.mjs ===';
+const END = '// === END INLINED proplan-core.mjs ===';
+
+const EXPORT_NAMES = [
+  'WEEKS_PER_MONTH', 'PHASE_ORDER', 'PHASE_CODES_IN_ORDER', 'MONTH_NAMES',
+  'DEFAULT_PROCESS_ID', 'SOP18_PROCESS', 'STAGE_GATE_PROCESS', 'NO_PROCESS',
+  'validateProcessDef', 'registerProcess', 'unregisterProcess', 'getProcessById',
+  'listProcesses', 'exportProcessDef', 'serializeCustomProcesses', 'loadCustomProcesses',
+  'getProcess', 'isProcessResolved', 'processPhase', 'processPhaseIndex', 'gateLabel',
+  'mapPhaseCode', 'planProcessSwitch', 'applyProcessSwitch',
+  'NAV_VIEWS', 'NAV_LAYOUT', 'MENU_BAR', 'navViewIds', 'navGroupOfView', 'normalizeBetaViews', 'menuCommandIds',
+  'PROJECT_FILE_FORMAT', 'PROJECT_FILE_VERSION', 'PROJECT_FILE_EXT', 'projectFileSlug', 'isSafeProjectFilename',
+  'uniqueProjectFilename', 'serializeProjectFile', 'parseProjectFile', 'isFileNewerThanLocal',
+  'PROPOSAL_HOURS_PER_WEEK', 'TYPES', 'LANE_TRACKS', 'TRACK_DEFAULTS',
+  'SYSTEM_TRACK_SEEDS', 'NEW_PRODUCT_COLOR_PALETTE',
+  'enabledTracks', 'isTrackEnabled', 'barTrack', 'barTracks',
+  'getProductTracks', 'getContinuousTracks', 'getTrackById',
+  'getTrackActivePhase', 'setTrackActivePhase',
+  'defaultColorForNewTrack',
+  'addProduct', 'removeTrack', 'renameTrack',
+  'NEW_DISCIPLINE_COLOR_PALETTE',
+  'getDisciplines', 'getDisciplineById',
+  'addDiscipline', 'removeDiscipline', 'renameDiscipline',
+  'defaultColorForNewDiscipline',
+  'barDiscipline',
+  'lid', 'bid',
+  'parseYM', 'toDateInputValue', 'monthsBetween',
+  'projectSpanWeeks', 'syncOngoingBars', 'syncFollowsEndOf',
+  'effSpan', 'barAllocPct', 'effortWeeks',
+  'rnd1', 'fmtDur', 'laneEffWeeks',
+  'wpNameOnly', 'wpLabel', 'renumberWPs',
+  'normaliseState', 'spansToWeeks', 'buildBarMap',
+  'isBleedingBar', 'phaseSpanCodes',
+  'computePhaseRanges', 'computeAllProductPhaseRanges',
+  'computePhaseGates', 'computeAllProductPhaseGates',
+  'enforcePhaseOrder',
+  'topoOrder', 'createsCycle', 'autoSequence',
+  'packLaneRows',
+  'proposalBarCountsForHours', 'barHoursDist',
+  'ACTIVITY_LOG_CAP', 'isDay', 'localDay', 'laneProgress', 'projectProgress',
+  'setBarDone', 'setBarStatus', 'barStatus', 'BAR_STATUSES', 'setLaneDone', 'setLaneNote',
+  'recentActivity', 'groupActivityByDay', 'completionSummary', 'completionSeries',
+  // Versions & build tracking
+  'BUILD_HISTORY_CAP', 'parseSemver', 'bumpVersion', 'compareSemver', 'formatCommit',
+  'makeBuildEntry', 'appendBuildHistory', 'nextBuildNumber', 'formatVersionLabel',
+  'formatBuildInfo', 'changelogStub', 'insertChangelogEntry',
+  // Alt timeline (tool-rail editor)
+  'ALT_ROW_H', 'ALT_MS_ROW_H', 'ALT_LANE_H', 'ALT_BAR_H', 'ALT_EDGE_PX', 'ALT_MIN_EFF_WEEKS', 'ALT_GRIDS',
+  'ALT_TOOLS', 'ALT_TYPE_DIGITS', 'ALT_CURSORS', 'ALT_BULK_FIELDS', 'ALT_ZOOM_MIN', 'ALT_ZOOM_MAX',
+  'altToolById', 'altToolForKey', 'altToolAllowed', 'altResolveTool', 'altSwitchTool',
+  'altBarRect', 'altLayout', 'altRowAt', 'altWeekAt', 'altHitTest', 'altNormBox',
+  'altMarqueeSelect', 'altSelectClick',
+  'altSnapGrid', 'altEdgeWeeks', 'altSnapPoint', 'altSnapMove', 'altZoomColW', 'altZoomToRange',
+  'altBeginGesture', 'altFrozenReason', 'altSnapshot', 'altMoveBars', 'altResizeBar',
+  'altCreateBar', 'altAddEndMilestone', 'altSplitBar', 'altLinkBars', 'altUnlinkBars',
+  'altDeleteBars', 'altDuplicateBars', 'altBulkEdit', 'altAlignBars', 'altSelectionSummary',
+  'altBarDates', 'altStartIdxFromDate',
+  'TIMELINE_CONTROLS', 'launchMarkers', 'exportTimelineHtml', 'altTaskCodes', 'altDepEdges', 'TIMELINE_CONTROL_VIEWS', 'timelineControlsFor',
+  // View card presets
+  'VIEW_DEFAULTS', 'VIEW_PRESETS', 'VIEW_MONTH_PRESETS', 'viewPresetById', 'matchViewPreset', 'viewPresetPatch',
+  'ALT_MONTHS_MIN', 'ALT_MONTHS_MAX', 'ALT_MONTHS_LADDER', 'ALT_COLW_MIN', 'altClampMonths', 'altEffMonths', 'altColWForMonths', 'altMonthsStep', 'altMonthsForSpan', 'altParseMonths',
+];
+
+/* Names that the HTML defines its own thin wrapper for (passing the global
+   `state` etc.). When inlined into the same scope, the wrapper's function
+   declaration would be hoisted and OVERRIDE the module's same-name
+   declaration. The Core namespace would then capture the wrapper instead of
+   the pure function, and any wrapper that calls `Core.xxx(state)` would
+   stack-overflow.
+   Fix: rename ALL references to these inside the module body to a `_core_`
+   prefix, then build the Core namespace using shorthand-with-rename. */
+const CONFLICTS = [
+  'renumberWPs',
+  'autoSequence',
+  'buildBarMap',
+  'enforcePhaseOrder',
+  'computePhaseRanges',
+  'computePhaseGates',
+  'proposalBarCountsForHours',
+  'phaseSpanCodes',
+  'isBleedingBar',
+];
+
+let html = readFileSync(HTML_PATH, 'utf8');
+const moduleSrc = readFileSync(MODULE_PATH, 'utf8');
+
+// Strip `export ` keywords so the module body becomes valid in a non-module
+// <script>. We don't have top-level `import` statements in the module.
+let stripped = moduleSrc.replace(/^export\s+/gm, '').trimEnd();
+
+// Prefix every reference to a CONFLICTS name with `_core_` so they don't
+// collide with the HTML's wrapper functions of the same name. \b ensures we
+// don't rename substrings of unrelated identifiers.
+for (const name of CONFLICTS) {
+  stripped = stripped.replace(new RegExp(`\\b${name}\\b`, 'g'), `_core_${name}`);
+}
+
+// Build the Core namespace. Conflicting names use shorthand-with-rename so
+// callers can still do `Core.renumberWPs(state)` and reach the renamed impl.
+const namespaceEntries = EXPORT_NAMES.map(name =>
+  CONFLICTS.includes(name) ? `${name}: _core_${name}` : name
+);
+const block = [
+  BEGIN,
+  stripped,
+  `const Core = { ${namespaceEntries.join(', ')} };`,
+  END,
+].join('\n');
+
+const hasMarkers = html.includes(BEGIN) && html.includes(END);
+const moduleImportLine = "import * as Core from './src/proplan-core.mjs';";
+
+if (hasMarkers) {
+  const before = html.slice(0, html.indexOf(BEGIN));
+  const after = html.slice(html.indexOf(END) + END.length);
+  html = before + block + after;
+  console.log('✓ Replaced existing inlined block.');
+} else if (html.includes(moduleImportLine)) {
+  html = html.replace(moduleImportLine, block);
+  // Switch the script tag from module → regular so the inlined body works
+  // in a top-level scope.
+  html = html.replace('<script type="module">', '<script>');
+  // The dev HTML destructures Core into bare names with `const { ... } = Core;`.
+  // After inlining, those names ARE already top-level consts (from the module
+  // body), so the destructure would re-declare them → SyntaxError. Strip it.
+  html = html.replace(/const \{[^}]*\} = Core;\n?/, '');
+  // The dev HTML also does `Object.assign(window, Core)` to expose every
+  // export on window. AFTER inlining that overwrites the hoisted wrapper
+  // functions on window with the renamed module impls, so bare-name calls
+  // skip the wrappers and pass no state — crash on `state.lanes`. Swap it
+  // for an inert assignment that still exposes Core for debugging.
+  html = html.replace(/Object\.assign\(window, Core\);/, 'window.Core = Core;');
+  console.log('✓ Converted dev HTML (module import) to inlined form.');
+} else {
+  console.error('✗ Could not find inlined-block markers OR the module import line.');
+  console.error(`  Expected one of:`);
+  console.error(`    ${BEGIN}\n    ${END}`);
+  console.error(`  or:`);
+  console.error(`    ${moduleImportLine}`);
+  process.exit(1);
+}
+
+// Version + build tracking: syncs the Tauri version files, bumps the build
+// number in build-info.json and stamps `const BUILD_INFO` into the HTML.
+html = stampBuild(html);
+
+writeFileSync(HTML_PATH, html);
+const sizeMb = (html.length / 1024 / 1024).toFixed(2);
+console.log(`✓ Wrote ${HTML_PATH} (${sizeMb} MB)`);

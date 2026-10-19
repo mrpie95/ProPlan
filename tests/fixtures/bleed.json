@@ -1,0 +1,20 @@
+{
+  "_comment": "Bleed (phase=DP, phaseEnd=DO) and extendsPhase combos used to verify computePhaseRanges + enforcePhaseOrder semantics. The DO_after task should NOT be pushed by the bleed's tail (per the bleed semantics: end contributes to phaseEnd, not phase).",
+  "start": "2026-01",
+  "end": "2027-12",
+  "colWidth": 60,
+  "lanes": [
+    {
+      "id": "l1",
+      "code": "WP 1 — Bleed cases",
+      "desc": "Engineering",
+      "bars": [
+        { "id": "prs_anchor", "type": "work", "startIdx": 0, "span": 4, "buffer": 0, "label": "PRS-anchor", "dependsOn": [], "phase": "PRS" },
+        { "id": "dp_plain", "type": "work", "startIdx": 1, "span": 4, "buffer": 0, "label": "DP-plain", "dependsOn": [], "phase": "DP" },
+        { "id": "dp_bleed_to_do", "type": "work", "startIdx": 1.5, "span": 8, "buffer": 0, "label": "Bleed DP->DO", "dependsOn": [], "phase": "DP", "phaseEnd": "DO" },
+        { "id": "do_after", "type": "work", "startIdx": 0, "span": 4, "buffer": 0, "label": "DO-after", "dependsOn": [], "phase": "DO" },
+        { "id": "dp_extends", "type": "work", "startIdx": 1, "span": 12, "buffer": 0, "label": "Long test (extendsPhase)", "dependsOn": [], "phase": "DP", "extendsPhase": true }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,409 @@
+{
+  "lastBuild": 60,
+  "history": [
+    {
+      "build": 11,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:01:30.325Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 12,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:01:48.730Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 13,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:02:01.105Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 14,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:02:46.714Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing",
+      "testsPassing": 336
+    },
+    {
+      "build": 15,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:07:16.521Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 16,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:07:36.457Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing",
+      "testsPassing": 337
+    },
+    {
+      "build": 17,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:09:22.616Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 18,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:15:18.849Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 19,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:16:09.991Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 20,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:21:22.533Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 21,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:22:00.520Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 22,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:22:19.264Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 23,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:25:58.967Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 24,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:27:37.937Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 25,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:27:54.994Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 26,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:28:55.438Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 27,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:30:32.618Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 28,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:34:00.813Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 29,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:35:57.522Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 30,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:42:20.163Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 31,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:44:06.910Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 32,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:55:08.595Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 33,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:57:08.866Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 34,
+      "version": "0.2.0",
+      "date": "2026-10-19T09:57:42.011Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 35,
+      "version": "0.2.0",
+      "date": "2026-10-19T10:07:58.376Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 36,
+      "version": "0.2.0",
+      "date": "2026-10-19T10:13:08.403Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 37,
+      "version": "0.2.0",
+      "date": "2026-10-19T10:58:40.815Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 38,
+      "version": "0.2.0",
+      "date": "2026-10-19T11:00:07.057Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 39,
+      "version": "0.2.0",
+      "date": "2026-10-19T11:08:49.489Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 40,
+      "version": "0.2.0",
+      "date": "2026-10-19T11:10:03.324Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 41,
+      "version": "0.2.0",
+      "date": "2026-10-19T11:11:06.205Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 42,
+      "version": "0.2.0",
+      "date": "2026-10-19T11:12:39.298Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 43,
+      "version": "0.2.0",
+      "date": "2026-10-19T11:16:53.499Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 44,
+      "version": "0.2.0",
+      "date": "2026-10-19T11:20:04.279Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 45,
+      "version": "0.2.0",
+      "date": "2026-10-19T11:20:13.572Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 46,
+      "version": "0.2.0",
+      "date": "2026-10-19T11:36:33.134Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 47,
+      "version": "0.2.0",
+      "date": "2026-10-19T12:02:47.368Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 48,
+      "version": "0.2.0",
+      "date": "2026-10-19T12:07:21.030Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 49,
+      "version": "0.2.0",
+      "date": "2026-10-19T12:13:13.210Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 50,
+      "version": "0.2.0",
+      "date": "2026-10-19T12:13:54.276Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 51,
+      "version": "0.2.0",
+      "date": "2026-10-19T12:14:11.478Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 52,
+      "version": "0.2.0",
+      "date": "2026-10-19T12:14:15.887Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 53,
+      "version": "0.2.0",
+      "date": "2026-10-19T12:14:48.174Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 54,
+      "version": "0.2.0",
+      "date": "2026-10-19T12:15:21.075Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 55,
+      "version": "0.2.0",
+      "date": "2026-10-19T14:37:44.454Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 56,
+      "version": "0.2.0",
+      "date": "2026-10-19T14:41:11.817Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 57,
+      "version": "0.2.0",
+      "date": "2026-10-19T14:43:35.146Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 58,
+      "version": "0.2.0",
+      "date": "2026-10-19T14:43:55.141Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing",
+      "testsPassing": 373
+    },
+    {
+      "build": 59,
+      "version": "0.2.0",
+      "date": "2026-10-19T15:05:50.184Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 60,
+      "version": "0.2.0",
+      "date": "2026-10-19T15:59:06.692Z",
+      "commit": "6fa9bdf",
+      "dirty": true,
+      "branch": "add-testing",
+      "testsPassing": 373
+    }
+  ]
+}

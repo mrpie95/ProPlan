@@ -1,0 +1,18 @@
+{
+  "_comment": "A v3-shaped state where spans are in MONTHS (not weeks). spansToWeeks should multiply each span by 4 (and clamp to >= 1).",
+  "start": "2026-01",
+  "end": "2026-12",
+  "colWidth": 60,
+  "lanes": [
+    {
+      "id": "l1",
+      "code": "WP 1 — v3 sample",
+      "desc": "Engineering",
+      "bars": [
+        { "id": "a", "type": "work", "startIdx": 0, "span": 2, "buffer": 0, "label": "2 months", "dependsOn": [] },
+        { "id": "b", "type": "work", "startIdx": 2, "span": 0.5, "buffer": 0, "label": "Half month", "dependsOn": ["a"] },
+        { "id": "ms", "type": "milestone", "startIdx": 6, "span": 0, "buffer": 0, "label": "MS", "dependsOn": [] }
+      ]
+    }
+  ]
+}

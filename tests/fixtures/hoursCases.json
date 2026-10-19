@@ -1,0 +1,21 @@
+{
+  "_comment": "Bars positioned to exercise the calendar-month proration logic in barHoursDist. Used by tests/hours.test.mjs.",
+  "start": "2026-01",
+  "end": "2027-12",
+  "colWidth": 60,
+  "lanes": [
+    {
+      "id": "l1",
+      "code": "WP 1 — Hours cases",
+      "desc": "Engineering",
+      "bars": [
+        { "id": "intra", "type": "work", "startIdx": 2.0, "span": 4, "buffer": 0, "label": "Whole month (Mar)", "dependsOn": [] },
+        { "id": "splitMonths", "type": "work", "startIdx": 2.5, "span": 4, "buffer": 0, "label": "Half Mar + half Apr", "dependsOn": [] },
+        { "id": "yearCross", "type": "work", "startIdx": 11.5, "span": 4, "buffer": 0, "label": "Half Dec + half Jan", "dependsOn": [] },
+        { "id": "withBuffer", "type": "work", "startIdx": 1.0, "span": 4, "buffer": 25, "label": "Feb 4wk + 25% buffer", "dependsOn": [] },
+        { "id": "msMarker", "type": "milestone", "startIdx": 6.0, "span": 0, "buffer": 0, "label": "MS-anchor", "dependsOn": [] },
+        { "id": "leadtime", "type": "leadtime", "startIdx": 3.0, "span": 4, "buffer": 0, "label": "Lead time", "dependsOn": [] }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,698 @@
+{
+  "start": "2026-06-08",
+  "end": "2027-04-17",
+  "colWidth": 118,
+  "activePhase": null,
+  "lanes": [
+    {
+      "id": "ldn0dx67",
+      "code": "WP 1 — Project Management",
+      "desc": "PL",
+      "bars": [
+        {
+          "id": "bpl2ad81",
+          "type": "work",
+          "startIdx": 5.3,
+          "span": 2,
+          "label": "Rubber Interface OQ",
+          "dependsOn": [
+            "brpqgmhc"
+          ],
+          "phase": "DO",
+          "buffer": 30,
+          "alloc": 0,
+          "track": "product-2",
+          "locked": false
+        },
+        {
+          "id": "blncy5on",
+          "type": "work",
+          "startIdx": 8,
+          "span": 3,
+          "label": "New Switch OQ",
+          "dependsOn": [
+            "bhuva3lc"
+          ],
+          "phase": "DO",
+          "buffer": 30,
+          "alloc": 10,
+          "locked": false
+        },
+        {
+          "id": "ba4jtlv9",
+          "type": "milestone",
+          "startIdx": 8.975,
+          "span": 0,
+          "label": "Product 1 - OQ Batch Signed",
+          "dependsOn": [],
+          "buffer": 10,
+          "alloc": 100,
+          "phase": "DO",
+          "followsEndOf": "blncy5on"
+        },
+        {
+          "id": "bbu884k9",
+          "type": "work",
+          "startIdx": 5.95,
+          "span": 0.5,
+          "label": "Rubber Interface QRR",
+          "dependsOn": [
+            "bpl2ad81"
+          ],
+          "phase": "FP",
+          "buffer": 0,
+          "alloc": 10,
+          "locked": false,
+          "track": "product-2"
+        },
+        {
+          "id": "b4vgxe6e",
+          "type": "work",
+          "startIdx": 6.075,
+          "span": 1,
+          "label": "Rubber Interface PLR",
+          "dependsOn": [
+            "bbu884k9"
+          ],
+          "phase": "FP",
+          "buffer": 0,
+          "alloc": 10,
+          "locked": false,
+          "track": "product-2"
+        },
+        {
+          "id": "bs37kgnz",
+          "type": "milestone",
+          "startIdx": 5.95,
+          "span": 0,
+          "label": "Product 2 - QO Batch Signed",
+          "dependsOn": [],
+          "phase": "DO",
+          "locked": true,
+          "buffer": 10,
+          "alloc": 100,
+          "followsEndOf": "bpl2ad81",
+          "track": "product-2"
+        },
+        {
+          "id": "bgaqd8mk",
+          "type": "work",
+          "startIdx": 9.75,
+          "span": 1,
+          "label": "New Switch QRR",
+          "dependsOn": [
+            "blncy5on"
+          ],
+          "phase": "FP",
+          "buffer": 0,
+          "alloc": 10
+        },
+        {
+          "id": "bo8jtfrb",
+          "type": "work",
+          "startIdx": 10,
+          "span": 1,
+          "label": "New Switch PLR",
+          "dependsOn": [
+            "bgaqd8mk"
+          ],
+          "phase": "FP",
+          "buffer": 0,
+          "alloc": 10
+        },
+        {
+          "id": "bduwtf86",
+          "type": "ongoing",
+          "startIdx": 0,
+          "span": 41,
+          "label": "Project Leading",
+          "dependsOn": [],
+          "buffer": 0,
+          "alloc": 35,
+          "phase": null
+        }
+      ],
+      "track": "product"
+    },
+    {
+      "id": "lwwttesn",
+      "code": "WP 2 — New rubber interface",
+      "desc": "Mechanical / Design",
+      "bars": [
+        {
+          "id": "bcqh3lpf",
+          "type": "milestone",
+          "startIdx": 0,
+          "span": 0,
+          "label": "Tech Spec Signed",
+          "dependsOn": [],
+          "phase": "PRS",
+          "buffer": 10,
+          "alloc": 100,
+          "locked": false
+        },
+        {
+          "id": "bhromyg0",
+          "type": "work",
+          "startIdx": 0.375,
+          "span": 1,
+          "buffer": 10,
+          "label": "Technical specifications",
+          "dependsOn": [
+            "b0oihq4n"
+          ],
+          "phase": "PRS",
+          "alloc": 30
+        },
+        {
+          "id": "brdyc63t",
+          "type": "milestone",
+          "startIdx": 0.75,
+          "span": 0,
+          "label": "Prototype Verified",
+          "dependsOn": [],
+          "phase": "DP",
+          "buffer": 10,
+          "alloc": 100,
+          "locked": false
+        },
+        {
+          "id": "bp98xfnp",
+          "type": "work",
+          "startIdx": 0.65,
+          "span": 3,
+          "buffer": 40,
+          "label": "Iterative prototype",
+          "dependsOn": [
+            "bhromyg0"
+          ],
+          "phase": "DP",
+          "alloc": 30
+        },
+        {
+          "id": "bthzgj1a",
+          "type": "leadtime",
+          "startIdx": 1.6999999999999997,
+          "span": 6,
+          "buffer": 30,
+          "label": "Order tooling and review",
+          "dependsOn": [
+            "bp98xfnp"
+          ],
+          "phase": "DP",
+          "alloc": 30
+        }
+      ],
+      "track": "product-2"
+    },
+    {
+      "id": "lagk2t9p",
+      "code": "WP 3 — New switch-mode filter",
+      "desc": "Mechanical / Design",
+      "bars": [
+        {
+          "id": "bhvqg7s3",
+          "type": "work",
+          "startIdx": 0.375,
+          "span": 1,
+          "buffer": 10,
+          "label": "Techincal specification",
+          "dependsOn": [
+            "byrn0bso",
+            "b0oihq4n",
+            "bl750z3v"
+          ],
+          "phase": "PRS",
+          "alloc": 30
+        },
+        {
+          "id": "ba8wku11",
+          "type": "work",
+          "startIdx": 1,
+          "span": 9,
+          "buffer": 40,
+          "label": "Iterate prototype",
+          "dependsOn": [
+            "bhvqg7s3"
+          ],
+          "phase": "DP",
+          "alloc": 30
+        },
+        {
+          "id": "bhuva3lc",
+          "type": "leadtime",
+          "startIdx": 4.15,
+          "span": 8,
+          "buffer": 60,
+          "label": "tooling and review",
+          "dependsOn": [
+            "ba8wku11"
+          ],
+          "phase": "DP",
+          "extendsPhase": true,
+          "alloc": 30
+        },
+        {
+          "id": "bmn7yqw2",
+          "type": "work",
+          "startIdx": 7.3500000000000005,
+          "span": 2,
+          "buffer": 30,
+          "label": "Tooling Validation",
+          "dependsOn": [
+            "bhuva3lc"
+          ],
+          "phase": "DP",
+          "alloc": 30
+        },
+        {
+          "id": "bxe49mrx",
+          "type": "leadtime",
+          "startIdx": 7.3500000000000005,
+          "span": 1,
+          "buffer": 20,
+          "label": "Life time testing - Mechanical Clicking",
+          "dependsOn": [
+            "bhuva3lc"
+          ],
+          "phase": "DP",
+          "extendsPhase": true,
+          "alloc": 30
+        },
+        {
+          "id": "bamctjrz",
+          "type": "milestone",
+          "startIdx": 1,
+          "span": 0,
+          "label": "Iterate prototype — Done",
+          "dependsOn": [],
+          "phase": "DP",
+          "buffer": 10,
+          "alloc": 100
+        }
+      ],
+      "track": "product"
+    },
+    {
+      "id": "llrcaxuc",
+      "code": "WP 4 — Acoustics",
+      "desc": "Acoustics",
+      "bars": [
+        {
+          "id": "b0oihq4n",
+          "type": "work",
+          "startIdx": 0,
+          "span": 1,
+          "buffer": 50,
+          "label": "Create acoustic baseline based on the old swtich filter",
+          "dependsOn": [],
+          "phase": "PRS",
+          "alloc": 35,
+          "tracks": [
+            "product",
+            "product-2"
+          ]
+        },
+        {
+          "id": "byrn0bso",
+          "type": "work",
+          "startIdx": 0,
+          "span": 0.5,
+          "buffer": 50,
+          "label": "Create a acoustic model",
+          "dependsOn": [],
+          "phase": "PRS",
+          "alloc": 35,
+          "tracks": [
+            "product",
+            "product-2"
+          ]
+        },
+        {
+          "id": "bl750z3v",
+          "type": "work",
+          "startIdx": 0,
+          "span": 0.5,
+          "buffer": 50,
+          "label": "Measure current tactile sound",
+          "dependsOn": [],
+          "phase": "PRS",
+          "alloc": 35,
+          "tracks": [
+            "product",
+            "product-2"
+          ]
+        },
+        {
+          "id": "b5ojb772",
+          "type": "work",
+          "startIdx": 0.375,
+          "span": 1,
+          "buffer": 50,
+          "label": "Test plan with baseline configurations defined",
+          "dependsOn": [
+            "b0oihq4n",
+            "byrn0bso",
+            "bl750z3v"
+          ],
+          "phase": "PRS",
+          "alloc": 35
+        },
+        {
+          "id": "bh7oz6st",
+          "type": "work",
+          "startIdx": 1.25,
+          "span": 1,
+          "buffer": 10,
+          "label": "Acoustic evaluation of prototype Rubber Interface",
+          "dependsOn": [],
+          "phase": "DP",
+          "alloc": 35,
+          "track": "product-2",
+          "locked": true
+        },
+        {
+          "id": "bny9wwmg",
+          "type": "milestone",
+          "startIdx": 1,
+          "span": 0,
+          "label": "Prototype Equivalence Report",
+          "dependsOn": [],
+          "phase": "DP",
+          "buffer": 10,
+          "alloc": 100,
+          "locked": false
+        },
+        {
+          "id": "b90qqt1c",
+          "type": "work",
+          "startIdx": 4.15,
+          "span": 1,
+          "buffer": 10,
+          "label": "Acoustic evaluation of prototype new switch filter",
+          "dependsOn": [
+            "ba8wku11"
+          ],
+          "phase": "DP",
+          "alloc": 35,
+          "locked": false
+        },
+        {
+          "id": "bl69crfa",
+          "type": "review",
+          "startIdx": 7.3500000000000005,
+          "span": 1,
+          "buffer": 10,
+          "label": "Equivalence testing — old switch-mode filter",
+          "dependsOn": [
+            "bhuva3lc"
+          ],
+          "phase": "DP",
+          "alloc": 50
+        },
+        {
+          "id": "bka641v0",
+          "type": "review",
+          "startIdx": 7.3500000000000005,
+          "span": 1,
+          "buffer": 10,
+          "label": "Equivalence testing — D2SIM Orange/ Blue / Beige",
+          "dependsOn": [
+            "bhuva3lc"
+          ],
+          "phase": "DP",
+          "alloc": 50
+        },
+        {
+          "id": "b2cfpme4",
+          "type": "work",
+          "startIdx": 7.3500000000000005,
+          "span": 1,
+          "label": "Acoustic evaluation of final new switch filter",
+          "dependsOn": [
+            "bhuva3lc"
+          ],
+          "phase": "DP",
+          "buffer": 10,
+          "alloc": 35
+        }
+      ],
+      "track": "product"
+    },
+    {
+      "id": "lykxedsn",
+      "code": "WP 5 — Regulatory pathway",
+      "desc": "Quality",
+      "bars": [
+        {
+          "id": "brd1lc82",
+          "type": "work",
+          "startIdx": 0.75,
+          "span": 1,
+          "buffer": 10,
+          "label": "Standards landscape doc",
+          "dependsOn": [],
+          "phase": "DP",
+          "alloc": 20,
+          "locked": true
+        },
+        {
+          "id": "bs1oj3df",
+          "type": "work",
+          "startIdx": 1.75,
+          "span": 2,
+          "label": "Freedom To Operate (FTO)",
+          "dependsOn": [],
+          "phase": "DP",
+          "buffer": 10,
+          "alloc": 20,
+          "locked": true
+        },
+        {
+          "id": "b0h8j8ju",
+          "type": "milestone",
+          "startIdx": 1,
+          "span": 0,
+          "label": "FTO Signed",
+          "dependsOn": [],
+          "phase": "DP",
+          "buffer": 10,
+          "alloc": 100
+        },
+        {
+          "id": "brpqgmhc",
+          "type": "leadtime",
+          "startIdx": 3.65,
+          "span": 6,
+          "label": "Product 2 Filters - Recertification",
+          "dependsOn": [
+            "bthzgj1a"
+          ],
+          "phase": "DO",
+          "buffer": 10,
+          "alloc": 100,
+          "tracks": [
+            "product-2"
+          ]
+        },
+        {
+          "id": "b49dmtnw",
+          "type": "milestone",
+          "startIdx": 5.3,
+          "span": 0,
+          "label": "Product 2  - Certification Signed",
+          "dependsOn": [],
+          "phase": "DO",
+          "buffer": 10,
+          "alloc": 100,
+          "tracks": [
+            "product-2"
+          ],
+          "locked": false,
+          "followsEndOf": "brpqgmhc"
+        },
+        {
+          "id": "b7zi4270",
+          "type": "leadtime",
+          "startIdx": 8,
+          "span": 6,
+          "buffer": 10,
+          "label": "Product 1 Filters - Recertification",
+          "dependsOn": [
+            "b2cfpme4"
+          ],
+          "phase": "DO",
+          "alloc": 100
+        },
+        {
+          "id": "bthtqemg",
+          "type": "milestone",
+          "startIdx": 9,
+          "span": 0,
+          "label": "Product 1 - Certification Signed",
+          "dependsOn": [],
+          "phase": "DO",
+          "buffer": 10,
+          "alloc": 100,
+          "locked": true
+        }
+      ],
+      "track": "product"
+    },
+    {
+      "id": "lgpkyjpj",
+      "code": "WP 6 — Manufacturing",
+      "desc": "Manufacturing Engineering",
+      "bars": [
+        {
+          "id": "bj6wp2a4",
+          "type": "review",
+          "startIdx": 3,
+          "span": 2,
+          "buffer": 0,
+          "label": "New switch-mode filter Technical Design Review",
+          "dependsOn": [],
+          "phase": "DP",
+          "alloc": 10,
+          "locked": true
+        },
+        {
+          "id": "b4g4gnk7",
+          "type": "work",
+          "startIdx": 1.25,
+          "span": 2,
+          "label": "Rubber insert  - Technical Design Review",
+          "dependsOn": [],
+          "phase": "DO",
+          "buffer": 0,
+          "alloc": 10,
+          "locked": true,
+          "track": "product-2"
+        },
+        {
+          "id": "b8y1tztu",
+          "type": "work",
+          "startIdx": 8,
+          "span": 2,
+          "label": "Manufacturing Chain Documentation",
+          "dependsOn": [
+            "bmn7yqw2"
+          ],
+          "phase": "DO",
+          "alloc": 20,
+          "buffer": 30
+        }
+      ],
+      "track": "product"
+    },
+    {
+      "id": "ls7u5ksq",
+      "code": "WP 7 — IP",
+      "desc": "IP",
+      "bars": [
+        {
+          "id": "b7p415zu",
+          "type": "work",
+          "startIdx": 1.75,
+          "span": 3,
+          "buffer": 10,
+          "label": "Freedom-to-operate analysis",
+          "dependsOn": [],
+          "phase": "DP",
+          "alloc": 30,
+          "locked": true
+        },
+        {
+          "id": "bczl4t1w",
+          "type": "work",
+          "startIdx": 8,
+          "span": 3,
+          "buffer": 10,
+          "label": "IP / patent landscape report",
+          "dependsOn": [],
+          "phase": "DO",
+          "alloc": 30
+        }
+      ],
+      "track": "product"
+    },
+    {
+      "id": "l4uqs258",
+      "code": "WP 8 — Usability and design review",
+      "desc": "Marketing",
+      "bars": [
+        {
+          "id": "bp2ntdxk",
+          "type": "work",
+          "startIdx": 0.25,
+          "span": 2,
+          "buffer": 15,
+          "label": "Usablity study to determine an accetable sound level",
+          "dependsOn": [],
+          "phase": "PRS",
+          "alloc": 20,
+          "locked": true
+        },
+        {
+          "id": "bxuo0cou",
+          "type": "work",
+          "startIdx": 2.25,
+          "span": 3,
+          "buffer": 15,
+          "label": "Usablity study - tactile feeling of the new switch filter",
+          "dependsOn": [],
+          "phase": "DP",
+          "alloc": 20,
+          "locked": true
+        }
+      ],
+      "track": "product"
+    }
+  ],
+  "tracks": [
+    {
+      "id": "product",
+      "enabled": true,
+      "kind": "product",
+      "label": "Product",
+      "color": {
+        "bar": "#e0f2fe",
+        "border": "#0369a1"
+      },
+      "activePhase": null
+    },
+    {
+      "id": "exploration",
+      "enabled": false,
+      "kind": "continuous",
+      "label": "Exploration",
+      "color": {
+        "bar": "#fef3c7",
+        "border": "#b45309"
+      }
+    },
+    {
+      "id": "ple",
+      "enabled": false,
+      "kind": "continuous",
+      "label": "PLE",
+      "color": {
+        "bar": "#f3e8ff",
+        "border": "#6b21a8"
+      }
+    },
+    {
+      "id": "product-2",
+      "label": "Product 2",
+      "kind": "product",
+      "color": {
+        "bar": "#dcfce7",
+        "border": "#15803d"
+      },
+      "enabled": true,
+      "activePhase": null
+    }
+  ],
+  "dismissedTrackSeeds": [],
+  "disciplines": []
+}
