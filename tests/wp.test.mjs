@@ -6,6 +6,11 @@ const load = (name) =>
   JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url)));
 
 describe('wpNameOnly', () => {
+  it('drops a baked-in split-WP note like "(6 of 15)" or "6 of 15 tasks here"', () => {
+    expect(wpNameOnly('WP 1 — Project Management (6 of 15) (6 of 15)')).toBe('Project Management');
+    expect(wpNameOnly('WP 1 — Project Management 6 of 15 tasks here')).toBe('Project Management');
+    expect(wpNameOnly('WP 2 — Phase 2 of 3 review')).toBe('Phase 2 of 3 review');
+  });
   it('strips a canonical "WP N — Name" prefix with em-dash', () => {
     expect(wpNameOnly('WP 7 — Acoustics')).toBe('Acoustics');
   });

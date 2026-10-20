@@ -7,7 +7,7 @@ import {
   altBeginGesture, altFrozenReason, altSnapshot, altMoveBars, altResizeBar,
   altCreateBar, altAddEndMilestone, altSplitBar, altLinkBars, altUnlinkBars,
   altDeleteBars, altDuplicateBars, altBulkEdit, altAlignBars, altSelectionSummary,
-  altBarDates, altStartIdxFromDate, ALT_ROW_H, ALT_MS_ROW_H, ALT_LANE_H,
+  altBarDates, altStartIdxFromDate, altDateAtIdx, altMilestoneDate, ALT_ROW_H, ALT_MS_ROW_H, ALT_LANE_H,
 } from '../src/proplan-core.mjs';
 
 function mk() {
@@ -597,6 +597,67 @@ describe('altLayout milestonesAtBottom', () => {
     expect(lay.rows.map(r => (r.kind === 'section' ? 'section' : r.barId || r.kind))).toEqual(['a', 'b', 'c', 'section', 'm9', 'm']);
     expect(lay.rows.at(-1).tail).toBe(true);
     expect(lay.rects.map(r => r.barId)).toEqual(['a', 'b', 'c', 'm9', 'm']);
-    expect(lay.height).toBe(3 * ALT_ROW_H + ALT_LANE_H + 2 * ALT_ROW_H);
+    expect(lay.height).toBe(2 * ALT_ROW_H + 2 * ALT_ROW_H + ALT_LANE_H + 2 * ALT_ROW_H);   // WP1 (a, b) + WP2 (c, padded to two rows) + section + two milestones
+  });
+});
+
+describe('altLayout minimum WP height', () => {
+  it('without WP header rows a one-task WP is two task rows tall; the bar stays one row; longer WPs are untouched', () => {
+    const s = mk();
+    const lay = altLayout(s, 80, { laneHeaders: false });
+    const runs = {};
+    for (const r of lay.rows) if (r.kind === 'bar') runs[r.laneId] = (runs[r.laneId] || 0) + r.h;
+    for (const lane of s.lanes.filter(l => l.bars.length)) expect(runs[lane.id]).toBeGreaterThanOrEqual(2 * ALT_ROW_H);
+    expect(lay.rectById[s.lanes[0].bars[0].id].h).toBeLessThan(2 * ALT_ROW_H);
+    expect(altLayout(s, 80, { laneHeaders: true }).rows.filter(r => r.kind === 'bar').every(r => r.h <= ALT_ROW_H)).toBe(true);
+  });
+});
+
+describe('altLayout milestonesPacked (beta)', () => {
+  const ms = (id, at, lane) => ({ id, type: 'milestone', startIdx: at, span: 0, label: id, dependsOn: [] });
+  const mkp = () => {
+    const s = mk();
+    s.lanes[0].bars.push(ms('p1', 6), ms('p2', 8), ms('p3', 10));
+    s.lanes[1].bars.push(ms('p4', 6));            // same date as p1 → can't share its row
+    return s;
+  };
+  it('packs milestones that do not collide onto shared rows and keeps one rect per milestone', () => {
+    const lay = altLayout(mkp(), 80, { laneHeaders: false, milestonesPacked: true, msLabelW: () => 40 });
+    const packed = lay.rows.filter(r => r.kind === 'mspack');
+    expect(packed.length).toBeLessThan(5);                       // 5 milestones, fewer rows
+    expect(packed.flatMap(r => r.barIds).sort()).toEqual(['m', 'p1', 'p2', 'p3', 'p4']);
+    expect(packed.every(r => r.tail && r.laneId === null && r.h === ALT_ROW_H)).toBe(true);
+    const r1 = lay.rectById.p1, r4 = lay.rectById.p4;
+    expect(r1.y).not.toBe(r4.y);                                 // same x → different rows
+    for (const id of ['m', 'p1', 'p2', 'p3', 'p4']) expect(lay.rectById[id].milestone).toBe(true);
+    expect(lay.rows.some(r => r.kind === 'section')).toBe(true);
+  });
+  it('a wider label pushes neighbours to another row; packed implies the bottom section', () => {
+    const wide = altLayout(mkp(), 80, { laneHeaders: false, milestonesPacked: true, msLabelW: () => 400 });
+    const narrow = altLayout(mkp(), 80, { laneHeaders: false, milestonesPacked: true, msLabelW: () => 20 });
+    expect(wide.rows.filter(r => r.kind === 'mspack').length).toBeGreaterThan(narrow.rows.filter(r => r.kind === 'mspack').length);
+    expect(altLayout(mkp(), 80, { laneHeaders: false, milestonesPacked: true }).rows.some(r => r.kind === 'bar' && r.barId === 'm')).toBe(false);
+  });
+  it('the unpacked bottom section is unchanged', () => {
+    const lay = altLayout(mkp(), 80, { laneHeaders: false, milestonesAtBottom: true });
+    expect(lay.rows.filter(r => r.tail).length).toBe(5);
+  });
+});
+
+describe('milestone dates match where milestones are drawn', () => {
+  const st = { start: '2026-06', end: '2027-04' };
+  it('a stand-alone milestone is drawn at the centre of its month, so its date is mid-month, not the 1st', () => {
+    expect(altMilestoneDate(st, { startIdx: 4 })).toBe('2026-10-16');       // Oct has 31 days → centre = the 16th
+    expect(altMilestoneDate(st, { startIdx: 1 })).toBe('2026-07-16');
+    expect(altMilestoneDate(st, { startIdx: 8 })).toBe('2027-02-15');       // Feb 2027 has 28 days → centre = the 15th
+  });
+  it('a linked milestone (followsEndOf) sits exactly at the activity end — no half-month shift', () => {
+    expect(altMilestoneDate(st, { startIdx: 4.5, followsEndOf: 'x' })).toBe('2026-10-16');
+    expect(altMilestoneDate(st, { startIdx: 4, followsEndOf: 'x' })).toBe('2026-10-01');
+  });
+  it('altDateAtIdx is the month start + the fraction of that month', () => {
+    expect(altDateAtIdx(st, 0)).toBe('2026-06-01');
+    expect(altDateAtIdx(st, 0.5)).toBe('2026-06-16');
+    expect(altDateAtIdx(st, 11.99)).toBe('2027-05-31');
   });
 });

@@ -1,4 +1,4 @@
-/* ProPlan core — pure logic extracted from Carpati Timeline.html.
+/* ProPlan core — pure logic extracted from ProPlan.html.
  *
  * Everything in this module is DOM-free, localStorage-free, and side-effect
  * free (with one obvious exception: the autoSequence + enforcePhaseOrder +
@@ -509,7 +509,8 @@ export function laneEffWeeks(lane) {
 export function wpNameOnly(code) {
   const s = (code || "").trim();
   const m = s.match(/^WP\s*\d+\s*(?:[—\-:]\s*)?(.*)$/i);
-  return (m ? m[1] : s).trim();
+  // Drop "(6 of 15)" / "6 of 15 tasks here" suffixes: older builds baked the split-WP note into the saved name when the legacy header was edited.
+  return (m ? m[1] : s).replace(/(?:\s*\(?\d+ of \d+(?: tasks here)?\)?)+\s*$/i, "").trim();
 }
 
 /* Display form of a lane code: "WP 1 — Name" -> "WP1 — Name" (one WP format everywhere; stored code untouched). */
@@ -1457,56 +1458,80 @@ export function normalizeBetaViews(list) {
  *  {t:"sep"} {t:"section",label} {t:"sub",label,items} and dynamic fills
  *  {t:"projects"} (project list) / {t:"beta"} (Beta views registry). */
 export const MENU_BAR = Object.freeze([
-  { id: "project", label: "Project", items: [
-    { t: "projects" },
-    { t: "sep" },
+  { id: "file", label: "File", items: [
     { id: "newProject",       label: "New project…",       icon: "＋" },
+    { t: "sub", label: "Open project", items: [
+      { t: "projects" },
+      { t: "sep", desktop: true },
+      { id: "openProjectFile", label: "Open from file…", icon: "📂", desktop: true },
+    ] },
+    { t: "sep" },
     { id: "duplicateProject", label: "Duplicate project…", icon: "⧉" },
     { id: "renameProject",    label: "Rename project…",    icon: "✎" },
     { id: "deleteProject",    label: "Delete project…",    icon: "🗑", danger: true },
     { t: "sep" },
-    { id: "saveSnapshot",     label: "Save snapshot…",     icon: "📸" },
-    { id: "view:snapshots",   label: "Snapshots…",         icon: "🕘" },
-    { t: "sep" },
-    { t: "filestatus", desktop: true },
-    { id: "openProjectFile",  label: "Open project file…",        icon: "📂", desktop: true },
-    { id: "saveProjectCopy",  label: "Save a copy as…",           icon: "⎘", desktop: true },
-    { id: "showProjectFile",  label: "Show project file in Finder", icon: "🔍", desktop: true },
-    { id: "openProjectFolder", label: "Open project folder",      icon: "📁", desktop: true },
-    { id: "toggleFileSave",   label: "Autosave to project file",  icon: "💾", desktop: true },
+    { id: "saveProjectCopy",  label: "Save a copy as…",    icon: "⎘", desktop: true },
+    { t: "sub", label: "Import", items: [
+      { id: "importAsProject", label: "JSON as new project…", icon: "⬆" },
+      { id: "importXlsx",      label: "Excel (.xlsx)…",       icon: "⬆" },
+      { id: "importBackup",    label: "Restore backup…",      icon: "⬆" },
+    ] },
+    { t: "sub", label: "Export", items: [
+      { id: "json",         label: "Project as JSON",                 icon: "⬇", accel: "⌘E" },
+      { id: "png",          label: "Timeline as PNG",                 icon: "🖼" },
+      { id: "pdf",          label: "Timeline as PDF",                 icon: "📄" },
+      { id: "html",         label: "Page as HTML",                    icon: "🌐" },
+      { id: "timelineHtml", label: "Timeline as HTML (Confluence)…",  icon: "🧩" },
+    ] },
+    { id: "exportAll",        label: "Back up all projects…", icon: "⬇", accel: "⇧⌘E" },
     { t: "sep", desktop: true },
-    { id: "changeProcess",    label: "Process…",           icon: "⚑" },
+    { t: "filestatus", desktop: true },
+    { id: "showProjectFile",   label: "Show project file in Finder", icon: "🔍", desktop: true },
+    { id: "openProjectFolder", label: "Open project folder",         icon: "📁", desktop: true },
+    { id: "toggleFileSave",    label: "Autosave to project file",    icon: "💾", desktop: true },
   ] },
   { id: "edit", label: "Edit", items: [
-    { id: "undo",       label: "Undo",       icon: "↶", accel: "⌘Z" },
-    { id: "redo",       label: "Redo",       icon: "↷", accel: "⇧⌘Z" },
+    { id: "undo",         label: "Undo",          icon: "↶", accel: "⌘Z" },
+    { id: "redo",         label: "Redo",          icon: "↷", accel: "⇧⌘Z" },
     { t: "sep" },
-    { id: "toggleEdit", label: "Edit mode",  icon: "✎" },
-    { t: "sep" },
-    { id: "loadDemo",   label: "Load demo plan…" },
-    { id: "clear",      label: "Clear timeline…", danger: true },
+    { id: "toggleEdit",   label: "Edit mode",     icon: "✎" },
+    { id: "autoSequence", label: "Auto-sequence", icon: "⇢" },
   ] },
   { id: "view", label: "View", items: [
+    { id: "view:summary",     label: "Summary" },
+    { t: "sep" },
+    { id: "view:structure",   label: "Structure" },
+    { id: "view:plan",        label: "Plan" },
+    { id: "view:progress",    label: "Progress" },
+    { id: "view:altTimeline", label: "Timeline" },
+    { t: "sep" },
+    { t: "sub", label: "More views", items: [
+      { t: "section", label: "Present" },
+      { id: "view:roadmap",       label: "Simple timeline" },
+      { id: "view:phaseTimeline", label: "Phase timeline" },
+      { id: "view:milestones",    label: "Milestones" },
+      { id: "view:proposal",      label: "Proposal timeline" },
+      { t: "section", label: "Reference & history" },
+      { id: "view:phase",         label: "Phase status" },
+      { id: "view:process",       label: "Process" },
+      { id: "view:snapshots",     label: "Snapshots" },
+      { t: "section", label: "Legacy" },
+      { id: "view:viewA",         label: "Legacy timeline" },
+    ] },
+    { t: "sub", label: "Beta views", items: [{ t: "beta" }] },
+    { t: "sep" },
     { id: "toggleTheme", label: "Dark mode", icon: "🌙", accel: "⇧⌘L" },
     { id: "focusMode",   label: "Focus mode", icon: "⛶" },
   ] },
-  { id: "export", label: "Export & backup", items: [
-    { t: "section", label: "Export" },
-    { id: "json",      label: "Project as JSON",       icon: "⬇", accel: "⌘E" },
-    { id: "exportAll", label: "Back up all projects",  icon: "⬇", accel: "⇧⌘E" },
-    { id: "png",       label: "Timeline as PNG",       icon: "🖼" },
-    { id: "pdf",       label: "Timeline as PDF",       icon: "📄" },
-    { id: "html",      label: "Page as HTML",          icon: "🌐" },
-    { id: "timelineHtml", label: "Timeline as HTML (Confluence)…", icon: "🧩" },
+  { id: "project", label: "Project", items: [
+    { id: "changeProcess", label: "Process…",         icon: "⚑" },
     { t: "sep" },
-    { t: "section", label: "Import" },
-    { id: "import",          label: "JSON (replace plan)…", icon: "⬆" },
-    { id: "importAsProject", label: "JSON as new project…",         icon: "⬆" },
-    { id: "importBackup",    label: "Restore backup…",              icon: "⬆" },
-    { id: "importXlsx",      label: "Excel (.xlsx)…",               icon: "⬆" },
-  ] },
-  { id: "beta", label: "Beta", items: [
-    { t: "sub", label: "Beta views", items: [{ t: "beta" }] },
+    { id: "saveSnapshot",  label: "Save snapshot…",   icon: "📸" },
+    { id: "view:snapshots", label: "Snapshots…",      icon: "🕘" },
+    { t: "sep" },
+    { id: "import",        label: "Replace plan from JSON…", icon: "⬆", danger: true },
+    { id: "loadDemo",      label: "Load demo plan…" },
+    { id: "clear",         label: "Clear timeline…", danger: true },
   ] },
   { id: "help", label: "Help", items: [
     { id: "about", label: "About ProPlan…", icon: "ℹ" },
@@ -1990,6 +2015,215 @@ export function completionSeries(state) {
 }
 
 
+/* ====================== Burndown ======================
+   Remaining work over time, with the IDEAL line built from the plan itself: a staircase that drops by a
+   task's weight on the day that task is due (its planned end), so it follows the order the plan puts the
+   tasks in rather than a straight diagonal. ACTUAL drops on each task's `doneAt`.
+   Weight: "tasks" (1 each, milestones count) or "effort" (effortWeeks; milestones weigh 0). Ongoing bars
+   (project lead etc.) are never counted. Days are ISO strings; all date maths is UTC-midnight so it can't
+   drift with the local zone. Every name starts with burndown because the build inlines this file globally. */
+
+const BURNDOWN_MS = 86400000;
+function burndownMs(day) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day || "");
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : NaN;
+}
+function burndownIso(ms) { return new Date(ms).toISOString().slice(0, 10); }
+export function burndownAddDays(day, n) { return burndownIso(burndownMs(day) + n * BURNDOWN_MS); }
+export function burndownDaysBetween(a, b) { return Math.round((burndownMs(b) - burndownMs(a)) / BURNDOWN_MS); }
+/* Project start as an ISO day (state.start may be YYYY-MM or YYYY-MM-DD). */
+export function burndownStartDay(state) {
+  const p = parseYM(state.start);
+  return burndownIso(Date.UTC(p.y, p.m - 1, p.d || 1));
+}
+/* 1-based project week of a day (for "Project weeks" labels). */
+export function burndownWeekOf(state, day) {
+  return Math.floor(burndownDaysBetween(burndownStartDay(state), day) / 7) + 1;
+}
+/* Value of a step series [{day, remaining}] on a day (the last point at or before it). */
+export function burndownValueAt(points, day) {
+  let v = points && points.length ? points[0].remaining : 0;
+  for (const p of points || []) { if (p.day <= day) v = p.remaining; else break; }
+  return v;
+}
+/* Scope string → include(bar, lane) predicate: "all" | "track:<id>" | "wp:<laneId>". */
+export function burndownInclude(scope) {
+  const s = String(scope || "all");
+  if (s.startsWith("track:")) { const id = s.slice(6); return (bar, lane) => barTracks(bar, lane).includes(id); }
+  if (s.startsWith("wp:")) { const id = s.slice(3); return (bar, lane) => lane.id === id; }
+  return null;
+}
+
+/* The countable bars with their weight, planned dates and completion. */
+export function burndownTasks(state, opts = {}) {
+  const effort = opts.weight === "effort";
+  const include = typeof opts.include === "function" ? opts.include : null;
+  const codes = altTaskCodes(state);
+  const out = [];
+  (state.lanes || []).forEach((lane, laneIdx) => {
+    for (const bar of lane.bars || []) {
+      if (!bar || bar.type === "ongoing") continue;
+      if (include && !include(bar, lane, laneIdx)) continue;
+      const d = altBarDates(state, bar), c = codes[bar.id] || {};
+      out.push({
+        id: bar.id, code: c.code || "", short: c.short || "", laneId: lane.id, laneIdx, label: bar.label || "",
+        milestone: bar.type === "milestone", weight: effort ? effortWeeks(bar) : 1,
+        plannedStart: d.start, plannedEnd: d.end,
+        done: !!bar.done, doneAt: bar.done && isDay(bar.doneAt) ? bar.doneAt : null, status: barStatus(bar),
+      });
+    }
+  });
+  return out;
+}
+
+/* Where the plan says you should be if you're `remaining` behind on day `today`: how many days late (>0),
+   early (<0) or on plan (0). Behind = the first day the plan expected LESS than `remaining` left (the
+   earliest overdue work); ahead = the day the plan will reach `remaining`. */
+export function burndownForecast(ideal, remaining, today, planFinish) {
+  if (!ideal || !ideal.length) return null;
+  const EPS = 1e-9;
+  if (remaining <= EPS) return { done: true, slipDays: 0, finish: null, behind: false, ahead: false };
+  const idealNow = burndownValueAt(ideal, today);
+  let slip = 0;
+  if (remaining > idealNow + EPS) {
+    const step = ideal.find(p => p.remaining < remaining - EPS);
+    slip = step ? Math.max(0, burndownDaysBetween(step.day, today)) : 0;
+  } else if (remaining < idealNow - EPS) {
+    const step = ideal.find(p => p.remaining <= remaining + EPS);
+    slip = step ? Math.min(0, burndownDaysBetween(step.day, today)) : 0;
+  }
+  return { done: false, slipDays: slip, finish: planFinish ? burndownAddDays(planFinish, slip) : null, behind: slip > 0, ahead: slip < 0 };
+}
+
+/* The whole chart model. opts: {weight: "tasks"|"effort", include, baseline (a state — e.g. a snapshot's — the
+   plan/ideal comes from, matched by bar id; ACTUAL always comes from the live state), today}. */
+export function burndownSeries(state, opts = {}) {
+  const unit = opts.weight === "effort" ? "effort" : "tasks";
+  const today = isDay(opts.today) ? opts.today : localDay();
+  const live = burndownTasks(state, { weight: unit, include: opts.include });
+  const base = opts.baseline ? burndownTasks(opts.baseline, { weight: unit, include: opts.include }) : null;
+  const plan = base || live;
+  const sum = (a) => a.reduce((t, x) => t + x.weight, 0);
+  const total = sum(live), planTotal = sum(plan);
+
+  const projectStart = burndownStartDay(state);
+  let start = projectStart;
+  for (const t of plan) if (t.plannedStart < start) start = t.plannedStart;
+  for (const t of live) if (t.doneAt && t.doneAt < start) start = t.doneAt;
+
+  // IDEAL: staircase of the plan, one drop per due day.
+  const dueBy = {};
+  for (const t of plan) if (t.weight) dueBy[t.plannedEnd] = (dueBy[t.plannedEnd] || 0) + t.weight;
+  const ideal = [{ day: start, remaining: planTotal }];
+  let left = planTotal;
+  for (const day of Object.keys(dueBy).sort()) {
+    left -= dueBy[day];
+    if (day === ideal[ideal.length - 1].day) ideal[ideal.length - 1].remaining = left; else ideal.push({ day, remaining: left });
+  }
+  const planFinish = plan.length ? plan.reduce((m, t) => (t.plannedEnd > m ? t.plannedEnd : m), plan[0].plannedEnd) : null;
+
+  // ACTUAL: drops on each task's completion day. Done-but-undated work is counted done from the start.
+  const undated = { count: 0, weight: 0 };
+  const doneBy = {};
+  let doneWeight = 0, doneCount = 0;
+  for (const t of live) {
+    if (!t.done) continue;
+    doneCount++; doneWeight += t.weight;
+    if (t.doneAt) doneBy[t.doneAt] = (doneBy[t.doneAt] || 0) + t.weight;
+    else { undated.count++; undated.weight += t.weight; }
+  }
+  let rem = total - undated.weight;
+  const actual = [{ day: start, remaining: rem }];
+  for (const day of Object.keys(doneBy).sort()) {
+    rem -= doneBy[day];
+    if (day === actual[actual.length - 1].day) actual[actual.length - 1].remaining = rem; else actual.push({ day, remaining: rem });
+  }
+  if (today > actual[actual.length - 1].day) actual.push({ day: today, remaining: rem });
+
+  const remaining = total - doneWeight;
+  // With a baseline, work added/removed since then is scope, not slip — compare like with like.
+  const scopeDelta = base ? total - planTotal : 0;
+  const forecast = live.length ? burndownForecast(ideal, Math.max(0, remaining - scopeDelta), today, planFinish) : null;
+  let scope = null;
+  if (base) {
+    const liveIds = new Set(live.map(t => t.id)), baseIds = new Set(base.map(t => t.id));
+    const addedIds = live.filter(t => !baseIds.has(t.id)).map(t => t.id);
+    const removedIds = base.filter(t => !liveIds.has(t.id)).map(t => t.id);
+    scope = { added: addedIds.length, removed: removedIds.length, addedIds, removedIds, delta: scopeDelta };
+  }
+  let end = planFinish && planFinish > today ? planFinish : today;
+  if (forecast && forecast.finish && forecast.finish > end) end = forecast.finish;
+  return {
+    unit, total, planTotal, start, end, today, planFinish, ideal, actual, undated, scope, forecast,
+    remaining, doneCount, doneWeight, taskCount: live.length,
+    idealNow: burndownValueAt(ideal, today),
+    delta: remaining - burndownValueAt(ideal, today) - scopeDelta,   // >0 behind plan, <0 ahead (in the chart's unit)
+  };
+}
+
+/* The tasks in the order the plan says they will happen, each with where it sits on the remaining-work staircase and how
+   it is going. Order = planned end, then dependency (topological) order, then WP / task position — never the task code
+   alone (a later WP can finish first). `before` / `after` = work remaining before / after this task completes if the plan
+   is followed in order (so each task is a step of height `weight`). opts: {weight, include, baseline, today} like
+   burndownSeries; with a baseline the order and planned dates come from it (matched by bar id), the rest from the live
+   plan; tasks added since are flagged `added`, removed ones are dropped.
+   status: done | doing | overdue | upcoming.  late = finished after its planned end.  outOfOrder = done while an earlier
+   task is still open (or finished before an earlier task did). */
+export function burndownSequence(state, opts = {}) {
+  const unit = opts.weight === "effort" ? "effort" : "tasks";
+  const today = isDay(opts.today) ? opts.today : localDay();
+  const live = burndownTasks(state, { weight: unit, include: opts.include });
+  const base = opts.baseline ? burndownTasks(opts.baseline, { weight: unit, include: opts.include }) : null;
+  const liveById = new Map(live.map(t => [t.id, t]));
+  let rows;
+  if (base) {
+    const baseIds = new Set(base.map(t => t.id));
+    rows = [];
+    for (const b of base) { const l = liveById.get(b.id); if (l) rows.push({ ...l, plannedStart: b.plannedStart, plannedEnd: b.plannedEnd }); }
+    for (const l of live) if (!baseIds.has(l.id)) rows.push({ ...l, added: true });
+  } else rows = live.map(t => ({ ...t }));
+
+  const topoIdx = {};
+  try { const order = topoOrder(buildBarMap(state)); if (order) order.forEach((id, i) => { topoIdx[id] = i; }); } catch { /* cycle: fall back to position */ }
+  const big = 1e9;
+  rows.sort((a, b) =>
+    (a.plannedEnd < b.plannedEnd ? -1 : a.plannedEnd > b.plannedEnd ? 1 : 0)
+    || ((topoIdx[a.id] ?? big) - (topoIdx[b.id] ?? big))
+    || (a.laneIdx - b.laneIdx)
+    || String(a.short).localeCompare(String(b.short), undefined, { numeric: true }));
+
+  const total = rows.reduce((t, x) => t + x.weight, 0);
+  let running = total, plannedToday = 0;
+  const items = rows.map((t, i) => {
+    const before = running; running -= t.weight;
+    const late = !!(t.done && t.doneAt && t.doneAt > t.plannedEnd);
+    const status = t.done ? "done" : t.status === "doing" ? "doing" : (t.plannedEnd < today ? "overdue" : "upcoming");
+    if (t.plannedEnd <= today) plannedToday += t.weight;
+    return { ...t, rank: i + 1, before, after: running, status, late };
+  });
+  // out of order: done while an earlier task is still open, or done before an earlier task was
+  items.forEach((x, i) => {
+    x.outOfOrder = false;
+    if (!x.done) return;
+    for (let k = 0; k < i; k++) {
+      const y = items[k];
+      if (!y.done || (y.doneAt && x.doneAt && y.doneAt > x.doneAt)) { x.outOfOrder = true; break; }
+    }
+  });
+  const doneWeight = items.reduce((t, x) => t + (x.done ? x.weight : 0), 0);
+  const nextUp = items.find(x => !x.done) || null;
+  return {
+    unit, today, total, items,
+    remaining: total - doneWeight, doneCount: items.filter(x => x.done).length,
+    plannedRemainingNow: total - plannedToday,
+    planTodayIndex: items.filter(x => x.plannedEnd <= today).length,        // how many tasks the plan says are finished by today
+    lateCount: items.filter(x => x.late).length,
+    overdueCount: items.filter(x => x.status === "overdue").length,
+    outOfOrderCount: items.filter(x => x.outOfOrder).length,
+    nextUp, scope: base ? { added: items.filter(x => x.added).length, removed: base.filter(b => !liveById.has(b.id)).length } : null,
+  };
+}
+
 /* ====================== Alt timeline (tool-rail editor) ======================
    Pure logic behind the Beta "Alt timeline view" (renderAltTimeline in the HTML):
    the Photoshop-style tool table, geometry + hit-testing, snapping, marquee
@@ -2002,7 +2236,7 @@ export function completionSeries(state) {
    this file into the HTML's global scope. */
 
 export const ALT_ROW_H = 22;          // task row height (px)
-export const ALT_MS_ROW_H = 16;       // inline milestone row (slimmer: a diamond needs no 22 px)
+export const ALT_MS_ROW_H = ALT_ROW_H;  // milestones use the same row height as tasks (one consistent rhythm; was a slimmer 16)
 export const ALT_LANE_H = 24;         // WP header row height (px)
 export const ALT_BAR_H = 18;
 export const ALT_EDGE_PX = 6;         // resize hot-zone at each end of a bar
@@ -2052,7 +2286,9 @@ export function altSwitchTool(current, key, { editMode = false } = {}) {
 /* Pixel rectangle for one bar. rowY = top of its row. A stand-alone milestone
    sits half a column in (matches the Timeline view); a followsEndOf milestone
    sits exactly at its target's end. */
-export function altBarRect(bar, colW, rowY, laneId, rowH = ALT_ROW_H) {
+/* Packed milestones (beta) carry their WP tag INSIDE a wider, flatter diamond (a rhombus ALT_MS_WIDE_W × ALT_MS_WIDE_H) instead of a small diamond. */
+export const ALT_MS_WIDE_W = 34, ALT_MS_WIDE_H = 20;
+export function altBarRect(bar, colW, rowY, laneId, rowH = ALT_ROW_H, { wide = false, tagW = ALT_MS_WIDE_W } = {}) {
   const flags = {
     barId: bar.id, laneId, type: bar.type,
     locked: !!bar.locked, done: !!bar.done,
@@ -2060,8 +2296,10 @@ export function altBarRect(bar, colW, rowY, laneId, rowH = ALT_ROW_H) {
   };
   if (bar.type === "milestone") {
     const cx = bar.followsEndOf ? bar.startIdx * colW : bar.startIdx * colW + colW / 2;
+    // Wide (packed) milestone: a hexagon tag whose LEFT tip sits on the date (px), the tag extends to the right; cx/hw describe its centre/half-width like any other marker.
+    if (wide) return { ...flags, milestone: true, wide: true, hw: tagW / 2, px: cx, x: cx, y: rowY + (rowH - ALT_MS_WIDE_H) / 2, w: tagW, h: ALT_MS_WIDE_H, cx: cx + tagW / 2 };
     const s = rowH < ALT_ROW_H ? 13 : 18;
-    return { ...flags, milestone: true, x: cx - s / 2, y: rowY + (rowH - s) / 2, w: s, h: s, cx };
+    return { ...flags, milestone: true, hw: 9, x: cx - s / 2, y: rowY + (rowH - s) / 2, w: s, h: s, cx };
   }
   const x = bar.startIdx * colW;
   const w = Math.max(0.25, effSpan(bar) / WEEKS_PER_MONTH) * colW;
@@ -2070,10 +2308,11 @@ export function altBarRect(bar, colW, rowY, laneId, rowH = ALT_ROW_H) {
 
 /* Rows + bar rectangles for the whole canvas. Collapsed WPs show only their
    header row (their bars get no rect, so they can't be hit or linked). */
-export function altLayout(state, colW, { collapsed = new Set(), laneFilter = null, barFilter = null, laneHeaders = true, milestonesAtBottom = false } = {}) {
+export function altLayout(state, colW, { collapsed = new Set(), laneFilter = null, barFilter = null, laneHeaders = true, milestonesAtBottom = false, milestonesPacked = false, msLabelW = null, msTagW = null } = {}) {
   const rows = []; const rects = []; const rectById = {};
   const msTail = [];     // milestonesAtBottom: collected here, laid out under a "Milestones" section at the end
   let y = 0;
+  if (milestonesPacked) milestonesAtBottom = true;   // packed is a layout of the bottom section
   (state.lanes || []).forEach((lane, laneIdx) => {
     if (typeof laneFilter === "function" ? !laneFilter(lane) : (laneFilter && lane.id !== laneFilter)) return;
     const allBars = lane.bars || [];
@@ -2105,11 +2344,35 @@ export function altLayout(state, colW, { collapsed = new Set(), laneFilter = nul
       rects.push(r); rectById[bar.id] = r;
       y += rh;
     }
+    // Without a header row a WP with a single task would be too short for its name strip: give it the height of two task rows (the extra room goes below the task).
+    if (!laneHeaders) {
+      const last = rows[rows.length - 1], first = rows.find(r => r.kind === "bar" && r.laneId === lane.id);
+      const used = last.y + last.h - first.y, min = 2 * ALT_ROW_H;
+      if (used < min) { last.h += min - used; y += min - used; }
+    }
   });
   if (msTail.length) {
     rows.push({ kind: "section", laneId: null, laneIdx: -1, y, h: ALT_LANE_H, title: "Milestones" });
     y += ALT_LANE_H;
     msTail.sort((a, b) => (a.bar.startIdx - b.bar.startIdx) || (a.laneIdx - b.laneIdx));
+    if (milestonesPacked) {
+      // Beta "Packed": milestones are points, so share rows. Each takes its diamond + its "WPn · name" label (msLabelW(bar, laneIdx) px) and goes on the first row where that span is free.
+      const labW = typeof msLabelW === "function" ? msLabelW : ((b) => String(b.label || "").length * 6.4 + 36);
+      const packRows = [];   // [{ end, items: [{bar,lane,laneIdx}] }]
+      for (const it of msTail) {
+        const tw = typeof msTagW === "function" ? msTagW(it.bar) : ALT_MS_WIDE_W;
+        const rr = altBarRect(it.bar, colW, 0, it.lane.id, ALT_ROW_H, { wide: true, tagW: tw });
+        const x0 = rr.x - 3, x1 = rr.x + rr.w + 8 + labW(it.bar, it.laneIdx);
+        let row = packRows.find(r => r.end + 6 <= x0);
+        if (!row) { row = { end: -Infinity, items: [] }; packRows.push(row); }
+        row.items.push(it); row.end = x1;
+      }
+      for (const pr of packRows) {
+        rows.push({ kind: "mspack", laneId: null, laneIdx: -1, barIds: pr.items.map(i => i.bar.id), y, h: ALT_ROW_H, tail: true });
+        for (const { bar, lane } of pr.items) { const r = altBarRect(bar, colW, y, lane.id, ALT_ROW_H, { wide: true, tagW: typeof msTagW === "function" ? msTagW(bar) : ALT_MS_WIDE_W }); rects.push(r); rectById[bar.id] = r; }
+        y += ALT_ROW_H;
+      }
+    } else
     for (const { bar, lane, laneIdx } of msTail) {
       rows.push({ kind: "bar", laneId: lane.id, laneIdx, barId: bar.id, y, h: ALT_ROW_H, tail: true });
       const r = altBarRect(bar, colW, y, lane.id);
@@ -2318,6 +2581,23 @@ export function altParseMonths(text) {
   if (t === 'all' || t === 'fit') return 0;
   if (!/^\d+([.,]\d+)?$/.test(t)) return null;
   return altClampMonths(parseFloat(t.replace(',', '.')));
+}
+/* "Fit": how many months to show so the plan fits with one month to spare — the month the last task ends in,
+   plus one. `include(bar, lane)` limits it to what is shown (filters). Ongoing bars (they span the whole project)
+   are ignored. Returns 0 (= whole project) when there is nothing to fit. Examples: last task ends 10.3 months in
+   (month 11) -> 12; ends exactly at month 10 -> 11. */
+export function altFitMonths(state, include = null) {
+  let end = 0;
+  for (const lane of state.lanes || []) {
+    for (const bar of lane.bars || []) {
+      if (!bar || bar.type === 'ongoing') continue;
+      if (typeof include === 'function' && !include(bar, lane)) continue;
+      const e = (bar.startIdx || 0) + (bar.type === 'milestone' ? 0 : effSpan(bar) / WEEKS_PER_MONTH);
+      if (e > end) end = e;
+    }
+  }
+  if (end <= 0) return 0;
+  return altClampMonths(Math.max(1, Math.ceil(end - 1e-9)) + 1);
 }
 /* Quick presets shown under the stepper (0 = All). */
 export const VIEW_MONTH_PRESETS = Object.freeze([
@@ -2748,6 +3028,19 @@ export function altBarDates(state, bar) {
   return { start: iso(start), end: iso(end) };
 }
 /* Inverse for the date picker: ISO day -> startIdx (months, whole-week quantised). */
+/* The calendar day a position `idx` (months from the project start, fractional) falls on: the month's first day + the fraction of that month's length. */
+export function altDateAtIdx(state, idx) {
+  const p = parseYM(state.start);
+  const whole = Math.floor(idx), frac = idx - whole;
+  const first = Date.UTC(p.y, p.m - 1 + whole, 1);
+  const dim = new Date(Date.UTC(p.y, p.m + whole, 0)).getUTCDate();
+  return new Date(first + Math.floor(frac * dim + 1e-9) * 86400000).toISOString().slice(0, 10);
+}
+/* The day a milestone is DRAWN on. Stand-alone milestones sit at the centre of their start-month column (+½ month, an app-wide convention); linked ones
+   (followsEndOf) sit exactly at their activity's end. Use this — not altBarDates().start, which is the raw startIdx — wherever a milestone's date is shown next to where it is drawn. */
+export function altMilestoneDate(state, bar) {
+  return altDateAtIdx(state, (bar.startIdx || 0) + (bar.followsEndOf ? 0 : 0.5));
+}
 export function altStartIdxFromDate(state, isoDay) {
   const p = parseYM(state.start);
   const m = String(isoDay || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -3033,118 +3326,276 @@ function tlhDayAt(startYM, day) {
   const [y, m, d] = day.split("-").map(Number);
   return (y - startYM.y) * 12 + (m - startYM.m) + (d - 1) / new Date(y, m, 0).getDate();
 }
+/* WP colours (accent of the app's 9-colour palette, by WP number) — only used for the thin rail on each WP strip. */
+const TLH_WP_ACCENTS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#3b82f6", "#6366f1", "#a855f7", "#ec4899"];
+const TLH_DEP_HUES = [205, 230, 255, 280, 310, 185];
+/* Export range: o.range "planned" (first task start month → last task end month, after the other filters) or "custom" (o.rangeStart / o.rangeEnd, "YYYY-MM").
+   Done by re-basing a COPY of the state onto the new first month (bars shifted by whole months, only in-range bars kept, task codes taken from the original)
+   and exporting that — so every geometry rule of the normal export applies unchanged. */
+function tlhRanged(state, o) {
+  const s0 = state || {};
+  const base = parseYM(s0.start);
+  const idxOf = (ym) => { const p = parseYM(ym); return (p.y - base.y) * 12 + (p.m - base.m); };
+  const ymAt = (i) => { const k = (base.m - 1) + i; return `${base.y + Math.floor(k / 12)}-${String(((k % 12) + 12) % 12 + 1).padStart(2, "0")}`; };
+  const shown = o.shownBarIds ? new Set(o.shownBarIds) : null;
+  const list = [];
+  (s0.lanes || []).forEach(lane => {
+    if (o.filterLane && lane.id !== o.filterLane) return;
+    for (const b of lane.bars || []) {
+      if (b.type === "milestone" && o.showMilestones === false) continue;
+      if (shown && !shown.has(b.id)) continue;
+      if (o.filterTrack && o.filterTrack !== "all" && !barTracks(b, lane).includes(o.filterTrack)) continue;
+      const ms = b.type === "milestone", x0 = b.startIdx || 0;
+      list.push({ b, ms, x0, x1: ms ? x0 : x0 + Math.max(effSpan(b) / WEEKS_PER_MONTH, 0.25) });
+    }
+  });
+  const whole = Math.max(1, monthsBetween(s0.start, s0.end).length);
+  let a = 0, z = whole - 1;
+  if (o.range === "custom" && o.rangeStart && o.rangeEnd) { a = idxOf(o.rangeStart); z = idxOf(o.rangeEnd); }
+  else if (o.range === "planned" && list.length) {
+    a = Math.floor(Math.min(...list.map(i => i.x0)) + 1e-9);
+    z = Math.max(...list.map(i => i.ms ? Math.floor(i.x0 + 1e-9) : Math.ceil(i.x1 - 1e-9) - 1));
+  }
+  if (!Number.isFinite(a) || !Number.isFinite(z)) { a = 0; z = whole - 1; }
+  if (z < a) z = a;
+  const inRange = list.filter(i => i.ms ? (i.x0 >= a && i.x0 < z + 1) : (i.x1 > a && i.x0 < z + 1)).map(i => i.b.id);
+  const clone = Object.assign({}, s0, { start: ymAt(a), end: ymAt(z),
+    lanes: (s0.lanes || []).map(l => Object.assign({}, l, { bars: (l.bars || []).map(b => Object.assign({}, b, { startIdx: (b.startIdx || 0) - a })) })) });
+  return exportTimelineHtml(clone, Object.assign({}, o, { range: "project", shownBarIds: inRange, _codes: altTaskCodes(s0), _ranged: true }));
+}
+
 export function exportTimelineHtml(state, opts = {}) {
-  const o = Object.assign({ mode: "fragment", deps: true, showMilestones: true, compact: false }, opts || {});
+  const o0 = opts || {};
+  if ((o0.range === "planned" || o0.range === "custom") && !o0._ranged) return tlhRanged(state, o0);
+  const o = Object.assign({ mode: "fragment", deps: true, showMilestones: true, compact: false, names: false, hover: false, milestonesAtBottom: false, milestonesPacked: false, msNames: true, routes: false }, o0);
+  if (o.milestonesPacked) o.milestonesAtBottom = true;   // packed is a layout of the bottom section
   const s = state || {};
   const months = monthsBetween(s.start, s.end);
   const total = Math.max(1, months.length);
-  const proc = getProcess(s);
-  const codes = altTaskCodes(s);
+  const codes = o._codes || altTaskCodes(s);
   const shown = o.shownBarIds ? new Set(o.shownBarIds) : null;
-  const pct = (v) => `${Math.round(Math.max(0, Math.min(total, v)) / total * 10000) / 100}%`;
-  const rowH = o.compact ? 20 : 30, labelW = o.compact ? 220 : 300, barH = o.compact ? 10 : 14;
+  // Geometry mirrors the Timeline tab: 22px rows, 18px blocks, a 112px WP strip + a 66px ID/status column.
+  const ROW = o.compact ? 20 : 22, BAR = o.compact ? 14 : 18, STRIP = 112, IDW = o.names ? 250 : (o.milestonesAtBottom && !o.milestonesPacked ? 96 : 66), LABW = STRIP + IDW;
+  const MIN_TRACK = 900 - LABW;
+  // FIXED pixel geometry: the table is exactly LABW + TRACK px wide wherever it is pasted (a narrower page scrolls it, it is never squeezed), so every block, pill and label keeps its shape and the text-fit maths below is exact.
+  const TRACK = Math.max(MIN_TRACK, total * 52);
+  const r2 = (v) => Math.round(v * 100) / 100;
+  const X = (v) => r2(Math.max(0, Math.min(total, v)) / total * TRACK);   // months from the start -> px
+  const pct = (v) => `${X(v)}px`;
   const FONT = "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;";
-  const GRID = "#e5e7eb", INK = "#111827", MUTED = "#6b7280";
-  const gridBg = `background-image:linear-gradient(to right,${GRID} 1px,transparent 1px);background-size:${Math.round(10000 / total) / 100}% 100%;`;
+  const MONO = "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;";
+  // The app's light-theme tokens, flattened (Confluence has no CSS variables / color-mix).
+  const C = { ink: "#0f172a", soft: "#334155", muted: "#64748b", line: "#e2e8f0", lineS: "#cbd5e1", surface: "#f8fafc", grid: "#eef2f6", alt: "#f6f8fa",
+    accent: "#0a84ff", pendBg: "#b6daff", doneBg: "#afeac5", doneB: "#15803d", doingBg: "#fbd699", doingB: "#b45309" };
   const startYM = parseYM(s.start);
+  const textW = (t) => Math.round(String(t).length * 6.4) + 4;   // ~11.5px / weight 550
 
   // Which bars/lanes to draw.
-  const lanes = [];
-  for (const lane of s.lanes || []) {
-    if (o.filterLane && lane.id !== o.filterLane) continue;
+  const lanes = [], msTail = [];
+  (s.lanes || []).forEach((lane, laneIdx) => {
+    if (o.filterLane && lane.id !== o.filterLane) return;
     const bars = (lane.bars || []).filter(b => {
       if (b.type === "milestone" && !o.showMilestones) return false;
       if (shown && !shown.has(b.id)) return false;
       if (o.filterTrack && o.filterTrack !== "all" && !barTracks(b, lane).includes(o.filterTrack)) return false;
       return true;
     });
-    if (bars.length) lanes.push({ lane, bars });
+    if (o.milestonesAtBottom) {
+      for (const b of bars) if (b.type === "milestone") msTail.push({ bar: b, laneIdx });
+      const tasks = bars.filter(b => b.type !== "milestone");
+      if (tasks.length) lanes.push({ lane, laneIdx, bars: tasks });
+    } else if (bars.length) lanes.push({ lane, laneIdx, bars });
+  });
+  // Milestones at the bottom (like the Timeline tab's "Bottom section"): one "Milestones" block at the end, by date, each tagged with its WP.
+  const tailWp = {};
+  if (msTail.length) {
+    msTail.sort((a, b) => ((a.bar.startIdx || 0) - (b.bar.startIdx || 0)) || (a.laneIdx - b.laneIdx));
+    msTail.forEach(m => { tailWp[m.bar.id] = m.laneIdx + 1; });
+    lanes.push({ lane: { code: "Milestones" }, laneIdx: -1, bars: msTail.map(m => m.bar), tail: true });
   }
+  const visibleIds = new Set(); lanes.forEach(l => l.bars.forEach(b => visibleIds.add(b.id)));
 
-  const colorOf = (b) => {
-    const ph = b.phase && proc.phases.find(p => p.code === b.phase);
-    const t = TYPES[b.type] || TYPES.work;
-    return ph ? { bg: tlhColor(ph.color.bg, t.bar), border: tlhColor(ph.color.accent, t.border) } : { bg: t.bar, border: t.border };
-  };
-  const styleOf = (b) => {
-    const c = colorOf(b), st = barStatus(b);
-    if (st === "done") return { bg: "#86efac", border: "#15803d", rail: "" };
-    if (st === "doing") return { bg: c.bg, border: c.border, rail: "border-left:4px solid #f59e0b;" };
-    return { bg: c.bg, border: c.border, rail: "" };
-  };
+  // One colour until a task is started; status recolours the whole block (same rule as the Timeline tab).
+  const fillOf = (b) => { const st = barStatus(b); return st === "done" ? { bg: C.doneBg, b: C.doneB, w: 2 } : st === "doing" ? { bg: C.doingBg, b: C.doingB, w: 2 } : { bg: C.pendBg, b: C.accent, w: 1 }; };
+  const statusIcon = (st) => st === "done"
+    ? `<span style="display:inline-block;flex:none;box-sizing:border-box;width:15px;min-width:15px;height:15px;min-height:15px;border-radius:50%;background:#22c55e;border:1.5px solid ${C.doneB};color:#ffffff;font-size:9px;line-height:12px;text-align:center;font-weight:700;">&#10003;</span>`
+    : st === "doing"
+      ? `<span style="display:inline-block;flex:none;box-sizing:border-box;width:15px;min-width:15px;height:15px;min-height:15px;border-radius:50%;background:#fef3c7;border:1.5px solid ${C.doingB};color:#92400e;font-size:10px;line-height:12px;text-align:center;font-weight:700;">&#8635;</span>`
+      : `<span style="display:inline-block;flex:none;box-sizing:border-box;width:15px;min-width:15px;height:15px;min-height:15px;border-radius:50%;background:#ffffff;border:1.5px solid ${C.lineS};vertical-align:top;"></span>`;
 
-  // Overlay lines (launch / today): positioned over the track column only.
+  // Dependency pills: one per predecessor, coloured per predecessor (cool hues), green once that predecessor is done.
+  const allEdges = o.deps || o.routes ? altDepEdges(s, visibleIds) : [];
+  const edges = o.deps && !o.compact ? allEdges : [];
+  const colorOfPred = {}; let ci = 0;
+  for (const e of allEdges) if (!(e.pred in colorOfPred)) { colorOfPred[e.pred] = `hsl(${TLH_DEP_HUES[ci % TLH_DEP_HUES.length]},34%,${ci % 12 >= 6 ? 30 : 38}%)`; ci++; }
+  const predsOf = {}; for (const e of edges) (predsOf[e.succ] = predsOf[e.succ] || []).push(e);
+  const barById = {}; (s.lanes || []).forEach(l => (l.bars || []).forEach(b => { barById[b.id] = b; }));
+  const PILL = (txt) => Math.round(txt.length * 5.7 + 9);
+
+  // Overlay lines: launches (coloured, solid) and today (neutral ink), each with a small pill label.
   const lines = [];
-  for (const mk of launchMarkers(s)) if (mk.at >= 0 && mk.at <= total) lines.push({ at: mk.at, label: mk.label, color: tlhColor(mk.color, "#b45309"), dash: true });
+  for (const mk of launchMarkers(s)) if (mk.at >= 0 && mk.at <= total) lines.push({ at: mk.at, label: `\u{1F680} ${mk.label}`, color: tlhColor(mk.color, "#16a34a"), text: "#ffffff", w: 2 });
   const todayAt = o.today ? tlhDayAt(startYM, o.today) : null;
-  if (todayAt != null && todayAt >= 0 && todayAt <= total) lines.push({ at: todayAt, label: "Today", color: "#dc2626", dash: false });
+  if (todayAt != null && todayAt >= 0 && todayAt <= total) lines.push({ at: todayAt, label: `Today \u00B7 ${tlhEsc(String(o.today).slice(8))} ${MONTH_NAMES[Number(String(o.today).slice(5, 7)) - 1] || ""}`, color: "#db2777", text: "#ffffff", w: 2.5, today: true });
 
-  // Header lines.
   const metaBits = [`Start: ${tlhEsc(s.start || "")}`, `End: ${tlhEsc(s.end || "")}`];
   for (const mk of launchMarkers(s)) metaBits.push(`${tlhEsc(mk.label)}: ${tlhEsc(mk.day)}`);
-  const title = o.title != null ? o.title : "Timeline";
+  const title = o.title != null ? o.title : "ProPlan";
 
-  // Legend.
-  const sw = (bg, border, text, extra = "") => `<span style="display:inline-block;margin-right:14px;white-space:nowrap;"><span style="display:inline-block;width:14px;height:10px;vertical-align:middle;margin-right:5px;background:${bg};border:1px solid ${border};${extra}"></span>${tlhEsc(text)}</span>`;
+  // Legend: the same language the Timeline tab uses.
+  const swatch = (bg, border, w, text) => `<span style="display:inline-block;margin-right:14px;white-space:nowrap;"><span style="display:inline-block;box-sizing:border-box;width:16px;height:11px;vertical-align:middle;margin-right:5px;border-radius:3px;background:${bg};border:${w}px solid ${border};"></span>${tlhEsc(text)}</span>`;
   const legend = [
-    ...["work", "buffer", "leadtime", "review", "ongoing"].map(k => sw(TYPES[k].bar, TYPES[k].border, TYPES[k].label)),
-    `<span style="display:inline-block;margin-right:14px;white-space:nowrap;"><span style="display:inline-block;width:9px;height:9px;vertical-align:middle;margin-right:6px;background:${TYPES.milestone.bar};border:1px solid ${TYPES.milestone.border};transform:rotate(45deg);"></span>Milestone</span>`,
-    sw("#86efac", "#15803d", "Done"),
-    sw("#e5e7eb", "#9ca3af", "In progress", "border-left:4px solid #f59e0b;width:11px;"),
-    sw("#e5e7eb", "#9ca3af", "Pending"),
+    swatch(C.pendBg, C.accent, 1, "Not started"), swatch(C.doingBg, C.doingB, 2, "In progress"), swatch(C.doneBg, C.doneB, 2, "Done"),
+    `<span style="display:inline-block;margin-right:14px;white-space:nowrap;"><span style="display:inline-block;box-sizing:border-box;width:10px;height:10px;vertical-align:middle;margin-right:7px;transform:rotate(45deg);background:${C.pendBg};border:1.5px solid ${C.accent};"></span>Milestone</span>`,
+    `<span style="display:inline-block;margin-right:14px;white-space:nowrap;"><span style="display:inline-block;box-sizing:border-box;width:16px;height:11px;vertical-align:middle;margin-right:5px;border:1px solid ${C.lineS};background:repeating-linear-gradient(135deg,rgba(15,23,42,0.22) 0,rgba(15,23,42,0.22) 3px,transparent 3px,transparent 6px);"></span>Buffer</span>`,
   ].join("");
 
-  // Month / year header.
+  // Header: dark year bar + month row, over the track column; "WORK PACKAGE · ID" corner on the left.
   const yearCells = [];
   months.forEach(mm => { const last = yearCells[yearCells.length - 1]; if (last && last.y === mm.y) last.n++; else yearCells.push({ y: mm.y, n: 1 }); });
-  const cellS = (n, extra) => `display:inline-block;width:${Math.round(n / total * 10000) / 100}%;box-sizing:border-box;text-align:center;overflow:hidden;white-space:nowrap;${extra}`;
+  const cellW = (n) => `${r2(n / total * TRACK)}px`;
   const initialsOnly = total > 18;
-  const head = `<div style="display:flex;border-bottom:1px solid ${GRID};background:#f9fafb;">
-<div style="flex:0 0 ${labelW}px;width:${labelW}px;box-sizing:border-box;padding:6px 8px;font-size:12px;font-weight:600;color:${MUTED};">Task</div>
-<div style="flex:1 1 auto;min-width:0;">
-<div style="font-size:0;border-bottom:1px solid ${GRID};">${yearCells.map(y => `<span style="${cellS(y.n, `font-size:11px;font-weight:600;color:${INK};padding:2px 0;border-left:1px solid ${GRID};`)}">${y.n >= 2 ? y.y : ""}</span>`).join("")}</div>
-<div style="font-size:0;">${months.map(mm => `<span style="${cellS(1, `font-size:10px;color:${MUTED};padding:2px 0;border-left:1px solid ${GRID};`)}">${initialsOnly ? MONTH_NAMES[mm.m - 1][0] : MONTH_NAMES[mm.m - 1]}</span>`).join("")}</div>
+  const HEAD_H = 44;
+  const head = `<div style="display:flex;height:${HEAD_H}px;border-bottom:1px solid ${C.lineS};">
+<div style="flex:0 0 ${LABW}px;width:${LABW}px;box-sizing:border-box;padding:0 8px;background:${C.surface};border-right:1px solid ${C.lineS};font-size:10.5px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:${C.muted};line-height:${HEAD_H}px;white-space:nowrap;">Work package &middot; ID</div>
+<div style="flex:0 0 ${TRACK}px;width:${TRACK}px;">
+<div style="display:flex;height:22px;background:#0f172a;">${yearCells.map(y => `<span style="display:block;width:${cellW(y.n)};box-sizing:border-box;overflow:hidden;white-space:nowrap;padding:2px 8px;font-size:11.5px;font-weight:600;line-height:18px;color:#ffffff;border-right:1px solid ${C.line};">${y.n >= 2 ? y.y : ""}</span>`).join("")}</div>
+<div style="display:flex;height:22px;background:${C.surface};">${months.map(mm => `<span style="display:block;width:${cellW(1)};box-sizing:border-box;overflow:hidden;white-space:nowrap;padding:3px 6px;font-size:11px;line-height:16px;color:${C.soft};border-right:1px solid ${C.grid};">${initialsOnly ? MONTH_NAMES[mm.m - 1][0] : MONTH_NAMES[mm.m - 1]}</span>`).join("")}</div>
 </div></div>`;
+  const gridBg = `background-image:linear-gradient(to right,${C.grid} 1px,transparent 1px);background-size:${r2(TRACK / total)}px 100%;`;
 
-  // Rows.
-  const rows = [];
-  for (const { lane, bars } of lanes) {
-    const p = laneProgress(lane);
-    rows.push(`<div style="display:flex;background:#eef2ff;border-bottom:1px solid ${GRID};border-top:1px solid ${GRID};">
-<div style="flex:1 1 auto;padding:5px 8px;font-size:13px;font-weight:700;color:${INK};">${tlhEsc(wpLabel(lane.code || ""))}${lane.desc ? ` <span style="font-weight:400;color:${MUTED};">${tlhEsc(lane.desc)}</span>` : ""}</div>
-<div style="flex:0 0 auto;padding:5px 8px;font-size:12px;color:${MUTED};white-space:nowrap;">${p.done}/${p.total} done${p.total ? ` · ${p.pct}%` : ""}</div></div>`);
-    for (const b of bars) {
-      const code = (codes[b.id] || {}).code || "";
-      const st = styleOf(b), ms = b.type === "milestone";
-      const x = b.startIdx || 0, w = ms ? 0 : effSpan(b) / WEEKS_PER_MONTH;
-      let dates = "";
-      try { const d = altBarDates(s, b); dates = ms ? d.start : `${d.start} → ${d.end}`; } catch { /* ignore */ }
-      const tip = tlhEsc(`${code} ${b.label || ""} (${dates})`);
-      const mark = ms
-        ? `<div title="${tip}" style="position:absolute;left:${pct(x)};top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;box-sizing:border-box;transform:rotate(45deg);background:${barStatus(b) === "done" ? "#22c55e" : TYPES.milestone.bar};border:1.5px solid ${barStatus(b) === "done" ? "#16a34a" : st.border};"></div>`
-        : `<div title="${tip}" style="position:absolute;left:${pct(x)};width:${pct(Math.min(w, total - x) + 0)};min-width:3px;top:50%;height:${barH}px;margin-top:-${barH / 2}px;box-sizing:border-box;background:${st.bg};border:1px solid ${st.border};${st.rail}border-radius:3px;"></div>`;
-      const depCodes = o.deps && !o.compact ? (b.dependsOn || []).map(id => (codes[id] || {}).short).filter(Boolean) : [];
-      rows.push(`<div style="display:flex;height:${rowH}px;border-bottom:1px solid #f3f4f6;">
-<div style="flex:0 0 ${labelW}px;width:${labelW}px;box-sizing:border-box;padding:0 8px;overflow:hidden;font-size:12px;line-height:${depCodes.length ? 14 : rowH}px;${depCodes.length ? "padding-top:" + Math.floor((rowH - 28) / 2 + 1) + "px;" : ""}white-space:nowrap;text-overflow:ellipsis;"><span style="color:${MUTED};margin-right:6px;" title="${tlhEsc(code)}">${tlhEsc((codes[b.id] || {}).short || code)}</span><span style="color:${INK};${barStatus(b) === "done" ? "text-decoration:line-through;color:" + MUTED + ";" : ""}">${tlhEsc(b.label || "")}</span>${depCodes.length ? `<br><span style="font-size:10px;color:${MUTED};">after ${tlhEsc(depCodes.join(", "))}</span>` : ""}</div>
-<div style="flex:1 1 auto;min-width:0;position:relative;${gridBg}">${mark}</div></div>`);
+  const rows = [], geom = {};
+  let stripe = 0;
+  for (const { lane, laneIdx, bars, tail } of lanes) {
+    const rail = tail ? C.muted : TLH_WP_ACCENTS[laneIdx % TLH_WP_ACCENTS.length];
+    if (tail && o.milestonesPacked) {
+      // Packed milestones: points share rows. Each is a hexagon TAG holding its milestone code ("M3.2"); the tag's left tip + a pin line and dot sit exactly on the date,
+      // the tag extends to the right and the name (optional) goes beside it (to the left of the pin near the right edge).
+      const items = bars.map(b => ({ b, x: (b.startIdx || 0) + (b.followsEndOf ? 0 : 0.5) }));   // same position as the Timeline: centre of the month unless linked
+      const packRows = [];
+      for (const it of items) {
+        it.label = it.b.label || "(untitled)";
+        it.code = (codes[it.b.id] || {}).short || "M?";
+        it.tw = Math.max(38, Math.round(it.code.length * 6.1 + 20));
+        it.lw = o.msNames ? textW(it.label) + 4 : 0;
+        const px = X(it.x);
+        it.flip = o.msNames && px + it.tw + 8 + it.lw > TRACK && px - 8 > it.lw;
+        const a = it.flip ? px - 8 - it.lw : px - 3, b2 = it.flip ? px + it.tw : px + it.tw + 8 + it.lw;
+        let row = packRows.find(r => r.spans.every(([p0, p1]) => b2 + 6 <= p0 || a >= p1 + 6));
+        if (!row) { row = { spans: [], items: [] }; packRows.push(row); }
+        row.items.push(it); row.spans.push([a, b2]);
+      }
+      const prow = packRows.map((pr, pi) => {
+        const cells = pr.items.map(({ b, x, label, lw, flip, code, tw }) => {
+          const f = fillOf(b), cd = codes[b.id] || {}, px = X(x);
+          let dates = ""; try { dates = altMilestoneDate(s, b); } catch { /* ignore */ }
+          const tip = tlhEsc(`${cd.code || ""} ${b.label || ""} (${dates})`);
+          geom[b.id] = { row: stripe, x0: px, x1: px + tw, ms: true, hw: 1 };
+          const name = o.msNames ? `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;${flip ? `right:${r2(TRACK - px + 8)}px;` : `left:${r2(px + tw + 8)}px;`}white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>` : "";
+          const hh = 20, k = 8;
+          return `<div class="pp-b" title="${tip}" style="position:absolute;left:${r2(px)}px;top:${(ROW - hh) / 2}px;width:${tw}px;height:${hh}px;"><svg xmlns="http://www.w3.org/2000/svg" width="${tw}" height="${hh}" viewBox="0 0 ${tw} ${hh}" style="position:absolute;left:0;top:-1px;display:block;overflow:visible;"><line x1="0.8" y1="-1.5" x2="0.8" y2="${hh + 1.5}" stroke="${f.b}" stroke-width="1.6" stroke-linecap="round"/><circle cx="0.8" cy="${hh / 2}" r="2.6" fill="${f.b}"/><polygon points="1.6,${hh / 2} ${k},1.3 ${tw - k},1.3 ${tw - 1.3},${hh / 2} ${tw - k},${hh - 1.3} ${k},${hh - 1.3}" fill="${f.bg}" stroke="${f.b}" stroke-width="${Math.max(1.5, f.w)}" stroke-linejoin="round"/></svg><span style="position:absolute;left:0;top:-1px;width:${tw}px;height:${hh}px;text-align:center;line-height:${hh}px;font-size:10px;font-weight:800;color:${C.ink};${MONO}">${tlhEsc(code)}</span></div>${name}`;
+        }).join("");
+        const lastRow = pi === packRows.length - 1;
+        const rowBg = stripe++ % 2 ? "background-color:rgba(246,248,250,0.7);" : "";
+        return `<div class="pp-row" style="display:flex;height:${ROW}px;">
+<div style="flex:0 0 ${IDW}px;width:${IDW}px;box-sizing:border-box;border-right:1px solid ${C.lineS};border-bottom:1px solid ${lastRow ? C.lineS : C.grid};background:#ffffff;"></div>
+<div class="pp-track" style="flex:0 0 ${TRACK}px;width:${TRACK}px;position:relative;overflow:hidden;box-sizing:border-box;border-bottom:1px solid ${C.grid};${rowBg}${gridBg}">${cells}</div></div>`;
+      }).join("\n");
+      rows.push(`<div class="pp-wp" style="display:flex;">
+<div class="pp-wpstrip" title="Milestones from every work package" style="flex:0 0 ${STRIP}px;width:${STRIP}px;box-sizing:border-box;padding:5px 8px 5px 10px;background:${C.surface};border-left:4px solid ${rail};border-right:1px solid ${C.lineS};border-bottom:1px solid ${C.lineS};overflow:hidden;"><div style="font-size:11px;font-weight:800;letter-spacing:0.04em;line-height:15px;color:${C.ink};">Milestones</div><div style="font-size:11.5px;font-weight:600;line-height:14px;color:${C.soft};word-break:break-word;">${bars.length} across all WPs</div></div>
+<div style="flex:0 0 ${IDW + TRACK}px;width:${IDW + TRACK}px;">
+${prow}
+</div></div>`);
+      continue;
     }
+    const wpName = wpNameOnly(lane.code || "");
+    const taskRows = bars.map((b, bi) => {
+      const lastRow = bi === bars.length - 1;
+      const code = codes[b.id] || {};
+      const st = barStatus(b), ms = b.type === "milestone", f = fillOf(b);
+      const xr = (b.startIdx || 0) + (ms && !b.followsEndOf ? 0.5 : 0), w = ms ? 0 : Math.max(effSpan(b) / WEEKS_PER_MONTH, 0.25);
+      const wEnd = Math.min(xr + w, total), x = Math.max(0, xr);   // a block that starts before the exported range is cut at its left edge
+      let dates = "";
+      try { const d = altBarDates(s, b); dates = ms ? altMilestoneDate(s, b) : `${d.start} → ${d.end}`; } catch { /* ignore */ }
+      const tip = tlhEsc(`${code.code || ""} ${b.label || ""} (${dates})`);
+      const label = (tail ? `WP${tailWp[b.id]} \u00B7 ` : "") + (b.label || "(untitled)");
+      const wpx = ms ? 0 : (wEnd - x) / total * TRACK;
+      const bufPx = (!ms && b.buffer > 0) ? wpx * (b.buffer / (100 + b.buffer)) : 0;
+      const inside = !ms && !o.names && textW(label) + 20 + bufPx <= wpx;
+      const preds = predsOf[b.id] || [];
+      const pills = preds.map((e, k) => {
+        const pd = barById[e.pred] || {}, done = barStatus(pd) === "done";
+        const txt = (codes[e.pred] || {}).short || "";
+        const off = 6 + preds.slice(0, k).reduce((a, q) => a + PILL((codes[q.pred] || {}).short || "") + 3, 0);
+        return { html: `<span class="pp-pill" title="depends on ${tlhEsc(((codes[e.pred] || {}).code || "") + " " + (pd.label || ""))}" style="position:absolute;top:50%;margin-top:-7.5px;right:${r2(TRACK - x / total * TRACK + off)}px;height:15px;line-height:15px;padding:0 4.5px;box-sizing:border-box;border-radius:7.5px;background:${done ? C.doneB : colorOfPred[e.pred]};color:#ffffff;font-size:9.5px;font-weight:700;white-space:nowrap;${MONO}">${tlhEsc(txt)}</span>`, w: PILL(txt) + 3 };
+      });
+      const pillsW = pills.reduce((a, p) => a + p.w, 0);
+      // Name outside the block (never ellipsised): to the right, or to the LEFT of the block + its pills near the right edge.
+      let outside = "";
+      if (!inside && !o.names) {
+        const rightRoom = (total - wEnd) / total * TRACK, flip = rightRoom < textW(label) + 16 && x / total * TRACK > textW(label) + pillsW + 16;
+        outside = flip
+          ? `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;right:${r2(TRACK - x / total * TRACK + 8 + pillsW)}px;white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>`
+          : `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;left:${r2((ms ? x : wEnd) / total * TRACK + (ms ? 14 : 8))}px;white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>`;
+      }
+      const buf = (!ms && b.buffer > 0) ? `<span style="position:absolute;right:0;top:0;bottom:0;width:${r2(bufPx)}px;border-left:1px dashed ${f.b};background:repeating-linear-gradient(135deg,rgba(15,23,42,0.22) 0,rgba(15,23,42,0.22) 3px,transparent 3px,transparent 6px);"></span>` : "";
+      const mark = ms
+        ? `<div class="pp-b" title="${tip}" style="position:absolute;left:${pct(x)};top:${(ROW - 18) / 2}px;width:18px;height:18px;margin-left:-9px;"><div style="position:absolute;left:2px;top:2px;right:2px;bottom:2px;box-sizing:border-box;transform:rotate(45deg);border-radius:2px;background:${f.bg};border:${Math.max(1.5, f.w)}px solid ${f.b};"></div></div>`
+        : `<div class="pp-b" title="${tip}" style="position:absolute;left:${pct(x)};width:${pct(wEnd - x)};min-width:3px;top:${(ROW - BAR) / 2}px;height:${BAR}px;box-sizing:border-box;overflow:hidden;border-radius:5px;background:${f.bg};border:${f.w}px solid ${f.b};color:${C.ink};font-size:11.5px;font-weight:550;line-height:${BAR - 2 * f.w}px;padding:0 7px;white-space:nowrap;">${buf}${inside ? `<span style="position:relative;">${tlhEsc(label)}</span>` : ""}</div>`;
+      geom[b.id] = { row: stripe, x0: X(x), x1: ms ? X(x) : X(wEnd), ms };
+      const rowBg = stripe++ % 2 ? "background-color:rgba(246,248,250,0.7);" : "";
+      return `<div class="pp-row" style="display:flex;height:${ROW}px;">
+<div style="flex:0 0 ${IDW}px;width:${IDW}px;box-sizing:border-box;display:flex;align-items:center;gap:6px;padding:0 8px;border-right:1px solid ${C.lineS};border-bottom:1px solid ${lastRow ? C.lineS : C.grid};background:#ffffff;overflow:hidden;white-space:nowrap;">${tail ? `<span style="display:inline-block;flex:none;box-sizing:border-box;height:15px;line-height:13px;padding:0 4px;border:1px solid ${C.lineS};border-radius:7.5px;background:${C.surface};color:${C.soft};font-size:9px;font-weight:700;${MONO}">WP${tailWp[b.id]}</span>` : ""}<span style="${MONO}font-size:10px;font-weight:600;color:${C.muted};flex:none;min-width:24px;" title="${tlhEsc(code.code || "")}">${tlhEsc(code.short || code.code || "")}</span>${statusIcon(st)}${o.names ? `<span style="font-size:12px;color:${st === "done" ? C.muted : C.ink};overflow:hidden;text-overflow:ellipsis;">${tlhEsc(label)}</span>` : ""}</div>
+<div class="pp-track" style="flex:0 0 ${TRACK}px;width:${TRACK}px;position:relative;overflow:hidden;box-sizing:border-box;border-bottom:1px solid ${C.grid};${rowBg}${gridBg}">${pills.map(p => p.html).join("")}${mark}${outside}</div></div>`;
+    }).join("\n");
+    rows.push(`<div class="pp-wp" style="display:flex;">
+<div class="pp-wpstrip" title="${tlhEsc(wpLabel(lane.code || ""))}" style="flex:0 0 ${STRIP}px;width:${STRIP}px;box-sizing:border-box;padding:5px 8px 5px 10px;background:${C.surface};border-left:4px solid ${rail};border-right:1px solid ${C.lineS};border-bottom:1px solid ${C.lineS};overflow:hidden;"><div style="font-size:11px;font-weight:800;letter-spacing:0.04em;line-height:15px;color:${C.ink};">${tail ? "Milestones" : `WP${laneIdx + 1}`}</div><div style="font-size:11.5px;font-weight:600;line-height:14px;color:${C.soft};word-break:break-word;">${tail ? `${bars.length} across all WPs` : tlhEsc(wpName)}</div></div>
+<div style="flex:0 0 ${IDW + TRACK}px;width:${IDW + TRACK}px;">
+${taskRows}
+</div></div>`);
   }
-  if (!rows.length) rows.push(`<div style="padding:16px;font-size:13px;color:${MUTED};">No tasks to show.</div>`);
+  if (!rows.length) rows.push(`<div style="padding:16px;font-size:13px;color:${C.muted};">No tasks to show.</div>`);
 
+  // Dependency routes: orthogonal lines (one per link, coloured per predecessor, green once it is done) in an inline SVG laid over the track.
+  let routes = "";
+  if (o.routes && allEdges.length) {
+    const cy = (g) => r2(g.row * ROW + ROW / 2);
+    const paths = allEdges.map(e => {
+      const a = geom[e.pred], b = geom[e.succ]; if (!a || !b) return "";
+      const done = barStatus(barById[e.pred] || {}) === "done";
+      const col = done ? C.doneB : (colorOfPred[e.pred] || C.muted);
+      const x1 = a.x1 + (a.ms ? (a.hw || 6) : 0), y1 = cy(a), x2 = b.x0 - (b.ms ? (b.hw || 6) : 0), y2 = cy(b);
+      const trunk = Math.min(x1 + 7, Math.max(x1 + 3, x2 - 7));
+      const d = x2 >= x1 + 10 ? `M${x1} ${y1}H${trunk}V${y2}H${x2}` : `M${x1} ${y1}H${x1 + 6}V${r2((y1 + y2) / 2)}H${x2 - 6}V${y2}H${x2}`;
+      const late = x2 < x1;   // starts before its predecessor ends: dashed
+      return `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.3" stroke-linejoin="round"${late ? ' stroke-dasharray="3 2"' : ""} opacity="0.8"><title>${tlhEsc(((codes[e.pred] || {}).short || "") + " \u2192 " + ((codes[e.succ] || {}).short || ""))}</title></path><circle cx="${x1}" cy="${y1}" r="2" fill="${col}"/>`;
+    }).join("");
+    routes = `<svg xmlns="http://www.w3.org/2000/svg" width="${TRACK}" height="${stripe * ROW}" viewBox="0 0 ${TRACK} ${stripe * ROW}" style="position:absolute;left:${LABW}px;top:${HEAD_H}px;pointer-events:none;overflow:visible;">${paths}</svg>`;
+  }
   const overlay = lines.length
-    ? `<div style="position:absolute;top:0;bottom:0;left:${labelW}px;right:0;pointer-events:none;">${lines.map(l =>
-      `<div style="position:absolute;left:${pct(l.at)};top:0;bottom:0;width:0;border-left:2px ${l.dash ? "dashed" : "solid"} ${l.color};"><span style="position:absolute;top:0;left:3px;font-size:10px;line-height:12px;white-space:nowrap;color:${l.color};background:rgba(255,255,255,0.85);padding:0 2px;">${tlhEsc(l.label)}</span></div>`).join("")}</div>`
+    ? `<div style="position:absolute;top:${HEAD_H}px;bottom:0;left:${LABW}px;width:${TRACK}px;pointer-events:none;">${lines.map(l =>
+      `${l.today ? `<div style="position:absolute;left:${pct(l.at)};top:0;bottom:0;width:${pct(7 / 30.4)};background:rgba(219,39,119,0.09);"></div>` : ""}<div style="position:absolute;left:${pct(l.at)};top:0;bottom:0;width:0;border-left:${l.w}px solid ${l.color};"><span style="position:absolute;top:4px;left:5px;padding:${l.today ? "2px 10px" : "1px 7px"};border-radius:999px;white-space:nowrap;font-size:${l.today ? 12 : 11}px;font-weight:${l.today ? 800 : 700};line-height:${l.today ? 16 : 15}px;color:${l.text};background:${l.color};">${l.today ? l.label : tlhEsc(l.label)}</span></div>`).join("")}</div>`
     : "";
 
-  const fragment = `<div style="${FONT}color:${INK};max-width:1400px;-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+  // Optional hover highlight. Pure CSS (no script) and it only ever ADDS emphasis: where a host strips <style> the export is identical, just without the hover.
+  const hoverCss = o.hover ? `<style>
+.pp-tl .pp-row:hover > div { background-color:#eef6ff !important; }
+.pp-tl .pp-row:hover .pp-track { background-color:#e6f1ff !important; }
+.pp-tl .pp-wp:hover > .pp-wpstrip { background-color:#eef2f7 !important; }
+.pp-tl .pp-b { transition:box-shadow .12s, filter .12s; }
+.pp-tl .pp-b:hover { box-shadow:0 0 0 2px #0a84ff, 0 2px 6px rgba(15,23,42,.25) !important; filter:brightness(.96); z-index:3; cursor:default; }
+.pp-tl .pp-pill:hover { box-shadow:0 0 0 2px #0f172a; z-index:3; }
+</style>
+` : "";
+  const fragment = `${hoverCss}<div class="pp-tl" style="${FONT}color:${C.ink};-webkit-print-color-adjust:exact;print-color-adjust:exact;">
 <div style="font-size:20px;font-weight:700;margin:0 0 2px;">${tlhEsc(title)}</div>
-<div style="font-size:12px;color:${MUTED};margin:0 0 8px;">${metaBits.join(" &middot; ")}</div>
+<div style="font-size:12px;color:${C.muted};margin:0 0 8px;">${metaBits.join(" &middot; ")}</div>
 <div style="font-size:12px;margin:0 0 10px;">${legend}</div>
-<div style="overflow-x:auto;border:1px solid ${GRID};border-radius:4px;">
-<div style="min-width:900px;position:relative;background:#ffffff;">
+<div style="overflow-x:auto;max-width:100%;border:1px solid ${C.lineS};border-radius:8px;">
+<div style="width:${LABW + TRACK}px;position:relative;background:#ffffff;">
 ${head}
 ${rows.join("\n")}
-${overlay}
+${routes}${overlay}
 </div></div></div>`;
 
   if (o.mode !== "page") return fragment;

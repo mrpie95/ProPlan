@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-/* Re-inline src/proplan-core.mjs into Carpati Timeline.html.
+/* Re-inline src/proplan-core.mjs into ProPlan.html.
  *
  * Workflow:
- *   1. Edit src/proplan-core.mjs (logic) and/or Carpati Timeline.html (UI).
+ *   1. Edit src/proplan-core.mjs (logic) and/or ProPlan.html (UI).
  *   2. Run `npm run build`.
  *   3. The HTML's inlined module block is replaced with a fresh build.
  *
@@ -25,10 +25,11 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stampBuild } from './stamp-build.mjs';
+import { printLinks } from './links.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, '..');
-const HTML_PATH = resolve(ROOT, 'Carpati Timeline.html');
+const HTML_PATH = resolve(ROOT, 'ProPlan.html');
 const MODULE_PATH = resolve(ROOT, 'src', 'proplan-core.mjs');
 
 const BEGIN = '// === BEGIN INLINED proplan-core.mjs ===';
@@ -73,12 +74,15 @@ const EXPORT_NAMES = [
   'ACTIVITY_LOG_CAP', 'isDay', 'localDay', 'laneProgress', 'projectProgress',
   'setBarDone', 'setBarStatus', 'barStatus', 'BAR_STATUSES', 'setLaneDone', 'setLaneNote',
   'recentActivity', 'groupActivityByDay', 'completionSummary', 'completionSeries',
+  // Burndown
+  'burndownAddDays', 'burndownDaysBetween', 'burndownStartDay', 'burndownWeekOf', 'burndownValueAt',
+  'burndownInclude', 'burndownTasks', 'burndownForecast', 'burndownSeries', 'burndownSequence',
   // Versions & build tracking
   'BUILD_HISTORY_CAP', 'parseSemver', 'bumpVersion', 'compareSemver', 'formatCommit',
   'makeBuildEntry', 'appendBuildHistory', 'nextBuildNumber', 'formatVersionLabel',
   'formatBuildInfo', 'changelogStub', 'insertChangelogEntry',
   // Alt timeline (tool-rail editor)
-  'ALT_ROW_H', 'ALT_MS_ROW_H', 'ALT_LANE_H', 'ALT_BAR_H', 'ALT_EDGE_PX', 'ALT_MIN_EFF_WEEKS', 'ALT_GRIDS',
+  'ALT_ROW_H', 'ALT_MS_ROW_H', 'ALT_MS_WIDE_W', 'ALT_MS_WIDE_H', 'ALT_LANE_H', 'ALT_BAR_H', 'ALT_EDGE_PX', 'ALT_MIN_EFF_WEEKS', 'ALT_GRIDS',
   'ALT_TOOLS', 'ALT_TYPE_DIGITS', 'ALT_CURSORS', 'ALT_BULK_FIELDS', 'ALT_ZOOM_MIN', 'ALT_ZOOM_MAX',
   'altToolById', 'altToolForKey', 'altToolAllowed', 'altResolveTool', 'altSwitchTool',
   'altBarRect', 'altLayout', 'altRowAt', 'altWeekAt', 'altHitTest', 'altNormBox',
@@ -87,11 +91,11 @@ const EXPORT_NAMES = [
   'altBeginGesture', 'altFrozenReason', 'altSnapshot', 'altMoveBars', 'altResizeBar',
   'altCreateBar', 'altAddEndMilestone', 'altSplitBar', 'altLinkBars', 'altUnlinkBars',
   'altDeleteBars', 'altDuplicateBars', 'altBulkEdit', 'altAlignBars', 'altSelectionSummary',
-  'altBarDates', 'altStartIdxFromDate',
+  'altBarDates', 'altDateAtIdx', 'altMilestoneDate', 'altStartIdxFromDate',
   'TIMELINE_CONTROLS', 'launchMarkers', 'exportTimelineHtml', 'altTaskCodes', 'altDepEdges', 'TIMELINE_CONTROL_VIEWS', 'timelineControlsFor',
   // View card presets
   'VIEW_DEFAULTS', 'VIEW_PRESETS', 'VIEW_MONTH_PRESETS', 'viewPresetById', 'matchViewPreset', 'viewPresetPatch',
-  'ALT_MONTHS_MIN', 'ALT_MONTHS_MAX', 'ALT_MONTHS_LADDER', 'ALT_COLW_MIN', 'altClampMonths', 'altEffMonths', 'altColWForMonths', 'altMonthsStep', 'altMonthsForSpan', 'altParseMonths',
+  'ALT_MONTHS_MIN', 'ALT_MONTHS_MAX', 'ALT_MONTHS_LADDER', 'ALT_COLW_MIN', 'altClampMonths', 'altEffMonths', 'altColWForMonths', 'altMonthsStep', 'altMonthsForSpan', 'altParseMonths', 'altFitMonths',
 ];
 
 /* Names that the HTML defines its own thin wrapper for (passing the global
@@ -180,3 +184,4 @@ html = stampBuild(html);
 writeFileSync(HTML_PATH, html);
 const sizeMb = (html.length / 1024 / 1024).toFixed(2);
 console.log(`✓ Wrote ${HTML_PATH} (${sizeMb} MB)`);
+printLinks();   // the file:// link to open the built app in a browser

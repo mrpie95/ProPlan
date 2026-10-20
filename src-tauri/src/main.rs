@@ -5,7 +5,7 @@ use tauri::menu::{Menu, MenuItem, MenuItemBuilder, SubmenuBuilder};
 use tauri::webview::DownloadEvent;
 use tauri::{AppHandle, Emitter, Wry, WebviewUrl, WebviewWindowBuilder};
 
-// ProPlan is a pure single-file HTML/JS app (Carpati Timeline.html, staged
+// ProPlan is a pure single-file HTML/JS app (ProPlan.html, staged
 // as dist-tauri/index.html by scripts/tauri-prepare.mjs). This shell hosts it
 // in a native window and does three native things:
 //
@@ -143,34 +143,42 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .quit()
         .build()?;
 
-    // File: project lifecycle, snapshots, export/import
+    // Same structure as the in-app menu bar (MENU_BAR in src/proplan-core.mjs):
+    // File · Edit · View · Project · Window. Only ids are emitted; the page does the work.
+
+    // File: project lifecycle, files on disk, import/export.
+    let open_menu = SubmenuBuilder::new(app, "Open Project")
+        .item(&cmd(app, "openProjectSwitcher", "Switch Project…", Some("CmdOrCtrl+O"))?)
+        .item(&cmd(app, "openProjectFile", "Open from File…", Some("CmdOrCtrl+Shift+O"))?)
+        .build()?;
+    let import = SubmenuBuilder::new(app, "Import")
+        .item(&cmd(app, "importAsProject", "JSON as New Project…", None)?)
+        .item(&cmd(app, "importXlsx", "Excel (.xlsx)…", None)?)
+        .item(&cmd(app, "importBackup", "Restore Backup…", None)?)
+        .build()?;
     let export = SubmenuBuilder::new(app, "Export")
         .item(&cmd(app, "json", "Project as JSON", Some("CmdOrCtrl+E"))?)
-        .item(&cmd(app, "exportAll", "Back Up All Projects", Some("CmdOrCtrl+Shift+E"))?)
-        .separator()
         .item(&cmd(app, "png", "Timeline as PNG", None)?)
         .item(&cmd(app, "pdf", "Timeline as PDF", None)?)
         .item(&cmd(app, "html", "Page as HTML", None)?)
         .item(&cmd(app, "timelineHtml", "Timeline as HTML (Confluence)…", None)?)
         .build()?;
-    let import = SubmenuBuilder::new(app, "Import")
-        .item(&cmd(app, "import", "JSON (Replace Current Plan)…", None)?)
-        .item(&cmd(app, "importAsProject", "JSON as New Project…", None)?)
-        .item(&cmd(app, "importBackup", "Restore Backup…", None)?)
-        .item(&cmd(app, "importXlsx", "Excel (.xlsx)…", None)?)
-        .build()?;
     let file = SubmenuBuilder::new(app, "File")
         .item(&cmd(app, "newProject", "New Project…", Some("CmdOrCtrl+N"))?)
-        .item(&cmd(app, "openProjectSwitcher", "Switch Project…", Some("CmdOrCtrl+O"))?)
+        .item(&open_menu)
         .separator()
-        .item(&cmd(app, "renameProject", "Rename Project…", None)?)
         .item(&cmd(app, "duplicateProject", "Duplicate Project…", None)?)
+        .item(&cmd(app, "renameProject", "Rename Project…", None)?)
         .item(&cmd(app, "deleteProject", "Delete Project…", None)?)
         .separator()
-        .item(&cmd(app, "saveSnapshot", "Save Snapshot…", Some("CmdOrCtrl+S"))?)
-        .separator()
-        .item(&export)
+        .item(&cmd(app, "saveProjectCopy", "Save a Copy As…", Some("CmdOrCtrl+Shift+S"))?)
         .item(&import)
+        .item(&export)
+        .item(&cmd(app, "exportAll", "Back Up All Projects…", Some("CmdOrCtrl+Shift+E"))?)
+        .separator()
+        .item(&cmd(app, "showProjectFile", "Show Project File in Finder", None)?)
+        .item(&cmd(app, "openProjectFolder", "Open Project Folder", None)?)
+        .item(&cmd(app, "toggleFileSave", "Autosave to Project File", None)?)
         .separator()
         .close_window()
         .build()?;
@@ -182,27 +190,19 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .item(&cmd(app, "undo", "Undo", None)?)
         .item(&cmd(app, "redo", "Redo", None)?)
         .separator()
-        .item(&cmd(app, "toggleEdit", "Edit Mode", Some("CmdOrCtrl+Shift+M"))?)
-        .item(&cmd(app, "focusMode", "Focus Mode", None)?)
-        .separator()
         .cut()
         .copy()
         .paste()
         .select_all()
+        .separator()
+        .item(&cmd(app, "toggleEdit", "Edit Mode", Some("CmdOrCtrl+Shift+M"))?)
+        .item(&cmd(app, "autoSequence", "Auto-sequence", None)?)
         .build()?;
 
     // View: every view, mirroring the in-app nav bar — Summary · Editors
-    // (Structure, Plan, Progress, Timeline) · Views (read-only/presentation).
+    // (Structure, Plan, Progress, Timeline) · More views · Beta views.
     // ⌘1…⌘9 keep their earlier meaning; the rest use ⌘⌥.
-    let view = SubmenuBuilder::new(app, "View")
-        .item(&cmd(app, "view:summary", "Summary", Some("CmdOrCtrl+1"))?)
-        .separator()
-        .item(&cmd(app, "view:structure", "Structure", Some("CmdOrCtrl+8"))?)
-        .item(&cmd(app, "view:plan", "Plan", Some("CmdOrCtrl+2"))?)
-        .item(&cmd(app, "view:progress", "Progress", Some("CmdOrCtrl+Alt+3"))?)
-        .item(&cmd(app, "view:altTimeline", "Timeline", Some("CmdOrCtrl+3"))?)
-        .item(&cmd(app, "view:viewA", "Legacy Timeline", None)?)
-        .separator()
+    let more_views = SubmenuBuilder::new(app, "More Views")
         .item(&cmd(app, "view:roadmap", "Simple Timeline", Some("CmdOrCtrl+4"))?)
         .item(&cmd(app, "view:phaseTimeline", "Phase Timeline", Some("CmdOrCtrl+5"))?)
         .item(&cmd(app, "view:milestones", "Milestones", Some("CmdOrCtrl+6"))?)
@@ -212,26 +212,37 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .item(&cmd(app, "view:process", "Process Reference", Some("CmdOrCtrl+Alt+2"))?)
         .item(&cmd(app, "view:snapshots", "Snapshots", Some("CmdOrCtrl+9"))?)
         .separator()
+        .item(&cmd(app, "view:viewA", "Legacy Timeline", None)?)
+        .build()?;
+    // Beta: experimental views. Ids must match window.BETA_VIEWS in the page.
+    let beta_views = SubmenuBuilder::new(app, "Beta Views")
+        .item(&cmd(app, "view:burndown", "Burndown", None)?)
+        .build()?;
+    let view = SubmenuBuilder::new(app, "View")
+        .item(&cmd(app, "view:summary", "Summary", Some("CmdOrCtrl+1"))?)
+        .separator()
+        .item(&cmd(app, "view:structure", "Structure", Some("CmdOrCtrl+8"))?)
+        .item(&cmd(app, "view:plan", "Plan", Some("CmdOrCtrl+2"))?)
+        .item(&cmd(app, "view:progress", "Progress", Some("CmdOrCtrl+Alt+3"))?)
+        .item(&cmd(app, "view:altTimeline", "Timeline", Some("CmdOrCtrl+3"))?)
+        .separator()
+        .item(&more_views)
+        .item(&beta_views)
+        .separator()
         .item(&cmd(app, "toggleTheme", "Toggle Dark Mode", Some("CmdOrCtrl+Shift+L"))?)
+        .item(&cmd(app, "focusMode", "Focus Mode", None)?)
         .separator()
         .fullscreen()
         .build()?;
 
-    // Process: the project's phase model (SOP-18 / Stage-Gate / none / custom).
-    let process = SubmenuBuilder::new(app, "Process")
-        .item(&cmd(app, "changeProcess", "Choose Process…", None)?)
-        .item(&cmd(app, "view:process", "Process Reference", None)?)
-        .build()?;
-
-    // Beta: experimental views. Ids must match window.BETA_VIEWS in the page.
-    let beta_views = SubmenuBuilder::new(app, "Beta Views")
-        .item(&cmd(app, "view:altTimeline", "Alt Timeline View", None)?)
-        .build()?;
-    let beta = SubmenuBuilder::new(app, "Beta")
-        .item(&beta_views)
-        .build()?;
-
-    let plan = SubmenuBuilder::new(app, "Plan")
+    // Project: the plan itself — phase model, snapshots, and actions that replace it.
+    let project = SubmenuBuilder::new(app, "Project")
+        .item(&cmd(app, "changeProcess", "Process…", None)?)
+        .separator()
+        .item(&cmd(app, "saveSnapshot", "Save Snapshot…", Some("CmdOrCtrl+S"))?)
+        .item(&cmd(app, "view:snapshots", "Snapshots…", None)?)
+        .separator()
+        .item(&cmd(app, "import", "Replace Plan from JSON…", None)?)
         .item(&cmd(app, "loadDemo", "Load Demo Plan…", None)?)
         .item(&cmd(app, "clear", "Clear Timeline…", None)?)
         .build()?;
@@ -241,7 +252,7 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .maximize()
         .build()?;
 
-    Menu::with_items(app, &[&app_menu, &file, &edit, &view, &process, &beta, &plan, &window])
+    Menu::with_items(app, &[&app_menu, &file, &edit, &view, &project, &window])
 }
 
 fn main() {

@@ -1,6 +1,6 @@
 [package]
 name = "proplan"
-version = "0.2.0"
+version = "0.3.0"
 description = "ProPlan — single-file Gantt/phase timeline planner"
 edition = "2021"
 

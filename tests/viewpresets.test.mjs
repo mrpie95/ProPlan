@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   VIEW_DEFAULTS, VIEW_PRESETS, VIEW_MONTH_PRESETS, viewPresetById, matchViewPreset, viewPresetPatch,
   ALT_MONTHS_LADDER, altClampMonths, altEffMonths, altColWForMonths, altMonthsStep, altMonthsForSpan, altParseMonths,
+  altFitMonths, normaliseState,
 } from '../src/proplan-core.mjs';
 
 describe('view presets', () => {
@@ -72,5 +73,40 @@ describe('months shown', () => {
   });
   it('presets', () => {
     expect(VIEW_MONTH_PRESETS.map(p => p.months)).toEqual([3, 6, 12, 24, 0]);
+  });
+});
+
+describe('altFitMonths (zoom ▸ Fit)', () => {
+  const st = (bars) => { const s = { start: '2026-01', end: '2026-12', lanes: [{ id: 'L', code: 'WP 1 — A', bars: bars.map(b => ({ buffer: 0, ...b })) }] }; normaliseState(s); return s; };
+  it('is the month the last task ends in, plus one', () => {
+    // 9 weeks = ends 2.25 months in (during month 3) -> 4
+    expect(altFitMonths(st([{ id: 'a', type: 'work', startIdx: 0, span: 9, label: 'A' }]))).toBe(4);
+  });
+  it('a task ending exactly on a month boundary is in that month', () => {
+    expect(altFitMonths(st([{ id: 'a', type: 'work', startIdx: 0, span: 8, label: 'A' }]))).toBe(3);   // ends at 2.0 -> month 2 -> 3
+  });
+  it('uses the latest bar, milestones included', () => {
+    const s = st([
+      { id: 'a', type: 'work', startIdx: 0, span: 4, label: 'A' },
+      { id: 'm', type: 'milestone', startIdx: 5.5, span: 0, label: 'M' },
+    ]);
+    expect(altFitMonths(s)).toBe(7);   // milestone in month 6 -> 7
+  });
+  it('counts the buffered (calendar) length', () => {
+    const s = st([{ id: 'a', type: 'work', startIdx: 0, span: 4, buffer: 25, label: 'A' }]);   // 5 wk = 1.25 mo -> month 2 -> 3
+    expect(altFitMonths(s)).toBe(3);
+  });
+  it('ignores ongoing bars and honours the include filter', () => {
+    const s = st([
+      { id: 'lead', type: 'ongoing', startIdx: 0, span: 80, label: 'Lead' },
+      { id: 'a', type: 'work', startIdx: 0, span: 4, label: 'A' },
+      { id: 'z', type: 'work', startIdx: 10, span: 4, label: 'Z' },
+    ]);
+    expect(altFitMonths(s)).toBe(12);                              // Z ends at 11.0 -> month 11 -> 12
+    expect(altFitMonths(s, (b) => b.id !== 'z')).toBe(2);          // A ends at 1.0 -> month 1 -> 2
+  });
+  it('nothing to fit = 0 (whole project); clamps to 60', () => {
+    expect(altFitMonths({ start: '2026-01', end: '2026-12', lanes: [] })).toBe(0);
+    expect(altFitMonths(st([{ id: 'a', type: 'work', startIdx: 0, span: 4 * 90, label: 'Long' }]))).toBe(60);
   });
 });

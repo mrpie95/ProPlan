@@ -4,7 +4,8 @@ import {
   NAV_VIEWS, NAV_LAYOUT, MENU_BAR, navViewIds, navGroupOfView, normalizeBetaViews, menuCommandIds,
 } from '../src/proplan-core.mjs';
 
-const html = readFileSync(new URL('../Carpati Timeline.html', import.meta.url), 'utf8');
+const html = readFileSync(new URL('../ProPlan.html', import.meta.url), 'utf8');
+const betaIds = [...html.matchAll(/id:\s*"([A-Za-z]+)",\s*label:/g)].map(m => m[1]);   // window.BETA_VIEWS entries in the page
 const mainRs = readFileSync(new URL('../src-tauri/src/main.rs', import.meta.url), 'utf8');
 
 /** Ids handled by runCommand() in the page: `cmd === "x"` branches (+ the `view:` prefix). */
@@ -25,7 +26,8 @@ describe('nav layout', () => {
   });
   it('lists each view exactly once and every one has a label + description', () => {
     const ids = navViewIds();
-    expect(new Set(ids).size).toBe(ids.length);
+    const cmds = ids.filter(i => !i.startsWith('view:'));   // a view may be listed in two menus
+    expect(new Set(cmds).size).toBe(cmds.length);
     expect(ids.sort()).toEqual(Object.keys(NAV_VIEWS).sort());
     for (const id of ids) {
       expect(NAV_VIEWS[id].label).toBeTruthy();
@@ -74,16 +76,26 @@ describe('normalizeBetaViews', () => {
 describe('menu bar', () => {
   const ids = menuCommandIds();
   it('has the expected top-level menus', () => {
-    expect(MENU_BAR.map(m => m.label)).toEqual(['Project', 'Edit', 'View', 'Export & backup', 'Beta', 'Help']);
+    expect(MENU_BAR.map(m => m.label)).toEqual(['File', 'Edit', 'View', 'Project', 'Help']);
   });
-  it('puts "Beta views" under Beta, filled from the registry', () => {
-    const beta = MENU_BAR.find(m => m.id === 'beta');
-    const sub = beta.items.find(i => i.t === 'sub');
-    expect(sub.label).toBe('Beta views');
+  it('puts "Beta views" under View, filled from the registry', () => {
+    const view = MENU_BAR.find(m => m.id === 'view');
+    const sub = view.items.find(i => i.t === 'sub' && i.label === 'Beta views');
     expect(sub.items).toEqual([{ t: 'beta' }]);
   });
+  it('File holds project lifecycle + Import/Export; Project holds process, snapshots and plan-replacing actions', () => {
+    const idsIn = (id) => menuCommandIds(MENU_BAR.filter(m => m.id === id));
+    expect(idsIn('file')).toEqual(expect.arrayContaining(['newProject', 'openProjectFile', 'duplicateProject', 'renameProject', 'deleteProject', 'importAsProject', 'importXlsx', 'importBackup', 'json', 'png', 'pdf', 'html', 'timelineHtml', 'exportAll']));
+    expect(idsIn('project')).toEqual(expect.arrayContaining(['changeProcess', 'saveSnapshot', 'import', 'loadDemo', 'clear']));
+    expect(idsIn('edit')).not.toContain('clear');
+  });
+  it('View lists every nav view', () => {
+    const viewIds = menuCommandIds(MENU_BAR.filter(m => m.id === 'view')).filter(i => i.startsWith('view:')).map(i => i.slice(5));
+    for (const v of navViewIds()) expect(viewIds, `View menu lacks ${v}`).toContain(v);
+  });
   it('has no duplicate command ids', () => {
-    expect(new Set(ids).size).toBe(ids.length);
+    const cmds = ids.filter(i => !i.startsWith('view:'));   // a view may be listed in two menus
+    expect(new Set(cmds).size).toBe(cmds.length);
   });
   it('absorbs every item the old Menu ▾ had', () => {
     for (const id of ['renameProject', 'newProject', 'duplicateProject', 'deleteProject', 'json', 'exportAll', 'import',
@@ -102,7 +114,7 @@ describe('menu bar', () => {
     const native = [...mainRs.matchAll(/cmd\(app, "([^"]+)"/g)].map(m => m[1]);
     expect(native.length).toBeGreaterThan(10);
     for (const id of native) {
-      if (id.startsWith('view:')) { expect([...navViewIds(), 'altTimeline']).toContain(id.slice(5)); continue; }
+      if (id.startsWith('view:')) { expect([...navViewIds(), 'altTimeline', ...betaIds]).toContain(id.slice(5)); continue; }
       expect(handled, `runCommand has no branch for native menu id "${id}"`).toContain(id);
     }
   });

@@ -1,6 +1,6 @@
 # ProPlan UI consistency review
 
-Method: live app at localhost:8137 with the preview seed (8 WPs, 53 tasks), 800 and 1400 px, light and dark for Timeline/Plan/Progress, computed-style sampling (height/radius/font/colour) across all 13 views, source greps of `Carpati Timeline.html` and `src/proplan-core.mjs`. The Timeline-tab View panel was in flux and is only noted, not judged. Not covered in depth: Proposal/Phase/Roadmap visuals in dark mode, the date picker `.dp` and context menus visually (CSS only), toasts (no `.toast` rule found in the first stylesheet), view-only mode (toggling `proplan.editMode` via localStorage did not switch the Timeline into view-only in my session, so addendum item 8 is unverified).
+Method: live app at localhost:8137 with the preview seed (8 WPs, 53 tasks), 800 and 1400 px, light and dark for Timeline/Plan/Progress, computed-style sampling (height/radius/font/colour) across all 13 views, source greps of `ProPlan.html` and `src/proplan-core.mjs`. The Timeline-tab View panel was in flux and is only noted, not judged. Not covered in depth: Proposal/Phase/Roadmap visuals in dark mode, the date picker `.dp` and context menus visually (CSS only), toasts (no `.toast` rule found in the first stylesheet), view-only mode (toggling `proplan.editMode` via localStorage did not switch the Timeline into view-only in my session, so addendum item 8 is unverified).
 
 ## Summary
 
