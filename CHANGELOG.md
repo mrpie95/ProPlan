@@ -16,6 +16,7 @@ Per-build detail (build number, commit, date) lives in `build-info.json` and the
 - **Menus** rebuilt as File · Edit · View · Project · Help (native Mac menu matches); project switcher in File ▸ Open project.
 - **Timeline as HTML (Confluence)** is now a full page with the Timeline's View-card style controls: zoom/range, trim to planned, milestones at the bottom or packed, dependency routes, hover highlight, fixed pixel geometry so it never squeezes.
 - **Simplified Timeline View card**: no preset row, classic blocks, Jump markers, WP colours, Compact or milestone placement options — segmented blocks and packed milestones are the only styles; view actions moved to the toolbar.
+- **Confluence export fits the page** (fluid width with a minimum so long timelines scroll) and its **Today line is live** — it moves to the day the page is viewed (tiny inline script; static fallback where scripts are stripped).
 - **Project files** mirrored to `~/Documents/ProPlan`, build links printed after each build.
 
 ### Changed

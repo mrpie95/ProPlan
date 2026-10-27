@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { exportTimelineHtml, altTaskCodes } from '../src/proplan-core.mjs';
 
 const mk = () => ({
@@ -16,7 +17,7 @@ const mk = () => ({
 
 describe('exportTimelineHtml', () => {
   it('is script- and resource-free, escaped, inline-styled', () => {
-    const h = exportTimelineHtml(mk(), { today: '2026-03-10', title: '<script>alert(1)</script>' });
+    const h = exportTimelineHtml(mk(), { today: '2026-03-10', todayLive: false, title: '<script>alert(1)</script>' });
     expect(h).not.toMatch(/<script|<style|https?:\/\/|@import|<link|<img|url\(/i);
     expect(h).toContain('&lt;script&gt;');
     expect(h).toContain('Task &quot;A&quot; &amp; co');
@@ -44,9 +45,9 @@ describe('exportTimelineHtml', () => {
     expect(shown).toContain('Task &quot;A&quot;'); expect(shown).not.toContain('Task C');
     expect(exportTimelineHtml(s, { compact: true })).not.toContain('<span title="depends on');
   });
-  it('positions bars in fixed pixels and tolerates empty/odd state', () => {
+  it('positions bars as % of the track and tolerates empty/odd state', () => {
     const h = exportTimelineHtml(mk());
-    expect(h).toContain('left:0px;width:120.33px'); // 8 wk = 2 mo of 12 on a 722px track
+    expect(h).toContain('left:0%;width:16.67%'); // 8 wk = 2 mo of 12
     expect(exportTimelineHtml({ start: '2026-01', end: '2026-03', lanes: [] })).toContain('No tasks to show');
     expect(() => exportTimelineHtml({})).not.toThrow();
     expect(altTaskCodes(mk()).b.code).toBe('WP1.2');
@@ -72,7 +73,7 @@ describe('exportTimelineHtml matches the Timeline tab', () => {
     const s = mk();
     s.lanes[0].bars[1].label = 'A rather long task name that cannot fit inside a four-week block';
     const h = exportTimelineHtml(s);
-    expect(h).toMatch(/left:\d+(\.\d+)?px;white-space:nowrap;font-size:11.5px/);   // outside label to the right
+    expect(h).toMatch(/left:calc\(\d+(\.\d+)?% \+ \d+px\);white-space:nowrap;font-size:11.5px/);   // outside label to the right
     expect(h).toContain('A rather long task name');
     expect(h).not.toContain('text-overflow:ellipsis;">A rather');   // never ellipsised
   });
@@ -94,19 +95,19 @@ describe('exportTimelineHtml matches the Timeline tab', () => {
 });
 
 describe('exportTimelineHtml keeps its shape', () => {
-  it('is a fixed-pixel table: no percentage widths/offsets, no calc(), the same width in any container', () => {
+  it('is FLUID with a minimum: the track fills the page (% geometry) but never gets narrower than its minimum width', () => {
     const h = exportTimelineHtml(mk());
-    expect(h).not.toMatch(/(?<!max-)(?:left|right|width):[\d.]+%/);
-    expect(h).not.toContain('calc(');
-    expect(h).not.toContain('min-width:900px');
-    expect(h).toMatch(/width:900px;position:relative/);        // 112 + 66 label columns + the 722px track
+    expect(h).toContain('min-width:900px;position:relative');          // 112 + 66 label columns + the 722px minimum track
+    expect(h).toContain('flex:1 1 722px;min-width:722px');             // every track cell can grow, none can shrink below the minimum
+    expect(h).not.toMatch(/(?<!min-)(?<!max-)width:900px/);           // no fixed table width
     expect(h).not.toContain('max-width:1400px');
+    expect(h).toMatch(/(?:left|width):[\d.]+%/);                      // positions are percentages of the track
   });
-  it('a long project widens the table instead of squeezing the months', () => {
+  it('a long project raises the minimum width (scrolls) instead of squeezing the months', () => {
     const s = mk(); s.end = '2028-12';
     const h = exportTimelineHtml(s);
-    const w = Number(h.match(/width:(\d+)px;position:relative;background:#ffffff/)[1]);
-    expect(w).toBe(178 + 36 * 52);
+    const w = Number(h.match(/min-width:(\d+)px;position:relative;background:#ffffff/)[1]);
+    expect(w).toBe(178 + 36 * 28);
   });
   it('legend has no dependency entries (the pills in the chart stay)', () => {
     const h = exportTimelineHtml(mk());
@@ -152,7 +153,7 @@ describe('exportTimelineHtml dependency routes', () => {
     expect(exportTimelineHtml(mk())).not.toContain('<svg');
     const h = exportTimelineHtml(mk(), { routes: true, deps: false });
     expect(h).toContain('<svg xmlns="http://www.w3.org/2000/svg"');
-    const paths = h.match(/<path d="M[^"]*"/g) || [];
+    const paths = h.match(/<path d="M[^"]*H[^"]*"/g) || [];
     expect(paths.length).toBe(3);                          // a→b, b→m, m→c
     for (const p of paths) expect(p).toMatch(/^<path d="M[\d. ]+H[\d. ]+V[\d. ]+H/);   // horizontal / vertical segments only
     expect(h).not.toContain('class="pp-pill"');            // routes work without the pills
@@ -202,7 +203,6 @@ describe('exportTimelineHtml packed milestones (beta)', () => {
     const h = exportTimelineHtml(many(), { milestonesPacked: true, routes: true });
     expect(h).toContain('<svg');
     expect(h).toContain('flex:0 0 66px;width:66px');
-    expect(h).not.toContain('calc(');
   });
 });
 
@@ -222,10 +222,41 @@ describe('exportTimelineHtml range', () => {
     expect(months(h)).toEqual(['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug']);
     expect(h).not.toContain('Task &quot;A&quot; &amp; co');         // ends before March
     expect(h).toContain('>1.2</span>');                              // Task B keeps its code (not renumbered)
-    expect(h).toContain('left:0px');                                 // B starts in Mar? or is cut at the left edge
+    expect(h).toContain('left:0%');                                 // B starts in Mar? or is cut at the left edge
   });
   it('a range with nothing in it, or an inverted one, still renders', () => {
     expect(() => exportTimelineHtml(mk(), { range: 'custom', rangeStart: '2026-09', rangeEnd: '2026-02' })).not.toThrow();
     expect(exportTimelineHtml(mk(), { range: 'planned', showMilestones: false, filterLane: 'nope' })).toContain('No tasks to show');
+  });
+});
+
+describe('exportTimelineHtml live today line', () => {
+  it('is the only script, and only when a today line is asked for; the line carries the hooks the script moves', () => {
+    const h = exportTimelineHtml(mk(), { today: '2026-03-10' });
+    expect((h.match(/<script>/g) || []).length).toBe(1);
+    expect(h).toContain('data-pp-start="2026-01"');
+    expect(h).toContain('data-pp-n="12"');
+    expect(h).toContain('class="pp-today"');
+    expect(h).toContain('class="pp-today-l"');
+    expect(h).toContain('Today &middot;'.replace('&middot;', '\u00B7'));   // export-day fallback label for hosts that strip scripts
+    expect(exportTimelineHtml(mk())).not.toContain('<script');                   // no today line → no script
+    expect(exportTimelineHtml(mk(), { today: '2026-03-10', todayLive: false })).not.toContain('<script');
+  });
+  it('still gets a (hidden) line when the export-day is outside the months, so a later view inside them shows it', () => {
+    const h = exportTimelineHtml(mk(), { today: '2031-06-01' });
+    expect(h).toContain('class="pp-today"');
+    expect(h).toContain('display:none;');
+  });
+  it('the script computes the viewer\'s day against the exported start month (ranges too)', () => {
+    const h = exportTimelineHtml(mk(), { today: '2026-03-10', range: 'custom', rangeStart: '2026-03', rangeEnd: '2026-08' });
+    expect(h).toContain('data-pp-start="2026-03"');
+    expect(h).toContain('data-pp-n="6"');
+  });
+});
+
+describe('core source stays inlinable', () => {
+  it('never contains a literal </script> (it would end ProPlan.html\'s own <script> block when the core is inlined)', () => {
+    const src = readFileSync(new URL('../src/proplan-core.mjs', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/<\/script/i);
   });
 });

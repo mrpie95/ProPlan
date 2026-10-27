@@ -9424,7 +9424,7 @@ function tlhRanged(state, o) {
 function exportTimelineHtml(state, opts = {}) {
   const o0 = opts || {};
   if ((o0.range === "planned" || o0.range === "custom") && !o0._ranged) return tlhRanged(state, o0);
-  const o = Object.assign({ mode: "fragment", deps: true, showMilestones: true, compact: false, names: false, hover: false, milestonesAtBottom: false, milestonesPacked: false, msNames: true, routes: false }, o0);
+  const o = Object.assign({ mode: "fragment", deps: true, showMilestones: true, compact: false, names: false, hover: false, todayLive: true, milestonesAtBottom: false, milestonesPacked: false, msNames: true, routes: false }, o0);
   if (o.milestonesPacked) o.milestonesAtBottom = true;   // packed is a layout of the bottom section
   const s = state || {};
   const months = monthsBetween(s.start, s.end);
@@ -9434,11 +9434,12 @@ function exportTimelineHtml(state, opts = {}) {
   // Geometry mirrors the Timeline tab: 22px rows, 18px blocks, a 112px WP strip + a 66px ID/status column.
   const ROW = o.compact ? 20 : 22, BAR = o.compact ? 14 : 18, STRIP = 112, IDW = o.names ? 250 : (o.milestonesAtBottom && !o.milestonesPacked ? 96 : 66), LABW = STRIP + IDW;
   const MIN_TRACK = 900 - LABW;
-  // FIXED pixel geometry: the table is exactly LABW + TRACK px wide wherever it is pasted (a narrower page scrolls it, it is never squeezed), so every block, pill and label keeps its shape and the text-fit maths below is exact.
-  const TRACK = Math.max(MIN_TRACK, total * 52);
+  // FLUID with a minimum: the track fills the page (positions/widths are % of it) but never gets narrower than TRACK px — a narrower page (or a very long timeline: months × 52) scrolls instead of squeezing. All px geometry below is computed AT that minimum, so label-fit decisions hold at any wider size (blocks only get wider).
+  const TRACK = Math.max(MIN_TRACK, total * 28);
   const r2 = (v) => Math.round(v * 100) / 100;
   const X = (v) => r2(Math.max(0, Math.min(total, v)) / total * TRACK);   // months from the start -> px
-  const pct = (v) => `${X(v)}px`;
+  const pct = (v) => `${r2(Math.max(0, Math.min(total, v)) / total * 100)}%`;      // months -> % of the track
+  const P = (px) => `${r2(px / TRACK * 100)}%`;                                    // design px -> % of the track
   const FONT = "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;";
   const MONO = "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;";
   // The app's light-theme tokens, flattened (Confluence has no CSS variables / color-mix).
@@ -9493,7 +9494,9 @@ function exportTimelineHtml(state, opts = {}) {
   const lines = [];
   for (const mk of launchMarkers(s)) if (mk.at >= 0 && mk.at <= total) lines.push({ at: mk.at, label: `\u{1F680} ${mk.label}`, color: tlhColor(mk.color, "#16a34a"), text: "#ffffff", w: 2 });
   const todayAt = o.today ? tlhDayAt(startYM, o.today) : null;
-  if (todayAt != null && todayAt >= 0 && todayAt <= total) lines.push({ at: todayAt, label: `Today \u00B7 ${tlhEsc(String(o.today).slice(8))} ${MONTH_NAMES[Number(String(o.today).slice(5, 7)) - 1] || ""}`, color: "#db2777", text: "#ffffff", w: 2.5, today: true });
+  const live = !!(o.today && o.todayLive);   // the line moves to the VIEWER's today (tiny inline script); the export-day position is the fallback where scripts are stripped
+  if (live && !(todayAt != null && todayAt >= 0 && todayAt <= total)) lines.push({ at: 0, hidden: true, label: "Today", color: "#db2777", text: "#ffffff", w: 2.5, today: true });
+  else if (todayAt != null && todayAt >= 0 && todayAt <= total) lines.push({ at: todayAt, label: `Today \u00B7 ${tlhEsc(String(o.today).slice(8))} ${MONTH_NAMES[Number(String(o.today).slice(5, 7)) - 1] || ""}`, color: "#db2777", text: "#ffffff", w: 2.5, today: true });
 
   const metaBits = [`Start: ${tlhEsc(s.start || "")}`, `End: ${tlhEsc(s.end || "")}`];
   for (const mk of launchMarkers(s)) metaBits.push(`${tlhEsc(mk.label)}: ${tlhEsc(mk.day)}`);
@@ -9510,16 +9513,16 @@ function exportTimelineHtml(state, opts = {}) {
   // Header: dark year bar + month row, over the track column; "WORK PACKAGE · ID" corner on the left.
   const yearCells = [];
   months.forEach(mm => { const last = yearCells[yearCells.length - 1]; if (last && last.y === mm.y) last.n++; else yearCells.push({ y: mm.y, n: 1 }); });
-  const cellW = (n) => `${r2(n / total * TRACK)}px`;
+  const cellW = (n) => `${r2(n / total * 100)}%`;
   const initialsOnly = total > 18;
   const HEAD_H = 44;
   const head = `<div style="display:flex;height:${HEAD_H}px;border-bottom:1px solid ${C.lineS};">
 <div style="flex:0 0 ${LABW}px;width:${LABW}px;box-sizing:border-box;padding:0 8px;background:${C.surface};border-right:1px solid ${C.lineS};font-size:10.5px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:${C.muted};line-height:${HEAD_H}px;white-space:nowrap;">Work package &middot; ID</div>
-<div style="flex:0 0 ${TRACK}px;width:${TRACK}px;">
+<div style="flex:1 1 ${TRACK}px;min-width:${TRACK}px;">
 <div style="display:flex;height:22px;background:#0f172a;">${yearCells.map(y => `<span style="display:block;width:${cellW(y.n)};box-sizing:border-box;overflow:hidden;white-space:nowrap;padding:2px 8px;font-size:11.5px;font-weight:600;line-height:18px;color:#ffffff;border-right:1px solid ${C.line};">${y.n >= 2 ? y.y : ""}</span>`).join("")}</div>
 <div style="display:flex;height:22px;background:${C.surface};">${months.map(mm => `<span style="display:block;width:${cellW(1)};box-sizing:border-box;overflow:hidden;white-space:nowrap;padding:3px 6px;font-size:11px;line-height:16px;color:${C.soft};border-right:1px solid ${C.grid};">${initialsOnly ? MONTH_NAMES[mm.m - 1][0] : MONTH_NAMES[mm.m - 1]}</span>`).join("")}</div>
 </div></div>`;
-  const gridBg = `background-image:linear-gradient(to right,${C.grid} 1px,transparent 1px);background-size:${r2(TRACK / total)}px 100%;`;
+  const gridBg = `background-image:linear-gradient(to right,${C.grid} 1px,transparent 1px);background-size:${r2(100 / total)}% 100%;`;
 
   const rows = [], geom = {};
   let stripe = 0;
@@ -9548,19 +9551,19 @@ function exportTimelineHtml(state, opts = {}) {
           let dates = ""; try { dates = altMilestoneDate(s, b); } catch { /* ignore */ }
           const tip = tlhEsc(`${cd.code || ""} ${b.label || ""} (${dates})`);
           geom[b.id] = { row: stripe, x0: px, x1: px + tw, ms: true, hw: 1 };
-          const name = o.msNames ? `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;${flip ? `right:${r2(TRACK - px + 8)}px;` : `left:${r2(px + tw + 8)}px;`}white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>` : "";
+          const name = o.msNames ? `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;${flip ? `right:calc(${P(TRACK - px)} + 8px);` : `left:calc(${P(px)} + ${tw + 8}px);`}white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>` : "";
           const hh = 20, k = 8;
-          return `<div class="pp-b" title="${tip}" style="position:absolute;left:${r2(px)}px;top:${(ROW - hh) / 2}px;width:${tw}px;height:${hh}px;"><svg xmlns="http://www.w3.org/2000/svg" width="${tw}" height="${hh}" viewBox="0 0 ${tw} ${hh}" style="position:absolute;left:0;top:-1px;display:block;overflow:visible;"><line x1="0.8" y1="-1.5" x2="0.8" y2="${hh + 1.5}" stroke="${f.b}" stroke-width="1.6" stroke-linecap="round"/><circle cx="0.8" cy="${hh / 2}" r="2.6" fill="${f.b}"/><polygon points="1.6,${hh / 2} ${k},1.3 ${tw - k},1.3 ${tw - 1.3},${hh / 2} ${tw - k},${hh - 1.3} ${k},${hh - 1.3}" fill="${f.bg}" stroke="${f.b}" stroke-width="${Math.max(1.5, f.w)}" stroke-linejoin="round"/></svg><span style="position:absolute;left:0;top:-1px;width:${tw}px;height:${hh}px;text-align:center;line-height:${hh}px;font-size:10px;font-weight:800;color:${C.ink};${MONO}">${tlhEsc(code)}</span></div>${name}`;
+          return `<div class="pp-b" title="${tip}" style="position:absolute;left:${P(px)};top:${(ROW - hh) / 2}px;width:${tw}px;height:${hh}px;"><svg xmlns="http://www.w3.org/2000/svg" width="${tw}" height="${hh}" viewBox="0 0 ${tw} ${hh}" style="position:absolute;left:0;top:-1px;display:block;overflow:visible;"><line x1="0.8" y1="-1.5" x2="0.8" y2="${hh + 1.5}" stroke="${f.b}" stroke-width="1.6" stroke-linecap="round"/><circle cx="0.8" cy="${hh / 2}" r="2.6" fill="${f.b}"/><polygon points="1.6,${hh / 2} ${k},1.3 ${tw - k},1.3 ${tw - 1.3},${hh / 2} ${tw - k},${hh - 1.3} ${k},${hh - 1.3}" fill="${f.bg}" stroke="${f.b}" stroke-width="${Math.max(1.5, f.w)}" stroke-linejoin="round"/></svg><span style="position:absolute;left:0;top:-1px;width:${tw}px;height:${hh}px;text-align:center;line-height:${hh}px;font-size:10px;font-weight:800;color:${C.ink};${MONO}">${tlhEsc(code)}</span></div>${name}`;
         }).join("");
         const lastRow = pi === packRows.length - 1;
         const rowBg = stripe++ % 2 ? "background-color:rgba(246,248,250,0.7);" : "";
         return `<div class="pp-row" style="display:flex;height:${ROW}px;">
 <div style="flex:0 0 ${IDW}px;width:${IDW}px;box-sizing:border-box;border-right:1px solid ${C.lineS};border-bottom:1px solid ${lastRow ? C.lineS : C.grid};background:#ffffff;"></div>
-<div class="pp-track" style="flex:0 0 ${TRACK}px;width:${TRACK}px;position:relative;overflow:hidden;box-sizing:border-box;border-bottom:1px solid ${C.grid};${rowBg}${gridBg}">${cells}</div></div>`;
+<div class="pp-track" style="flex:1 1 ${TRACK}px;min-width:${TRACK}px;position:relative;overflow:hidden;box-sizing:border-box;border-bottom:1px solid ${C.grid};${rowBg}${gridBg}">${cells}</div></div>`;
       }).join("\n");
       rows.push(`<div class="pp-wp" style="display:flex;">
 <div class="pp-wpstrip" title="Milestones from every work package" style="flex:0 0 ${STRIP}px;width:${STRIP}px;box-sizing:border-box;padding:5px 8px 5px 10px;background:${C.surface};border-left:4px solid ${rail};border-right:1px solid ${C.lineS};border-bottom:1px solid ${C.lineS};overflow:hidden;"><div style="font-size:11px;font-weight:800;letter-spacing:0.04em;line-height:15px;color:${C.ink};">Milestones</div><div style="font-size:11.5px;font-weight:600;line-height:14px;color:${C.soft};word-break:break-word;">${bars.length} across all WPs</div></div>
-<div style="flex:0 0 ${IDW + TRACK}px;width:${IDW + TRACK}px;">
+<div style="flex:1 1 ${IDW + TRACK}px;min-width:${IDW + TRACK}px;">
 ${prow}
 </div></div>`);
       continue;
@@ -9584,7 +9587,7 @@ ${prow}
         const pd = barById[e.pred] || {}, done = barStatus(pd) === "done";
         const txt = (codes[e.pred] || {}).short || "";
         const off = 6 + preds.slice(0, k).reduce((a, q) => a + PILL((codes[q.pred] || {}).short || "") + 3, 0);
-        return { html: `<span class="pp-pill" title="depends on ${tlhEsc(((codes[e.pred] || {}).code || "") + " " + (pd.label || ""))}" style="position:absolute;top:50%;margin-top:-7.5px;right:${r2(TRACK - x / total * TRACK + off)}px;height:15px;line-height:15px;padding:0 4.5px;box-sizing:border-box;border-radius:7.5px;background:${done ? C.doneB : colorOfPred[e.pred]};color:#ffffff;font-size:9.5px;font-weight:700;white-space:nowrap;${MONO}">${tlhEsc(txt)}</span>`, w: PILL(txt) + 3 };
+        return { html: `<span class="pp-pill" title="depends on ${tlhEsc(((codes[e.pred] || {}).code || "") + " " + (pd.label || ""))}" style="position:absolute;top:50%;margin-top:-7.5px;right:calc(${r2(100 - x / total * 100)}% + ${off}px);height:15px;line-height:15px;padding:0 4.5px;box-sizing:border-box;border-radius:7.5px;background:${done ? C.doneB : colorOfPred[e.pred]};color:#ffffff;font-size:9.5px;font-weight:700;white-space:nowrap;${MONO}">${tlhEsc(txt)}</span>`, w: PILL(txt) + 3 };
       });
       const pillsW = pills.reduce((a, p) => a + p.w, 0);
       // Name outside the block (never ellipsised): to the right, or to the LEFT of the block + its pills near the right edge.
@@ -9592,10 +9595,10 @@ ${prow}
       if (!inside && !o.names) {
         const rightRoom = (total - wEnd) / total * TRACK, flip = rightRoom < textW(label) + 16 && x / total * TRACK > textW(label) + pillsW + 16;
         outside = flip
-          ? `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;right:${r2(TRACK - x / total * TRACK + 8 + pillsW)}px;white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>`
-          : `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;left:${r2((ms ? x : wEnd) / total * TRACK + (ms ? 14 : 8))}px;white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>`;
+          ? `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;right:calc(${r2(100 - x / total * 100)}% + ${8 + pillsW}px);white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>`
+          : `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;left:calc(${r2((ms ? x : wEnd) / total * 100)}% + ${ms ? 14 : 8}px);white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>`;
       }
-      const buf = (!ms && b.buffer > 0) ? `<span style="position:absolute;right:0;top:0;bottom:0;width:${r2(bufPx)}px;border-left:1px dashed ${f.b};background:repeating-linear-gradient(135deg,rgba(15,23,42,0.22) 0,rgba(15,23,42,0.22) 3px,transparent 3px,transparent 6px);"></span>` : "";
+      const buf = (!ms && b.buffer > 0) ? `<span style="position:absolute;right:0;top:0;bottom:0;width:${r2(b.buffer / (100 + b.buffer) * 100)}%;border-left:1px dashed ${f.b};background:repeating-linear-gradient(135deg,rgba(15,23,42,0.22) 0,rgba(15,23,42,0.22) 3px,transparent 3px,transparent 6px);"></span>` : "";
       const mark = ms
         ? `<div class="pp-b" title="${tip}" style="position:absolute;left:${pct(x)};top:${(ROW - 18) / 2}px;width:18px;height:18px;margin-left:-9px;"><div style="position:absolute;left:2px;top:2px;right:2px;bottom:2px;box-sizing:border-box;transform:rotate(45deg);border-radius:2px;background:${f.bg};border:${Math.max(1.5, f.w)}px solid ${f.b};"></div></div>`
         : `<div class="pp-b" title="${tip}" style="position:absolute;left:${pct(x)};width:${pct(wEnd - x)};min-width:3px;top:${(ROW - BAR) / 2}px;height:${BAR}px;box-sizing:border-box;overflow:hidden;border-radius:5px;background:${f.bg};border:${f.w}px solid ${f.b};color:${C.ink};font-size:11.5px;font-weight:550;line-height:${BAR - 2 * f.w}px;padding:0 7px;white-space:nowrap;">${buf}${inside ? `<span style="position:relative;">${tlhEsc(label)}</span>` : ""}</div>`;
@@ -9603,11 +9606,11 @@ ${prow}
       const rowBg = stripe++ % 2 ? "background-color:rgba(246,248,250,0.7);" : "";
       return `<div class="pp-row" style="display:flex;height:${ROW}px;">
 <div style="flex:0 0 ${IDW}px;width:${IDW}px;box-sizing:border-box;display:flex;align-items:center;gap:6px;padding:0 8px;border-right:1px solid ${C.lineS};border-bottom:1px solid ${lastRow ? C.lineS : C.grid};background:#ffffff;overflow:hidden;white-space:nowrap;">${tail ? `<span style="display:inline-block;flex:none;box-sizing:border-box;height:15px;line-height:13px;padding:0 4px;border:1px solid ${C.lineS};border-radius:7.5px;background:${C.surface};color:${C.soft};font-size:9px;font-weight:700;${MONO}">WP${tailWp[b.id]}</span>` : ""}<span style="${MONO}font-size:10px;font-weight:600;color:${C.muted};flex:none;min-width:24px;" title="${tlhEsc(code.code || "")}">${tlhEsc(code.short || code.code || "")}</span>${statusIcon(st)}${o.names ? `<span style="font-size:12px;color:${st === "done" ? C.muted : C.ink};overflow:hidden;text-overflow:ellipsis;">${tlhEsc(label)}</span>` : ""}</div>
-<div class="pp-track" style="flex:0 0 ${TRACK}px;width:${TRACK}px;position:relative;overflow:hidden;box-sizing:border-box;border-bottom:1px solid ${C.grid};${rowBg}${gridBg}">${pills.map(p => p.html).join("")}${mark}${outside}</div></div>`;
+<div class="pp-track" style="flex:1 1 ${TRACK}px;min-width:${TRACK}px;position:relative;overflow:hidden;box-sizing:border-box;border-bottom:1px solid ${C.grid};${rowBg}${gridBg}">${pills.map(p => p.html).join("")}${mark}${outside}</div></div>`;
     }).join("\n");
     rows.push(`<div class="pp-wp" style="display:flex;">
 <div class="pp-wpstrip" title="${tlhEsc(wpLabel(lane.code || ""))}" style="flex:0 0 ${STRIP}px;width:${STRIP}px;box-sizing:border-box;padding:5px 8px 5px 10px;background:${C.surface};border-left:4px solid ${rail};border-right:1px solid ${C.lineS};border-bottom:1px solid ${C.lineS};overflow:hidden;"><div style="font-size:11px;font-weight:800;letter-spacing:0.04em;line-height:15px;color:${C.ink};">${tail ? "Milestones" : `WP${laneIdx + 1}`}</div><div style="font-size:11.5px;font-weight:600;line-height:14px;color:${C.soft};word-break:break-word;">${tail ? `${bars.length} across all WPs` : tlhEsc(wpName)}</div></div>
-<div style="flex:0 0 ${IDW + TRACK}px;width:${IDW + TRACK}px;">
+<div style="flex:1 1 ${IDW + TRACK}px;min-width:${IDW + TRACK}px;">
 ${taskRows}
 </div></div>`);
   }
@@ -9625,13 +9628,13 @@ ${taskRows}
       const trunk = Math.min(x1 + 7, Math.max(x1 + 3, x2 - 7));
       const d = x2 >= x1 + 10 ? `M${x1} ${y1}H${trunk}V${y2}H${x2}` : `M${x1} ${y1}H${x1 + 6}V${r2((y1 + y2) / 2)}H${x2 - 6}V${y2}H${x2}`;
       const late = x2 < x1;   // starts before its predecessor ends: dashed
-      return `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.3" stroke-linejoin="round"${late ? ' stroke-dasharray="3 2"' : ""} opacity="0.8"><title>${tlhEsc(((codes[e.pred] || {}).short || "") + " \u2192 " + ((codes[e.succ] || {}).short || ""))}</title></path><circle cx="${x1}" cy="${y1}" r="2" fill="${col}"/>`;
+      return `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.3" stroke-linejoin="round" vector-effect="non-scaling-stroke"${late ? ' stroke-dasharray="3 2"' : ""} opacity="0.8"><title>${tlhEsc(((codes[e.pred] || {}).short || "") + " \u2192 " + ((codes[e.succ] || {}).short || ""))}</title></path><path d="M${x1} ${y1}h0" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
     }).join("");
-    routes = `<svg xmlns="http://www.w3.org/2000/svg" width="${TRACK}" height="${stripe * ROW}" viewBox="0 0 ${TRACK} ${stripe * ROW}" style="position:absolute;left:${LABW}px;top:${HEAD_H}px;pointer-events:none;overflow:visible;">${paths}</svg>`;
+    routes = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="${stripe * ROW}" viewBox="0 0 ${TRACK} ${stripe * ROW}" preserveAspectRatio="none" style="position:absolute;left:${LABW}px;width:calc(100% - ${LABW}px);top:${HEAD_H}px;pointer-events:none;overflow:visible;">${paths}</svg>`;
   }
   const overlay = lines.length
-    ? `<div style="position:absolute;top:${HEAD_H}px;bottom:0;left:${LABW}px;width:${TRACK}px;pointer-events:none;">${lines.map(l =>
-      `${l.today ? `<div style="position:absolute;left:${pct(l.at)};top:0;bottom:0;width:${pct(7 / 30.4)};background:rgba(219,39,119,0.09);"></div>` : ""}<div style="position:absolute;left:${pct(l.at)};top:0;bottom:0;width:0;border-left:${l.w}px solid ${l.color};"><span style="position:absolute;top:4px;left:5px;padding:${l.today ? "2px 10px" : "1px 7px"};border-radius:999px;white-space:nowrap;font-size:${l.today ? 12 : 11}px;font-weight:${l.today ? 800 : 700};line-height:${l.today ? 16 : 15}px;color:${l.text};background:${l.color};">${l.today ? l.label : tlhEsc(l.label)}</span></div>`).join("")}</div>`
+    ? `<div style="position:absolute;top:${HEAD_H}px;bottom:0;left:${LABW}px;right:0;pointer-events:none;">${lines.map(l =>
+      `${l.today ? `<div${live ? ' class="pp-today"' : ""} style="position:absolute;left:${pct(l.at)};top:0;bottom:0;width:${pct(7 / 30.4)};background:rgba(219,39,119,0.09);${l.hidden ? "display:none;" : ""}"></div>` : ""}<div${l.today && live ? ' class="pp-today"' : ""} style="position:absolute;left:${pct(l.at)};top:0;bottom:0;width:0;border-left:${l.w}px solid ${l.color};${l.hidden ? "display:none;" : ""}"><span${l.today && live ? ' class="pp-today-l"' : ""} style="position:absolute;top:4px;left:5px;padding:${l.today ? "2px 10px" : "1px 7px"};border-radius:999px;white-space:nowrap;font-size:${l.today ? 12 : 11}px;font-weight:${l.today ? 800 : 700};line-height:${l.today ? 16 : 15}px;color:${l.text};background:${l.color};">${l.today ? l.label : tlhEsc(l.label)}</span></div>`).join("")}</div>`
     : "";
 
   // Optional hover highlight. Pure CSS (no script) and it only ever ADDS emphasis: where a host strips <style> the export is identical, just without the hover.
@@ -9644,16 +9647,18 @@ ${taskRows}
 .pp-tl .pp-pill:hover { box-shadow:0 0 0 2px #0f172a; z-index:3; }
 </style>
 ` : "";
-  const fragment = `${hoverCss}<div class="pp-tl" style="${FONT}color:${C.ink};-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+  // Live "today": positions the line/band/pill for whoever is VIEWING the page (re-checked every minute) and hides them when today is outside the exported months. Data comes from the data-* attributes.
+  const liveJs = live ? `<script>(function(){var r=document.currentScript.parentNode,s=r.getAttribute("data-pp-start").split("-"),n=+r.getAttribute("data-pp-n"),M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];function u(){var t=new Date(),i=(t.getFullYear()-s[0])*12+(t.getMonth()+1-s[1])+(t.getDate()-1)/new Date(t.getFullYear(),t.getMonth()+1,0).getDate(),e=r.querySelectorAll(".pp-today"),k,l=r.querySelectorAll(".pp-today-l");for(k=0;k<e.length;k++){e[k].style.display=(i<0||i>n)?"none":"";e[k].style.left=(i/n*100)+"%"}for(k=0;k<l.length;k++)l[k].textContent="Today \u00B7 "+t.getDate()+" "+M[t.getMonth()]}u();setInterval(u,60000)})();<\/script>` : "";   // the closing tag is written `<\/script>`: spelled plainly it would end ProPlan.html's own script block when the core is inlined
+  const fragment = `${hoverCss}<div class="pp-tl"${live ? ` data-pp-start="${tlhEsc(String(s.start || "").slice(0, 7))}" data-pp-n="${total}"` : ""} style="${FONT}color:${C.ink};-webkit-print-color-adjust:exact;print-color-adjust:exact;">
 <div style="font-size:20px;font-weight:700;margin:0 0 2px;">${tlhEsc(title)}</div>
 <div style="font-size:12px;color:${C.muted};margin:0 0 8px;">${metaBits.join(" &middot; ")}</div>
 <div style="font-size:12px;margin:0 0 10px;">${legend}</div>
 <div style="overflow-x:auto;max-width:100%;border:1px solid ${C.lineS};border-radius:8px;">
-<div style="width:${LABW + TRACK}px;position:relative;background:#ffffff;">
+<div style="min-width:${LABW + TRACK}px;position:relative;background:#ffffff;">
 ${head}
 ${rows.join("\n")}
 ${routes}${overlay}
-</div></div></div>`;
+</div></div>${liveJs}</div>`;
 
   if (o.mode !== "page") return fragment;
   return `<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${tlhEsc(title)}</title></head><body style="margin:16px;background:#ffffff;">\n${fragment}\n</body></html>\n`;
@@ -9661,7 +9666,7 @@ ${routes}${overlay}
 const Core = { WEEKS_PER_MONTH, PHASE_ORDER, PHASE_CODES_IN_ORDER, MONTH_NAMES, DEFAULT_PROCESS_ID, SOP18_PROCESS, STAGE_GATE_PROCESS, NO_PROCESS, validateProcessDef, registerProcess, unregisterProcess, getProcessById, listProcesses, exportProcessDef, serializeCustomProcesses, loadCustomProcesses, getProcess, isProcessResolved, processPhase, processPhaseIndex, gateLabel, mapPhaseCode, planProcessSwitch, applyProcessSwitch, NAV_VIEWS, NAV_LAYOUT, MENU_BAR, navViewIds, navGroupOfView, normalizeBetaViews, menuCommandIds, PROJECT_FILE_FORMAT, PROJECT_FILE_VERSION, PROJECT_FILE_EXT, projectFileSlug, isSafeProjectFilename, uniqueProjectFilename, serializeProjectFile, parseProjectFile, isFileNewerThanLocal, PROPOSAL_HOURS_PER_WEEK, TYPES, LANE_TRACKS, TRACK_DEFAULTS, SYSTEM_TRACK_SEEDS, NEW_PRODUCT_COLOR_PALETTE, enabledTracks, isTrackEnabled, barTrack, barTracks, getProductTracks, getContinuousTracks, getTrackById, getTrackActivePhase, setTrackActivePhase, defaultColorForNewTrack, addProduct, removeTrack, renameTrack, NEW_DISCIPLINE_COLOR_PALETTE, getDisciplines, getDisciplineById, addDiscipline, removeDiscipline, renameDiscipline, defaultColorForNewDiscipline, barDiscipline, lid, bid, parseYM, toDateInputValue, monthsBetween, projectSpanWeeks, syncOngoingBars, syncFollowsEndOf, effSpan, barAllocPct, effortWeeks, rnd1, fmtDur, laneEffWeeks, wpNameOnly, wpLabel, renumberWPs: _core_renumberWPs, normaliseState, spansToWeeks, buildBarMap: _core_buildBarMap, isBleedingBar: _core_isBleedingBar, phaseSpanCodes: _core_phaseSpanCodes, computePhaseRanges: _core_computePhaseRanges, computeAllProductPhaseRanges, computePhaseGates: _core_computePhaseGates, computeAllProductPhaseGates, enforcePhaseOrder: _core_enforcePhaseOrder, topoOrder, createsCycle, autoSequence: _core_autoSequence, packLaneRows, proposalBarCountsForHours: _core_proposalBarCountsForHours, barHoursDist, ACTIVITY_LOG_CAP, isDay, localDay, laneProgress, projectProgress, setBarDone, setBarStatus, barStatus, BAR_STATUSES, setLaneDone, setLaneNote, recentActivity, groupActivityByDay, completionSummary, completionSeries, burndownAddDays, burndownDaysBetween, burndownStartDay, burndownWeekOf, burndownValueAt, burndownInclude, burndownTasks, burndownForecast, burndownSeries, burndownSequence, BUILD_HISTORY_CAP, parseSemver, bumpVersion, compareSemver, formatCommit, makeBuildEntry, appendBuildHistory, nextBuildNumber, formatVersionLabel, formatBuildInfo, changelogStub, insertChangelogEntry, ALT_ROW_H, ALT_MS_ROW_H, ALT_MS_WIDE_W, ALT_MS_WIDE_H, ALT_LANE_H, ALT_BAR_H, ALT_EDGE_PX, ALT_MIN_EFF_WEEKS, ALT_GRIDS, ALT_TOOLS, ALT_TYPE_DIGITS, ALT_CURSORS, ALT_BULK_FIELDS, ALT_ZOOM_MIN, ALT_ZOOM_MAX, altToolById, altToolForKey, altToolAllowed, altResolveTool, altSwitchTool, altBarRect, altLayout, altRowAt, altWeekAt, altHitTest, altNormBox, altMarqueeSelect, altSelectClick, altSnapGrid, altEdgeWeeks, altSnapPoint, altSnapMove, altZoomColW, altZoomToRange, altBeginGesture, altFrozenReason, altSnapshot, altMoveBars, altResizeBar, altCreateBar, altAddEndMilestone, altSplitBar, altLinkBars, altUnlinkBars, altDeleteBars, altDuplicateBars, altBulkEdit, altAlignBars, altSelectionSummary, altBarDates, altDateAtIdx, altMilestoneDate, altStartIdxFromDate, TIMELINE_CONTROLS, launchMarkers, exportTimelineHtml, altTaskCodes, altDepEdges, TIMELINE_CONTROL_VIEWS, timelineControlsFor, VIEW_DEFAULTS, VIEW_PRESETS, VIEW_MONTH_PRESETS, viewPresetById, matchViewPreset, viewPresetPatch, ALT_MONTHS_MIN, ALT_MONTHS_MAX, ALT_MONTHS_LADDER, ALT_COLW_MIN, altClampMonths, altEffMonths, altColWForMonths, altMonthsStep, altMonthsForSpan, altParseMonths, altFitMonths };
 // === END INLINED proplan-core.mjs ===
 // === BEGIN BUILD_INFO ===
-const BUILD_INFO = {"build":154,"version":"0.3.0","date":"2026-10-20T13:01:47.760Z","commit":"7a7ee47","dirty":true,"branch":"add-testing","testsPassing":442,"recent":[{"build":154,"version":"0.3.0","date":"2026-10-20T13:01:47.760Z","commit":"7a7ee47","dirty":true,"branch":"add-testing","testsPassing":442},{"build":153,"version":"0.3.0","date":"2026-10-20T13:01:20.263Z","commit":"7a7ee47","dirty":true,"branch":"add-testing"},{"build":152,"version":"0.3.0","date":"2026-10-20T13:01:15.736Z","commit":"7a7ee47","dirty":true,"branch":"add-testing"},{"build":151,"version":"0.3.0","date":"2026-10-20T12:59:00.634Z","commit":"7a7ee47","dirty":true,"branch":"add-testing","testsPassing":442},{"build":150,"version":"0.3.0","date":"2026-10-20T12:58:47.835Z","commit":"7a7ee47","dirty":true,"branch":"add-testing"},{"build":149,"version":"0.2.0","date":"2026-10-20T12:56:04.948Z","commit":"7a7ee47","dirty":true,"branch":"add-testing"},{"build":148,"version":"0.2.0","date":"2026-10-20T12:11:55.310Z","commit":"7a7ee47","dirty":true,"branch":"add-testing"},{"build":147,"version":"0.2.0","date":"2026-10-20T12:08:23.669Z","commit":"7a7ee47","dirty":true,"branch":"add-testing"},{"build":146,"version":"0.2.0","date":"2026-10-20T12:06:50.767Z","commit":"7a7ee47","dirty":true,"branch":"add-testing"},{"build":145,"version":"0.2.0","date":"2026-10-20T12:02:59.436Z","commit":"7a7ee47","dirty":true,"branch":"add-testing"}]};
+const BUILD_INFO = {"build":160,"version":"0.3.0","date":"2026-10-27T09:34:16.900Z","commit":"b69879f","dirty":true,"branch":"add-testing","recent":[{"build":160,"version":"0.3.0","date":"2026-10-27T09:34:16.900Z","commit":"b69879f","dirty":true,"branch":"add-testing"},{"build":159,"version":"0.3.0","date":"2026-10-27T09:34:00.879Z","commit":"b69879f","dirty":true,"branch":"add-testing"},{"build":158,"version":"0.3.0","date":"2026-10-27T09:33:24.912Z","commit":"b69879f","dirty":true,"branch":"add-testing"},{"build":157,"version":"0.3.0","date":"2026-10-27T09:33:06.637Z","commit":"b69879f","dirty":true,"branch":"add-testing"},{"build":156,"version":"0.3.0","date":"2026-10-26T12:55:00.797Z","commit":"b69879f","dirty":true,"branch":"add-testing"},{"build":155,"version":"0.3.0","date":"2026-10-26T12:53:22.274Z","commit":"b69879f","dirty":true,"branch":"add-testing"},{"build":154,"version":"0.3.0","date":"2026-10-20T13:01:47.760Z","commit":"7a7ee47","dirty":true,"branch":"add-testing","testsPassing":442},{"build":153,"version":"0.3.0","date":"2026-10-20T13:01:20.263Z","commit":"7a7ee47","dirty":true,"branch":"add-testing"},{"build":152,"version":"0.3.0","date":"2026-10-20T13:01:15.736Z","commit":"7a7ee47","dirty":true,"branch":"add-testing"},{"build":151,"version":"0.3.0","date":"2026-10-20T12:59:00.634Z","commit":"7a7ee47","dirty":true,"branch":"add-testing","testsPassing":442}]};
 // === END BUILD_INFO ===
 // Expose the Core namespace for debug. NOT Object.assign(window, Core) —
 // that would overwrite the hoisted wrapper functions (buildBarMap,
@@ -10048,7 +10053,7 @@ function thxSeed() {
   return {
     mode: "fragment", title: "", track: "all", lane: "all", zoom: 0, from: "", trim: false,
     useFilters: !!vis.filterId || (vis.trackFilter && vis.trackFilter !== "all"),
-    today: atVcDispOn("todayToggle"), compact: false, hover: true,
+    today: atVcDispOn("todayToggle"), todayLive: true, compact: false, hover: true,
     ms: isShowMilestones(), msMode: atMsMode(), msNames: atMsNames(), names: atNamesShown(),
     pills: atDepPillsOn(), routes: false,
   };
@@ -10064,7 +10069,7 @@ function thxOptions(tx) {
     mode: tx.mode, title: tx.title.trim() || activeProject().name || "ProPlan",
     deps: tx.pills, routes: tx.routes, showMilestones: tx.ms, compact: tx.compact, names: tx.names, hover: tx.hover,
     milestonesAtBottom: tx.msMode !== "0", milestonesPacked: tx.msMode === "2", msNames: tx.msNames,
-    today: tx.today ? Core.localDay() : null,
+    today: tx.today ? Core.localDay() : null, todayLive: !!tx.todayLive,
   };
   // Zoom = months shown (like the Timeline's Zoom): 0 = whole project, N months from `from`, "fit" = through the month the last task ends in, +1. Trim = first task month → last task month.
   const months = thxMonthList();
@@ -10110,7 +10115,7 @@ function openTimelineHtmlExport() {
     const showBody = row("Track", sel("track", tx.track, [["all", "All tracks"], ...tracks.map(t => [t.id, t.label || t.id])])) +
       row("Work package", sel("lane", tx.lane, [["all", "All WPs"], ...state.lanes.map((l, i) => [l.id, `WP${i + 1} · ${Core.wpNameOnly(l.code)}`])])) +
       `<div class="vc-row full"><div class="vc-tgl">${tgl("useFilters", "Timeline filters", tx.useFilters, "Also apply the Track / Disciplines / Focus WP filters currently set on the Timeline")}</div></div>`;
-    const dispBody = `<div class="vc-row full"><div class="vc-tgl">${tgl("today", "Today", tx.today, "Today line", "today")}${tgl("ms", "Milestones", tx.ms, "Show milestones", "milestone")}${tgl("compact", "Compact", tx.compact, "Shorter rows (hides the dependency pills)", "compact")}${tgl("hover", "Hover", tx.hover, "Highlight blocks and rows on mouse-over (a small CSS block; ignored where a host strips it)")}</div></div>`;
+    const dispBody = `<div class="vc-row full"><div class="vc-tgl">${tgl("today", "Today", tx.today, "Today line", "today")}${tx.today ? tgl("todayLive", "Live today", tx.todayLive, "The line follows the day it is VIEWED on (a tiny script; where a host strips scripts it stays at the export day)", "today") : ""}${tgl("ms", "Milestones", tx.ms, "Show milestones", "milestone")}${tgl("compact", "Compact", tx.compact, "Shorter rows (hides the dependency pills)", "compact")}${tgl("hover", "Hover", tx.hover, "Highlight blocks and rows on mouse-over (a small CSS block; ignored where a host strips it)")}</div></div>`;
     const depBody = `<div class="vc-row full"><div class="vc-tgl">${tgl("routes", "Lines", tx.routes, "Draw the dependency routes (right-angle lines)", "arrows")}${tgl("pills", "Pills", tx.pills, "Dependency pills — the task-code tags at a block's ends", "milestone")}</div></div>`;
     const labBody = row("Milestones", seg("msMode", tx.msMode, [["0", "With tasks"], ["1", "Bottom", "Bottom section, one row each"], ["2", "Packed β", "Beta: several per row, WP number in the diamond"]], "Where milestones are drawn")) +
       (tx.msMode === "2" ? row("Packed", seg("msNames", tx.msNames ? "1" : "0", [["1", "Names"], ["0", "Numbers", "Just the WP number; the name is the tooltip"]], "Packed milestone names")) : "") +

@@ -3367,7 +3367,7 @@ function tlhRanged(state, o) {
 export function exportTimelineHtml(state, opts = {}) {
   const o0 = opts || {};
   if ((o0.range === "planned" || o0.range === "custom") && !o0._ranged) return tlhRanged(state, o0);
-  const o = Object.assign({ mode: "fragment", deps: true, showMilestones: true, compact: false, names: false, hover: false, milestonesAtBottom: false, milestonesPacked: false, msNames: true, routes: false }, o0);
+  const o = Object.assign({ mode: "fragment", deps: true, showMilestones: true, compact: false, names: false, hover: false, todayLive: true, milestonesAtBottom: false, milestonesPacked: false, msNames: true, routes: false }, o0);
   if (o.milestonesPacked) o.milestonesAtBottom = true;   // packed is a layout of the bottom section
   const s = state || {};
   const months = monthsBetween(s.start, s.end);
@@ -3377,11 +3377,12 @@ export function exportTimelineHtml(state, opts = {}) {
   // Geometry mirrors the Timeline tab: 22px rows, 18px blocks, a 112px WP strip + a 66px ID/status column.
   const ROW = o.compact ? 20 : 22, BAR = o.compact ? 14 : 18, STRIP = 112, IDW = o.names ? 250 : (o.milestonesAtBottom && !o.milestonesPacked ? 96 : 66), LABW = STRIP + IDW;
   const MIN_TRACK = 900 - LABW;
-  // FIXED pixel geometry: the table is exactly LABW + TRACK px wide wherever it is pasted (a narrower page scrolls it, it is never squeezed), so every block, pill and label keeps its shape and the text-fit maths below is exact.
-  const TRACK = Math.max(MIN_TRACK, total * 52);
+  // FLUID with a minimum: the track fills the page (positions/widths are % of it) but never gets narrower than TRACK px — a narrower page (or a very long timeline: months × 52) scrolls instead of squeezing. All px geometry below is computed AT that minimum, so label-fit decisions hold at any wider size (blocks only get wider).
+  const TRACK = Math.max(MIN_TRACK, total * 28);
   const r2 = (v) => Math.round(v * 100) / 100;
   const X = (v) => r2(Math.max(0, Math.min(total, v)) / total * TRACK);   // months from the start -> px
-  const pct = (v) => `${X(v)}px`;
+  const pct = (v) => `${r2(Math.max(0, Math.min(total, v)) / total * 100)}%`;      // months -> % of the track
+  const P = (px) => `${r2(px / TRACK * 100)}%`;                                    // design px -> % of the track
   const FONT = "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;";
   const MONO = "font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;";
   // The app's light-theme tokens, flattened (Confluence has no CSS variables / color-mix).
@@ -3436,7 +3437,9 @@ export function exportTimelineHtml(state, opts = {}) {
   const lines = [];
   for (const mk of launchMarkers(s)) if (mk.at >= 0 && mk.at <= total) lines.push({ at: mk.at, label: `\u{1F680} ${mk.label}`, color: tlhColor(mk.color, "#16a34a"), text: "#ffffff", w: 2 });
   const todayAt = o.today ? tlhDayAt(startYM, o.today) : null;
-  if (todayAt != null && todayAt >= 0 && todayAt <= total) lines.push({ at: todayAt, label: `Today \u00B7 ${tlhEsc(String(o.today).slice(8))} ${MONTH_NAMES[Number(String(o.today).slice(5, 7)) - 1] || ""}`, color: "#db2777", text: "#ffffff", w: 2.5, today: true });
+  const live = !!(o.today && o.todayLive);   // the line moves to the VIEWER's today (tiny inline script); the export-day position is the fallback where scripts are stripped
+  if (live && !(todayAt != null && todayAt >= 0 && todayAt <= total)) lines.push({ at: 0, hidden: true, label: "Today", color: "#db2777", text: "#ffffff", w: 2.5, today: true });
+  else if (todayAt != null && todayAt >= 0 && todayAt <= total) lines.push({ at: todayAt, label: `Today \u00B7 ${tlhEsc(String(o.today).slice(8))} ${MONTH_NAMES[Number(String(o.today).slice(5, 7)) - 1] || ""}`, color: "#db2777", text: "#ffffff", w: 2.5, today: true });
 
   const metaBits = [`Start: ${tlhEsc(s.start || "")}`, `End: ${tlhEsc(s.end || "")}`];
   for (const mk of launchMarkers(s)) metaBits.push(`${tlhEsc(mk.label)}: ${tlhEsc(mk.day)}`);
@@ -3453,16 +3456,16 @@ export function exportTimelineHtml(state, opts = {}) {
   // Header: dark year bar + month row, over the track column; "WORK PACKAGE · ID" corner on the left.
   const yearCells = [];
   months.forEach(mm => { const last = yearCells[yearCells.length - 1]; if (last && last.y === mm.y) last.n++; else yearCells.push({ y: mm.y, n: 1 }); });
-  const cellW = (n) => `${r2(n / total * TRACK)}px`;
+  const cellW = (n) => `${r2(n / total * 100)}%`;
   const initialsOnly = total > 18;
   const HEAD_H = 44;
   const head = `<div style="display:flex;height:${HEAD_H}px;border-bottom:1px solid ${C.lineS};">
 <div style="flex:0 0 ${LABW}px;width:${LABW}px;box-sizing:border-box;padding:0 8px;background:${C.surface};border-right:1px solid ${C.lineS};font-size:10.5px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:${C.muted};line-height:${HEAD_H}px;white-space:nowrap;">Work package &middot; ID</div>
-<div style="flex:0 0 ${TRACK}px;width:${TRACK}px;">
+<div style="flex:1 1 ${TRACK}px;min-width:${TRACK}px;">
 <div style="display:flex;height:22px;background:#0f172a;">${yearCells.map(y => `<span style="display:block;width:${cellW(y.n)};box-sizing:border-box;overflow:hidden;white-space:nowrap;padding:2px 8px;font-size:11.5px;font-weight:600;line-height:18px;color:#ffffff;border-right:1px solid ${C.line};">${y.n >= 2 ? y.y : ""}</span>`).join("")}</div>
 <div style="display:flex;height:22px;background:${C.surface};">${months.map(mm => `<span style="display:block;width:${cellW(1)};box-sizing:border-box;overflow:hidden;white-space:nowrap;padding:3px 6px;font-size:11px;line-height:16px;color:${C.soft};border-right:1px solid ${C.grid};">${initialsOnly ? MONTH_NAMES[mm.m - 1][0] : MONTH_NAMES[mm.m - 1]}</span>`).join("")}</div>
 </div></div>`;
-  const gridBg = `background-image:linear-gradient(to right,${C.grid} 1px,transparent 1px);background-size:${r2(TRACK / total)}px 100%;`;
+  const gridBg = `background-image:linear-gradient(to right,${C.grid} 1px,transparent 1px);background-size:${r2(100 / total)}% 100%;`;
 
   const rows = [], geom = {};
   let stripe = 0;
@@ -3491,19 +3494,19 @@ export function exportTimelineHtml(state, opts = {}) {
           let dates = ""; try { dates = altMilestoneDate(s, b); } catch { /* ignore */ }
           const tip = tlhEsc(`${cd.code || ""} ${b.label || ""} (${dates})`);
           geom[b.id] = { row: stripe, x0: px, x1: px + tw, ms: true, hw: 1 };
-          const name = o.msNames ? `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;${flip ? `right:${r2(TRACK - px + 8)}px;` : `left:${r2(px + tw + 8)}px;`}white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>` : "";
+          const name = o.msNames ? `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;${flip ? `right:calc(${P(TRACK - px)} + 8px);` : `left:calc(${P(px)} + ${tw + 8}px);`}white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>` : "";
           const hh = 20, k = 8;
-          return `<div class="pp-b" title="${tip}" style="position:absolute;left:${r2(px)}px;top:${(ROW - hh) / 2}px;width:${tw}px;height:${hh}px;"><svg xmlns="http://www.w3.org/2000/svg" width="${tw}" height="${hh}" viewBox="0 0 ${tw} ${hh}" style="position:absolute;left:0;top:-1px;display:block;overflow:visible;"><line x1="0.8" y1="-1.5" x2="0.8" y2="${hh + 1.5}" stroke="${f.b}" stroke-width="1.6" stroke-linecap="round"/><circle cx="0.8" cy="${hh / 2}" r="2.6" fill="${f.b}"/><polygon points="1.6,${hh / 2} ${k},1.3 ${tw - k},1.3 ${tw - 1.3},${hh / 2} ${tw - k},${hh - 1.3} ${k},${hh - 1.3}" fill="${f.bg}" stroke="${f.b}" stroke-width="${Math.max(1.5, f.w)}" stroke-linejoin="round"/></svg><span style="position:absolute;left:0;top:-1px;width:${tw}px;height:${hh}px;text-align:center;line-height:${hh}px;font-size:10px;font-weight:800;color:${C.ink};${MONO}">${tlhEsc(code)}</span></div>${name}`;
+          return `<div class="pp-b" title="${tip}" style="position:absolute;left:${P(px)};top:${(ROW - hh) / 2}px;width:${tw}px;height:${hh}px;"><svg xmlns="http://www.w3.org/2000/svg" width="${tw}" height="${hh}" viewBox="0 0 ${tw} ${hh}" style="position:absolute;left:0;top:-1px;display:block;overflow:visible;"><line x1="0.8" y1="-1.5" x2="0.8" y2="${hh + 1.5}" stroke="${f.b}" stroke-width="1.6" stroke-linecap="round"/><circle cx="0.8" cy="${hh / 2}" r="2.6" fill="${f.b}"/><polygon points="1.6,${hh / 2} ${k},1.3 ${tw - k},1.3 ${tw - 1.3},${hh / 2} ${tw - k},${hh - 1.3} ${k},${hh - 1.3}" fill="${f.bg}" stroke="${f.b}" stroke-width="${Math.max(1.5, f.w)}" stroke-linejoin="round"/></svg><span style="position:absolute;left:0;top:-1px;width:${tw}px;height:${hh}px;text-align:center;line-height:${hh}px;font-size:10px;font-weight:800;color:${C.ink};${MONO}">${tlhEsc(code)}</span></div>${name}`;
         }).join("");
         const lastRow = pi === packRows.length - 1;
         const rowBg = stripe++ % 2 ? "background-color:rgba(246,248,250,0.7);" : "";
         return `<div class="pp-row" style="display:flex;height:${ROW}px;">
 <div style="flex:0 0 ${IDW}px;width:${IDW}px;box-sizing:border-box;border-right:1px solid ${C.lineS};border-bottom:1px solid ${lastRow ? C.lineS : C.grid};background:#ffffff;"></div>
-<div class="pp-track" style="flex:0 0 ${TRACK}px;width:${TRACK}px;position:relative;overflow:hidden;box-sizing:border-box;border-bottom:1px solid ${C.grid};${rowBg}${gridBg}">${cells}</div></div>`;
+<div class="pp-track" style="flex:1 1 ${TRACK}px;min-width:${TRACK}px;position:relative;overflow:hidden;box-sizing:border-box;border-bottom:1px solid ${C.grid};${rowBg}${gridBg}">${cells}</div></div>`;
       }).join("\n");
       rows.push(`<div class="pp-wp" style="display:flex;">
 <div class="pp-wpstrip" title="Milestones from every work package" style="flex:0 0 ${STRIP}px;width:${STRIP}px;box-sizing:border-box;padding:5px 8px 5px 10px;background:${C.surface};border-left:4px solid ${rail};border-right:1px solid ${C.lineS};border-bottom:1px solid ${C.lineS};overflow:hidden;"><div style="font-size:11px;font-weight:800;letter-spacing:0.04em;line-height:15px;color:${C.ink};">Milestones</div><div style="font-size:11.5px;font-weight:600;line-height:14px;color:${C.soft};word-break:break-word;">${bars.length} across all WPs</div></div>
-<div style="flex:0 0 ${IDW + TRACK}px;width:${IDW + TRACK}px;">
+<div style="flex:1 1 ${IDW + TRACK}px;min-width:${IDW + TRACK}px;">
 ${prow}
 </div></div>`);
       continue;
@@ -3527,7 +3530,7 @@ ${prow}
         const pd = barById[e.pred] || {}, done = barStatus(pd) === "done";
         const txt = (codes[e.pred] || {}).short || "";
         const off = 6 + preds.slice(0, k).reduce((a, q) => a + PILL((codes[q.pred] || {}).short || "") + 3, 0);
-        return { html: `<span class="pp-pill" title="depends on ${tlhEsc(((codes[e.pred] || {}).code || "") + " " + (pd.label || ""))}" style="position:absolute;top:50%;margin-top:-7.5px;right:${r2(TRACK - x / total * TRACK + off)}px;height:15px;line-height:15px;padding:0 4.5px;box-sizing:border-box;border-radius:7.5px;background:${done ? C.doneB : colorOfPred[e.pred]};color:#ffffff;font-size:9.5px;font-weight:700;white-space:nowrap;${MONO}">${tlhEsc(txt)}</span>`, w: PILL(txt) + 3 };
+        return { html: `<span class="pp-pill" title="depends on ${tlhEsc(((codes[e.pred] || {}).code || "") + " " + (pd.label || ""))}" style="position:absolute;top:50%;margin-top:-7.5px;right:calc(${r2(100 - x / total * 100)}% + ${off}px);height:15px;line-height:15px;padding:0 4.5px;box-sizing:border-box;border-radius:7.5px;background:${done ? C.doneB : colorOfPred[e.pred]};color:#ffffff;font-size:9.5px;font-weight:700;white-space:nowrap;${MONO}">${tlhEsc(txt)}</span>`, w: PILL(txt) + 3 };
       });
       const pillsW = pills.reduce((a, p) => a + p.w, 0);
       // Name outside the block (never ellipsised): to the right, or to the LEFT of the block + its pills near the right edge.
@@ -3535,10 +3538,10 @@ ${prow}
       if (!inside && !o.names) {
         const rightRoom = (total - wEnd) / total * TRACK, flip = rightRoom < textW(label) + 16 && x / total * TRACK > textW(label) + pillsW + 16;
         outside = flip
-          ? `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;right:${r2(TRACK - x / total * TRACK + 8 + pillsW)}px;white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>`
-          : `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;left:${r2((ms ? x : wEnd) / total * TRACK + (ms ? 14 : 8))}px;white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>`;
+          ? `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;right:calc(${r2(100 - x / total * 100)}% + ${8 + pillsW}px);white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>`
+          : `<span style="position:absolute;top:0;height:${ROW}px;line-height:${ROW}px;left:calc(${r2((ms ? x : wEnd) / total * 100)}% + ${ms ? 14 : 8}px);white-space:nowrap;font-size:11.5px;font-weight:550;color:${C.ink};text-shadow:0 0 2px #fff,0 0 3px #fff;">${tlhEsc(label)}</span>`;
       }
-      const buf = (!ms && b.buffer > 0) ? `<span style="position:absolute;right:0;top:0;bottom:0;width:${r2(bufPx)}px;border-left:1px dashed ${f.b};background:repeating-linear-gradient(135deg,rgba(15,23,42,0.22) 0,rgba(15,23,42,0.22) 3px,transparent 3px,transparent 6px);"></span>` : "";
+      const buf = (!ms && b.buffer > 0) ? `<span style="position:absolute;right:0;top:0;bottom:0;width:${r2(b.buffer / (100 + b.buffer) * 100)}%;border-left:1px dashed ${f.b};background:repeating-linear-gradient(135deg,rgba(15,23,42,0.22) 0,rgba(15,23,42,0.22) 3px,transparent 3px,transparent 6px);"></span>` : "";
       const mark = ms
         ? `<div class="pp-b" title="${tip}" style="position:absolute;left:${pct(x)};top:${(ROW - 18) / 2}px;width:18px;height:18px;margin-left:-9px;"><div style="position:absolute;left:2px;top:2px;right:2px;bottom:2px;box-sizing:border-box;transform:rotate(45deg);border-radius:2px;background:${f.bg};border:${Math.max(1.5, f.w)}px solid ${f.b};"></div></div>`
         : `<div class="pp-b" title="${tip}" style="position:absolute;left:${pct(x)};width:${pct(wEnd - x)};min-width:3px;top:${(ROW - BAR) / 2}px;height:${BAR}px;box-sizing:border-box;overflow:hidden;border-radius:5px;background:${f.bg};border:${f.w}px solid ${f.b};color:${C.ink};font-size:11.5px;font-weight:550;line-height:${BAR - 2 * f.w}px;padding:0 7px;white-space:nowrap;">${buf}${inside ? `<span style="position:relative;">${tlhEsc(label)}</span>` : ""}</div>`;
@@ -3546,11 +3549,11 @@ ${prow}
       const rowBg = stripe++ % 2 ? "background-color:rgba(246,248,250,0.7);" : "";
       return `<div class="pp-row" style="display:flex;height:${ROW}px;">
 <div style="flex:0 0 ${IDW}px;width:${IDW}px;box-sizing:border-box;display:flex;align-items:center;gap:6px;padding:0 8px;border-right:1px solid ${C.lineS};border-bottom:1px solid ${lastRow ? C.lineS : C.grid};background:#ffffff;overflow:hidden;white-space:nowrap;">${tail ? `<span style="display:inline-block;flex:none;box-sizing:border-box;height:15px;line-height:13px;padding:0 4px;border:1px solid ${C.lineS};border-radius:7.5px;background:${C.surface};color:${C.soft};font-size:9px;font-weight:700;${MONO}">WP${tailWp[b.id]}</span>` : ""}<span style="${MONO}font-size:10px;font-weight:600;color:${C.muted};flex:none;min-width:24px;" title="${tlhEsc(code.code || "")}">${tlhEsc(code.short || code.code || "")}</span>${statusIcon(st)}${o.names ? `<span style="font-size:12px;color:${st === "done" ? C.muted : C.ink};overflow:hidden;text-overflow:ellipsis;">${tlhEsc(label)}</span>` : ""}</div>
-<div class="pp-track" style="flex:0 0 ${TRACK}px;width:${TRACK}px;position:relative;overflow:hidden;box-sizing:border-box;border-bottom:1px solid ${C.grid};${rowBg}${gridBg}">${pills.map(p => p.html).join("")}${mark}${outside}</div></div>`;
+<div class="pp-track" style="flex:1 1 ${TRACK}px;min-width:${TRACK}px;position:relative;overflow:hidden;box-sizing:border-box;border-bottom:1px solid ${C.grid};${rowBg}${gridBg}">${pills.map(p => p.html).join("")}${mark}${outside}</div></div>`;
     }).join("\n");
     rows.push(`<div class="pp-wp" style="display:flex;">
 <div class="pp-wpstrip" title="${tlhEsc(wpLabel(lane.code || ""))}" style="flex:0 0 ${STRIP}px;width:${STRIP}px;box-sizing:border-box;padding:5px 8px 5px 10px;background:${C.surface};border-left:4px solid ${rail};border-right:1px solid ${C.lineS};border-bottom:1px solid ${C.lineS};overflow:hidden;"><div style="font-size:11px;font-weight:800;letter-spacing:0.04em;line-height:15px;color:${C.ink};">${tail ? "Milestones" : `WP${laneIdx + 1}`}</div><div style="font-size:11.5px;font-weight:600;line-height:14px;color:${C.soft};word-break:break-word;">${tail ? `${bars.length} across all WPs` : tlhEsc(wpName)}</div></div>
-<div style="flex:0 0 ${IDW + TRACK}px;width:${IDW + TRACK}px;">
+<div style="flex:1 1 ${IDW + TRACK}px;min-width:${IDW + TRACK}px;">
 ${taskRows}
 </div></div>`);
   }
@@ -3568,13 +3571,13 @@ ${taskRows}
       const trunk = Math.min(x1 + 7, Math.max(x1 + 3, x2 - 7));
       const d = x2 >= x1 + 10 ? `M${x1} ${y1}H${trunk}V${y2}H${x2}` : `M${x1} ${y1}H${x1 + 6}V${r2((y1 + y2) / 2)}H${x2 - 6}V${y2}H${x2}`;
       const late = x2 < x1;   // starts before its predecessor ends: dashed
-      return `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.3" stroke-linejoin="round"${late ? ' stroke-dasharray="3 2"' : ""} opacity="0.8"><title>${tlhEsc(((codes[e.pred] || {}).short || "") + " \u2192 " + ((codes[e.succ] || {}).short || ""))}</title></path><circle cx="${x1}" cy="${y1}" r="2" fill="${col}"/>`;
+      return `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.3" stroke-linejoin="round" vector-effect="non-scaling-stroke"${late ? ' stroke-dasharray="3 2"' : ""} opacity="0.8"><title>${tlhEsc(((codes[e.pred] || {}).short || "") + " \u2192 " + ((codes[e.succ] || {}).short || ""))}</title></path><path d="M${x1} ${y1}h0" fill="none" stroke="${col}" stroke-width="4" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
     }).join("");
-    routes = `<svg xmlns="http://www.w3.org/2000/svg" width="${TRACK}" height="${stripe * ROW}" viewBox="0 0 ${TRACK} ${stripe * ROW}" style="position:absolute;left:${LABW}px;top:${HEAD_H}px;pointer-events:none;overflow:visible;">${paths}</svg>`;
+    routes = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="${stripe * ROW}" viewBox="0 0 ${TRACK} ${stripe * ROW}" preserveAspectRatio="none" style="position:absolute;left:${LABW}px;width:calc(100% - ${LABW}px);top:${HEAD_H}px;pointer-events:none;overflow:visible;">${paths}</svg>`;
   }
   const overlay = lines.length
-    ? `<div style="position:absolute;top:${HEAD_H}px;bottom:0;left:${LABW}px;width:${TRACK}px;pointer-events:none;">${lines.map(l =>
-      `${l.today ? `<div style="position:absolute;left:${pct(l.at)};top:0;bottom:0;width:${pct(7 / 30.4)};background:rgba(219,39,119,0.09);"></div>` : ""}<div style="position:absolute;left:${pct(l.at)};top:0;bottom:0;width:0;border-left:${l.w}px solid ${l.color};"><span style="position:absolute;top:4px;left:5px;padding:${l.today ? "2px 10px" : "1px 7px"};border-radius:999px;white-space:nowrap;font-size:${l.today ? 12 : 11}px;font-weight:${l.today ? 800 : 700};line-height:${l.today ? 16 : 15}px;color:${l.text};background:${l.color};">${l.today ? l.label : tlhEsc(l.label)}</span></div>`).join("")}</div>`
+    ? `<div style="position:absolute;top:${HEAD_H}px;bottom:0;left:${LABW}px;right:0;pointer-events:none;">${lines.map(l =>
+      `${l.today ? `<div${live ? ' class="pp-today"' : ""} style="position:absolute;left:${pct(l.at)};top:0;bottom:0;width:${pct(7 / 30.4)};background:rgba(219,39,119,0.09);${l.hidden ? "display:none;" : ""}"></div>` : ""}<div${l.today && live ? ' class="pp-today"' : ""} style="position:absolute;left:${pct(l.at)};top:0;bottom:0;width:0;border-left:${l.w}px solid ${l.color};${l.hidden ? "display:none;" : ""}"><span${l.today && live ? ' class="pp-today-l"' : ""} style="position:absolute;top:4px;left:5px;padding:${l.today ? "2px 10px" : "1px 7px"};border-radius:999px;white-space:nowrap;font-size:${l.today ? 12 : 11}px;font-weight:${l.today ? 800 : 700};line-height:${l.today ? 16 : 15}px;color:${l.text};background:${l.color};">${l.today ? l.label : tlhEsc(l.label)}</span></div>`).join("")}</div>`
     : "";
 
   // Optional hover highlight. Pure CSS (no script) and it only ever ADDS emphasis: where a host strips <style> the export is identical, just without the hover.
@@ -3587,16 +3590,18 @@ ${taskRows}
 .pp-tl .pp-pill:hover { box-shadow:0 0 0 2px #0f172a; z-index:3; }
 </style>
 ` : "";
-  const fragment = `${hoverCss}<div class="pp-tl" style="${FONT}color:${C.ink};-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+  // Live "today": positions the line/band/pill for whoever is VIEWING the page (re-checked every minute) and hides them when today is outside the exported months. Data comes from the data-* attributes.
+  const liveJs = live ? `<script>(function(){var r=document.currentScript.parentNode,s=r.getAttribute("data-pp-start").split("-"),n=+r.getAttribute("data-pp-n"),M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];function u(){var t=new Date(),i=(t.getFullYear()-s[0])*12+(t.getMonth()+1-s[1])+(t.getDate()-1)/new Date(t.getFullYear(),t.getMonth()+1,0).getDate(),e=r.querySelectorAll(".pp-today"),k,l=r.querySelectorAll(".pp-today-l");for(k=0;k<e.length;k++){e[k].style.display=(i<0||i>n)?"none":"";e[k].style.left=(i/n*100)+"%"}for(k=0;k<l.length;k++)l[k].textContent="Today \u00B7 "+t.getDate()+" "+M[t.getMonth()]}u();setInterval(u,60000)})();<\/script>` : "";   // the closing tag is written `<\/script>`: spelled plainly it would end ProPlan.html's own script block when the core is inlined
+  const fragment = `${hoverCss}<div class="pp-tl"${live ? ` data-pp-start="${tlhEsc(String(s.start || "").slice(0, 7))}" data-pp-n="${total}"` : ""} style="${FONT}color:${C.ink};-webkit-print-color-adjust:exact;print-color-adjust:exact;">
 <div style="font-size:20px;font-weight:700;margin:0 0 2px;">${tlhEsc(title)}</div>
 <div style="font-size:12px;color:${C.muted};margin:0 0 8px;">${metaBits.join(" &middot; ")}</div>
 <div style="font-size:12px;margin:0 0 10px;">${legend}</div>
 <div style="overflow-x:auto;max-width:100%;border:1px solid ${C.lineS};border-radius:8px;">
-<div style="width:${LABW + TRACK}px;position:relative;background:#ffffff;">
+<div style="min-width:${LABW + TRACK}px;position:relative;background:#ffffff;">
 ${head}
 ${rows.join("\n")}
 ${routes}${overlay}
-</div></div></div>`;
+</div></div>${liveJs}</div>`;
 
   if (o.mode !== "page") return fragment;
   return `<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${tlhEsc(title)}</title></head><body style="margin:16px;background:#ffffff;">\n${fragment}\n</body></html>\n`;

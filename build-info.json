@@ -1,54 +1,6 @@
 {
-  "lastBuild": 154,
+  "lastBuild": 160,
   "history": [
-    {
-      "build": 105,
-      "version": "0.2.0",
-      "date": "2026-10-20T10:12:49.426Z",
-      "commit": "7a7ee47",
-      "dirty": true,
-      "branch": "add-testing"
-    },
-    {
-      "build": 106,
-      "version": "0.2.0",
-      "date": "2026-10-20T10:13:16.801Z",
-      "commit": "7a7ee47",
-      "dirty": true,
-      "branch": "add-testing"
-    },
-    {
-      "build": 107,
-      "version": "0.2.0",
-      "date": "2026-10-20T10:13:39.976Z",
-      "commit": "7a7ee47",
-      "dirty": true,
-      "branch": "add-testing"
-    },
-    {
-      "build": 108,
-      "version": "0.2.0",
-      "date": "2026-10-20T10:17:50.111Z",
-      "commit": "7a7ee47",
-      "dirty": true,
-      "branch": "add-testing"
-    },
-    {
-      "build": 109,
-      "version": "0.2.0",
-      "date": "2026-10-20T11:17:24.831Z",
-      "commit": "7a7ee47",
-      "dirty": true,
-      "branch": "add-testing"
-    },
-    {
-      "build": 110,
-      "version": "0.2.0",
-      "date": "2026-10-20T11:17:39.588Z",
-      "commit": "7a7ee47",
-      "dirty": true,
-      "branch": "add-testing"
-    },
     {
       "build": 111,
       "version": "0.2.0",
@@ -402,6 +354,54 @@
       "dirty": true,
       "branch": "add-testing",
       "testsPassing": 442
+    },
+    {
+      "build": 155,
+      "version": "0.3.0",
+      "date": "2026-10-26T12:53:22.274Z",
+      "commit": "b69879f",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 156,
+      "version": "0.3.0",
+      "date": "2026-10-26T12:55:00.797Z",
+      "commit": "b69879f",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 157,
+      "version": "0.3.0",
+      "date": "2026-10-27T09:33:06.637Z",
+      "commit": "b69879f",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 158,
+      "version": "0.3.0",
+      "date": "2026-10-27T09:33:24.912Z",
+      "commit": "b69879f",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 159,
+      "version": "0.3.0",
+      "date": "2026-10-27T09:34:00.879Z",
+      "commit": "b69879f",
+      "dirty": true,
+      "branch": "add-testing"
+    },
+    {
+      "build": 160,
+      "version": "0.3.0",
+      "date": "2026-10-27T09:34:16.900Z",
+      "commit": "b69879f",
+      "dirty": true,
+      "branch": "add-testing"
     }
   ]
 }
